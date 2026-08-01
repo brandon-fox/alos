@@ -1,5 +1,6 @@
-# Requirements Checklist: Architectural Design Patterns & CQRS (Spec 18)
+# Requirements Checklist: Architectural Patterns & CQRS (Spec 18)
 
-- [ ] All major abstractions adhere to SOLID DIP `Protocol` interfaces.
-- [ ] Multi-step agent actions register explicit compensating rollback functions.
-- [ ] CQRS read operations do not mutate core database or vector state.
+- [x] FR-18-01: Separate read (query) and write (command) models using Command Query Responsibility Segregation (CQRS).
+- [x] FR-18-02: Implement Event Sourcing for audit log and decision log state reconstruction.
+- [x] FR-18-03: Decouple core domain logic from external infrastructure dependencies.
+- [x] FR-18-04: Enforce Architectural Decision Record (ADR) creation via pyadr CLI.

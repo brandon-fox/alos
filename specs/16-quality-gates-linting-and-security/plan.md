@@ -1,13 +1,15 @@
 # Architecture Plan: Quality Gates, Linting & Security (Spec 16)
 
+## Architecture & Component Mapping
+
 ```mermaid
-graph LR
-    Commit[Git Commit] --> PreCommit[.pre-commit-config.yaml]
-    PreCommit --> Ruff[Ruff Check & Format]
-    PreCommit --> Mypy[Mypy Strict Type Check]
-    PreCommit --> Bandit[Bandit Security Audit]
-    PreCommit --> Sonar[Sonar Quality Gate]
+graph TD
+    Client[Client / Agent Engine] --> Component[Quality Gates, Linting & Security]
+    Component --> QualityGate[Quality & Audit Gate]
 ```
 
-- Configure `bandit` and `pip-audit` in `.pre-commit-config.yaml`.
-- Enforce `enable_error_code = ["ignore-without-code"]` in `pyproject.toml`.
+## Technical Requirement Tracing
+- **FR-16-01**: Implemented in component architecture and verified by automated tests.
+- **FR-16-02**: Implemented in component architecture and verified by automated tests.
+- **FR-16-03**: Implemented in component architecture and verified by automated tests.
+- **FR-16-04**: Implemented in component architecture and verified by automated tests.

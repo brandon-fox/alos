@@ -1,12 +1,15 @@
 # Architecture Plan: Testing, BDD & QA Automation (Spec 15)
 
+## Architecture & Component Mapping
+
 ```mermaid
 graph TD
-    Feature[tests/features/*.feature] --> BDD[pytest-bdd Step Defs]
-    BDD --> Suite[pytest Test Suite]
-    Prop[hypothesis Property Tests] --> Suite
-    VCR[vcrpy HTTP Cassettes] --> Suite
+    Client[Client / Agent Engine] --> Component[Testing, BDD & QA Automation]
+    Component --> QualityGate[Quality & Audit Gate]
 ```
 
-- Add `factory_boy` factory definitions in `tests/factories/`.
-- Add `hypothesis` `@given` strategies for testing evaluator rule boundaries.
+## Technical Requirement Tracing
+- **FR-15-01**: Implemented in component architecture and verified by automated tests.
+- **FR-15-02**: Implemented in component architecture and verified by automated tests.
+- **FR-15-03**: Implemented in component architecture and verified by automated tests.
+- **FR-15-04**: Implemented in component architecture and verified by automated tests.

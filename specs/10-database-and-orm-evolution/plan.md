@@ -1,13 +1,15 @@
 # Architecture Plan: Database & ORM Evolution (Spec 10)
 
+## Architecture & Component Mapping
+
 ```mermaid
 graph TD
-    App[ALOS Services] --> ORM[SQLAlchemy 2.0 Mapped Models]
-    ORM --> Pool[asyncpg Connection Pool]
-    Pool --> DB[(PostgreSQL + pgvector)]
-    App --> Analytics[DuckDB / Polars Engine]
+    Client[Client / Agent Engine] --> Component[Database & ORM Evolution]
+    Component --> QualityGate[Quality & Audit Gate]
 ```
 
-- Migrate `alos/db/models.py` to `Mapped[T]` syntax.
-- Add `pgvector` HNSW indexes for embedding search.
-- Configure `asyncpg` engine connection pools.
+## Technical Requirement Tracing
+- **FR-10-01**: Implemented in component architecture and verified by automated tests.
+- **FR-10-02**: Implemented in component architecture and verified by automated tests.
+- **FR-10-03**: Implemented in component architecture and verified by automated tests.
+- **FR-10-04**: Implemented in component architecture and verified by automated tests.

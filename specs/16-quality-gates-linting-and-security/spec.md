@@ -1,16 +1,21 @@
 # Feature Specification: Quality Gates, Linting & Security (Spec 16)
 
-## Executive Summary
-This specification defines the quality gate enforcement infrastructure using Ruff (`UP`, `B`, `SIM`, `PGH`, `RUF`), Mypy strict mode, `pre-commit` hooks, SonarQube/SonarCloud quality gates, `bandit` AST security scans, `pip-audit`, and Pyright strict type enforcement.
+**Feature Branch**: `16-quality-gates-linting-and-security`
+**Status**: Approved
 
-## Scope of Included Ideas (Ideas 71–80)
-71. Ruff Modernization Rules (`UP` pyupgrade)
-72. Ruff Bugbear (`B`) & Simplicity (`SIM`)
-73. Mypy `enable_error_code` strict flags
-74. `pre-commit` automated git hooks
-75. SonarQube / SonarCloud security and smell quality gates
-76. `bandit` AST static security analysis
-77. `pip-audit` / `safety` dependency CVE scanning
-78. Ruff `PGH004` bare `# noqa` disallowance
-79. Ruff `RUF100` unused `# noqa` removal
-80. Pyright / Pylance strict mode verification
+## User Stories & Functional Requirements
+
+### User Story 1: Core System Functionality
+- **As an** ALOS core engine component or developer,
+- **I want** Quality Gates, Linting & Security implemented according to architectural requirements,
+- **So that** system capabilities meet system specifications.
+
+## Functional Requirements
+- **FR-16-01**: Enforce zero undocumented # noqa or # type: ignore suppressions via pre-commit hooks.
+- **FR-16-02**: Execute Ruff linting and formatting on all python source and test files.
+- **FR-16-03**: Perform AST security vulnerability scans using Bandit.
+- **FR-16-04**: Pass Sonar code quality scans and quality gate criteria before release.
+
+## Acceptance Criteria
+1. All functional requirements (FR-16-01, FR-16-02, FR-16-03, FR-16-04) MUST be implemented and tested.
+2. System passes all automated pytest suites and quality gates.
