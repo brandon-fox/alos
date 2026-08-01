@@ -1,0 +1,43 @@
+name: ALOS CI Quality Gates
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv Package Manager
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install Dependencies
+        run: |
+          uv sync --extra dev
+
+      - name: Verify ADR Repository Governance
+        run: |
+          uv run pyadr check-adr-repo
+
+      - name: Run Ruff Lint & Format Checks
+        run: |
+          uv run ruff check alos tests
+
+      - name: Run Mypy Static Type Analysis
+        run: |
+          uv run mypy alos tests
+
+      - name: Run Pytest Test Suite
+        run: |
+          uv run pytest

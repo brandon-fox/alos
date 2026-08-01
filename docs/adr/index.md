@@ -14,6 +14,7 @@
 * [0008 - Integrate Obsidian Vault Brain Engine into ALOS Memory Architecture](0008-integrate-obsidian-vault-brain-engine-into-alos-memory-architecture.md)
 * [0009 - Adopt Open-Source Dependencies for ALOS Core Architecture](0009-adopt-open-source-dependencies-for-alos-core-architecture.md)
 * [0010 - Adopt LangGraph for Autonomous Self-Reflection Loops over n8n Workflows](0010-adopt-langgraph-for-autonomous-self-reflection-loops-over-n8n-workflows.md)
+* [0011 - Adopt Dual-Repo Open Source Architecture and Public CI CD Pipeline](0011-adopt-dual-repo-open-source-architecture-and-public-ci-cd-pipeline.md)
 
 ## Rejected Records
 

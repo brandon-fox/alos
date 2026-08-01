@@ -377,3 +377,21 @@ def test_09_postgres_orm_and_alembic_migrations(tmp_path):
     inspector_post_downgrade = inspect(db_manager.engine)
     assert not inspector_post_downgrade.has_table("system_audit_logs")
     assert not inspector_post_downgrade.has_table("decision_records")
+
+
+def test_19_open_source_workflows_dir_configuration(monkeypatch, tmp_path):
+    """BDD Scenario & Spec 19: Open-source configuration supports custom ALOS_WORKFLOWS_DIR
+    Spec: specs/19-open-source-dual-repo-architecture/spec.md
+    """
+    from alos.core.config import ALOSConfig
+
+    # Default workflows_dir fallback
+    monkeypatch.delenv("ALOS_WORKFLOWS_DIR", raising=False)
+    default_config = ALOSConfig()
+    assert default_config.workflows_dir == "workflows"
+
+    # Custom ALOS_WORKFLOWS_DIR via environment variable
+    custom_dir = str(tmp_path / "custom_workflows")
+    monkeypatch.setenv("ALOS_WORKFLOWS_DIR", custom_dir)
+    custom_config = ALOSConfig()
+    assert custom_config.workflows_dir == custom_dir

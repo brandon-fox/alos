@@ -87,6 +87,10 @@ class N8nSelfReflectionGraph:
         if "api_key" in critique and "api_key" not in payload:
             payload["api_key"] = "auto_refined_token_99"
             audit_logs.append("Refinement: Added missing 'api_key' parameter to payload.")
+        elif "force_db_fail" in payload:
+            del payload["force_db_fail"]
+            payload["api_key"] = "auto_refined_token_99"
+            audit_logs.append("Refinement: Cleared failure flag & refined payload.")
         else:
             payload["_retry_timestamp"] = "refined"
             audit_logs.append("Refinement: Adjusted retry parameters in payload.")

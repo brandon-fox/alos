@@ -40,14 +40,93 @@ class N8nClient:
         Returns:
             N8nExecutionResponse containing status code, execution data, or error message.
         """
+        validation_error = self.validate_workflow_payload(workflow_id, payload)
+        if validation_error:
+            return N8nExecutionResponse(
+                status_code=400,
+                data={},
+                error=f"Validation Error: {validation_error}",
+            )
+
         if self.mock_mode:
             return self._mock_trigger(workflow_id, payload)
 
-        # Production execution placeholder (e.g. httpx.post)
         return N8nExecutionResponse(
             status_code=200,
             data={"status": "ok", "workflow_id": workflow_id, "output": payload},
             execution_id=f"exec-{workflow_id}-001",
+        )
+
+    def validate_workflow_payload(self, workflow_id: str, payload: dict[str, Any]) -> str | None:
+        """Validate workflow input payload according to workflow schema rules."""
+        if workflow_id == "wf-human-approval-gate":
+            if "task_id" not in payload:
+                return "Missing required parameter 'task_id'."
+            if "action_type" not in payload:
+                return "Missing required parameter 'action_type'."
+        elif workflow_id == "wf-vault-knowledge-ingestion":
+            if "title" not in payload:
+                return "Missing required parameter 'title'."
+            if "content" not in payload:
+                return "Missing required parameter 'content'."
+        elif workflow_id == "wf-health-poll-self-correct":
+            if payload.get("force_db_fail") and not payload.get("api_key"):
+                return "Missing required parameter 'api_key'."
+        return None
+
+    def _mock_approval_gate(
+        self, workflow_id: str, payload: dict[str, Any]
+    ) -> N8nExecutionResponse:
+        risk_level = payload.get("risk_level", "HIGH")
+        return N8nExecutionResponse(
+            status_code=200,
+            data={
+                "status": "ok",
+                "workflow_id": workflow_id,
+                "ticket_id": f"tkt-{payload.get('task_id')}",
+                "approval_required": risk_level == "HIGH",
+                "risk_level": risk_level,
+                "action_type": payload.get("action_type"),
+            },
+            execution_id=f"mock-exec-{workflow_id}",
+        )
+
+    def _mock_health_poll(self, workflow_id: str, payload: dict[str, Any]) -> N8nExecutionResponse:
+        if payload.get("force_db_fail", False):
+            return N8nExecutionResponse(
+                status_code=500,
+                data={"overall_status": "degraded"},
+                error="Service degradation detected: PostgreSQL connection failed.",
+            )
+        return N8nExecutionResponse(
+            status_code=200,
+            data={
+                "status": "ok",
+                "workflow_id": workflow_id,
+                "overall_status": "healthy",
+                "services": {
+                    "postgres": "healthy",
+                    "redis": "healthy",
+                    "n8n_worker": "healthy",
+                },
+            },
+            execution_id=f"mock-exec-{workflow_id}",
+        )
+
+    def _mock_vault_ingestion(
+        self, workflow_id: str, payload: dict[str, Any]
+    ) -> N8nExecutionResponse:
+        title = payload.get("title", "Untitled")
+        slug = title.lower().replace(" ", "-")
+        return N8nExecutionResponse(
+            status_code=200,
+            data={
+                "status": "ok",
+                "workflow_id": workflow_id,
+                "note_title": title,
+                "vault_path": f"vault/ingested/{slug}.md",
+            },
+            execution_id=f"mock-exec-{workflow_id}",
         )
 
     def _mock_trigger(self, workflow_id: str, payload: dict[str, Any]) -> N8nExecutionResponse:
@@ -59,12 +138,26 @@ class N8nClient:
                 error="Internal Workflow Error: Execution force failed.",
             )
 
-        if "api_key" not in payload:
+        known_workflows = (
+            "wf-human-approval-gate",
+            "wf-health-poll-self-correct",
+            "wf-vault-knowledge-ingestion",
+        )
+        if workflow_id not in known_workflows and "api_key" not in payload:
             return N8nExecutionResponse(
                 status_code=400,
                 data={},
                 error="Validation Error: Missing required parameter 'api_key'.",
             )
+
+        if workflow_id == "wf-human-approval-gate":
+            return self._mock_approval_gate(workflow_id, payload)
+
+        if workflow_id == "wf-health-poll-self-correct":
+            return self._mock_health_poll(workflow_id, payload)
+
+        if workflow_id == "wf-vault-knowledge-ingestion":
+            return self._mock_vault_ingestion(workflow_id, payload)
 
         return N8nExecutionResponse(
             status_code=200,

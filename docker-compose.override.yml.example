@@ -1,0 +1,28 @@
+# ==============================================================================
+# ALOS - Docker Compose Private Workspace Overlay Template
+# ==============================================================================
+# Copy this file to docker-compose.override.yml in your private workspace repo:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#
+# Docker Compose automatically merges docker-compose.override.yml with base docker-compose.yml.
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  # Mount private repository directories into ALOS container
+  n8n-main:
+    environment:
+      - ALOS_VAULT_DIR=/app/private_vault
+      - ALOS_WORKFLOWS_DIR=/app/private_workflows
+    volumes:
+      - ./my-vault:/app/private_vault
+      - ./my-workflows:/app/private_workflows
+
+  n8n-worker:
+    environment:
+      - ALOS_VAULT_DIR=/app/private_vault
+      - ALOS_WORKFLOWS_DIR=/app/private_workflows
+    volumes:
+      - ./my-vault:/app/private_vault
+      - ./my-workflows:/app/private_workflows
