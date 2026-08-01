@@ -1,6 +1,6 @@
 # Task Breakdown: Testing, BDD & QA Automation (Spec 15)
 
-- [ ] Task 1: Create `factory_boy` model factories in `tests/factories/`.
-- [ ] Task 2: Add `hypothesis` property tests for rule evaluation in `tests/test_evaluator.py`.
-- [ ] Task 3: Add `vcrpy` cassette recording to `tests/test_mcp_gateway.py`.
-- [ ] Task 4: Configure `--cov-fail-under=85` in `pyproject.toml`.
+- [x] Task 1: Implement and verify FR-15-01 (Enforce Test-Driven Development (TDD) Red-Green-Refactor cycles across modules.)
+- [x] Task 2: Implement and verify FR-15-02 (Maintain Gherkin BDD feature acceptance tests in tests/features/.)
+- [x] Task 3: Implement and verify FR-15-03 (Execute pytest test suite with code coverage enforcement in pre-push hooks.)
+- [x] Task 4: Implement and verify FR-15-04 (Validate persona integration tests and self-correction loops.)

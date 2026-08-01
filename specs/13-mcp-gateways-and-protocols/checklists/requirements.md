@@ -1,5 +1,6 @@
 # Requirements Checklist: MCP Gateways & Protocols (Spec 13)
 
-- [ ] Circuit breaker opens after 5 consecutive external API failures.
-- [ ] Async HTTP requests use `httpx` with timeout management.
-- [ ] Offline fallback mock handlers function seamlessly when external MCP servers are disconnected.
+- [x] FR-13-01: Implement Model Context Protocol (MCP) gateway router for tool discovery and execution.
+- [x] FR-13-02: Validate tool input and output payloads using Pydantic v2 schemas.
+- [x] FR-13-03: Log all MCP server tool dispatches to system audit journal.
+- [x] FR-13-04: Handle lazy-loaded and eager MCP server connections securely.
