@@ -1,0 +1,75 @@
+name: Scheduled Dependency Health
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  security-events: write
+
+jobs:
+  dependency-health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Run pip-audit
+        run: |
+          uv pip compile pyproject.toml -o requirements.txt
+          pip install pip-audit
+          pip-audit -r requirements.txt --format json --output pip_audit.json || true
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          exit-code: '0'
+
+      - name: Check pip-audit results and create issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (fs.existsSync('pip_audit.json')) {
+              try {
+                const auditData = JSON.parse(fs.readFileSync('pip_audit.json', 'utf8'));
+                if (auditData.dependencies) {
+                  const vulnerabilities = auditData.dependencies.filter(dep => dep.vulns && dep.vulns.length > 0);
+                  if (vulnerabilities.length > 0) {
+                    const date = new Date().toISOString().split('T')[0];
+                    const body = `## Dependency Vulnerabilities Found\n\n` +
+                                 `The following vulnerabilities were found during the automated dependency health check:\n\n` +
+                                 `\`\`\`json\n${JSON.stringify(vulnerabilities, null, 2)}\n\`\`\``;
+                    await github.rest.issues.create({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      title: `🔐 Dependency Health Report (${date})`,
+                      body: body,
+                      labels: ['security', 'dependencies', 'automated']
+                    });
+                  }
+                }
+              } catch (e) {
+                console.error("Error parsing pip-audit results:", e);
+              }
+            }

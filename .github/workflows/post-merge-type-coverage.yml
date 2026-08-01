@@ -1,0 +1,57 @@
+name: Post-Merge Type Coverage
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: type-coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  type-coverage:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run mypy analysis
+        run: uv run mypy alos --txt-report mypy_report || true
+
+      - name: Find Low Coverage Files
+        id: parse
+        run: |
+          if [ -f "mypy_report/index.txt" ]; then
+            awk -F'|' 'NR>2 && $6 < 70.0 {print $1, $6}' mypy_report/index.txt > low_coverage.txt || true
+            COUNT=$(wc -l < low_coverage.txt || echo 0)
+          else
+            COUNT=0
+            touch low_coverage.txt
+          fi
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Issue
+        if: steps.parse.outputs.count > 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date +'%Y-%m-%d')
+          COUNT=${{ steps.parse.outputs.count }}
+          TITLE="🏷️ Type Coverage Report: $COUNT files below threshold ($DATE)"
+
+          echo '### Files with Type Coverage < 70%' > issue_body.txt
+          echo '```text' >> issue_body.txt
+          cat low_coverage.txt >> issue_body.txt
+          echo '```' >> issue_body.txt
+
+          gh issue create --title "$TITLE" --body-file issue_body.txt --label "typing,automated"

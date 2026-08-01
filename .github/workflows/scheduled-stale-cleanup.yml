@@ -1,0 +1,28 @@
+name: Scheduled Stale Cleanup
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v10
+        with:
+          days-before-stale: 14
+          days-before-close: 7
+          days-before-pr-stale: 21
+          days-before-pr-close: 7
+          stale-issue-message: 'This issue has been automatically marked as stale due to 14 days of inactivity. It will be closed in 7 days unless there is new activity.'
+          close-issue-message: 'This issue was closed due to continued inactivity after being marked stale.'
+          stale-pr-message: 'This PR has been automatically marked as stale due to 21 days of inactivity. It will be closed in 7 days unless there is new activity.'
+          exempt-issue-labels: 'pinned,security,epic,in-progress'
+          exempt-pr-labels: 'pinned,security,work-in-progress'
+          stale-issue-label: 'stale'
+          stale-pr-label: 'stale'

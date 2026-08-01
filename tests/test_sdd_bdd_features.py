@@ -275,9 +275,9 @@ def test_08_decision_log_alternatives_on_rejection(tmp_path):
             break
 
     assert approved_record is not None, "No APPROVED record found in decision log"
-    assert (
-        len(approved_record["alternatives_considered"]) >= 1
-    ), "alternatives_considered must contain at least one rejected alternative"
+    assert len(approved_record["alternatives_considered"]) >= 1, (
+        "alternatives_considered must contain at least one rejected alternative"
+    )
     assert approved_record["self_correction_rounds"] >= 1
 
 
@@ -286,6 +286,7 @@ def test_09_postgres_orm_and_alembic_migrations(tmp_path):
     Spec: specs/07-postgres-orm-migrations/spec.md
     """
     from alembic.config import Config
+    from sqlalchemy import inspect
 
     from alembic import command
     from alos.db.models import (
@@ -359,8 +360,6 @@ def test_09_postgres_orm_and_alembic_migrations(tmp_path):
     # 2. Programmatic Alembic Migration Upgrade & Downgrade Execution
     alembic_cfg = Config("alembic.ini")
     alembic_cfg.set_main_option("sqlalchemy.url", db_url)
-
-    from sqlalchemy import inspect
 
     # Upgrade to head (applies revision 0001)
     command.upgrade(alembic_cfg, "head")
