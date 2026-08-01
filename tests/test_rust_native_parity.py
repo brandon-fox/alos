@@ -42,14 +42,12 @@ def test_spec_rag_indexer_search_parity() -> None:
         )
         spec_file2 = specs_dir / "spec2.md"
         spec_file2.write_text(
-            "# Unrelated Doc\n"
-            "This document discusses database migrations and SQL schema changes.",
+            "# Unrelated Doc\nThis document discusses database migrations and SQL schema changes.",
             encoding="utf-8",
         )
         spec_file3 = specs_dir / "spec3.md"
         spec_file3.write_text(
-            "# Another Doc\n"
-            "This file describes python environment setup and poetry configuration.",
+            "# Another Doc\nThis file describes python environment setup and poetry configuration.",
             encoding="utf-8",
         )
 
