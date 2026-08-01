@@ -24,6 +24,9 @@
 - fix(ci): add pyadr to optional dev dependencies (01b1b55)
 
 ### 🔧 Chores
+- chore(ci): bump actions/checkout from 4 to 7 (#9) (68525c3)
+- chore(ci): bump actions/setup-python from 5 to 7 (#7) (7736315)
+- chore(ci): bump actions/dependency-review-action from 4 to 5 (#8) (b53aad4)
 - Merge pull request #1 from brandon-fox/dependabot/uv/setuptools-gte-83.0.0 (c15b86b)
 - chore(deps-dev): update setuptools requirement from >=61.0 to >=83.0.0 (21e9810)
 - chore(agents): add mandatory speckit-workflow skill and enforce SDD compliance in AGENTS.md (5e1e931)
