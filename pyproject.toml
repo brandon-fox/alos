@@ -26,6 +26,7 @@ dependencies = [
     "apscheduler>=3.10.0",
     "langgraph>=0.2.0",
     "langchain-core>=0.3.0",
+    "crewai>=0.80.0",
 ]
 
 [project.optional-dependencies]
@@ -42,6 +43,7 @@ dev = [
 [dependency-groups]
 dev = [
     "types-networkx>=3.6.1.20260728",
+    "types-pyyaml>=6.0.12.20260724",
 ]
 
 [tool.pytest.ini_options]

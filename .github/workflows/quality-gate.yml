@@ -105,3 +105,13 @@ jobs:
           scan-ref: '.'
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
+
+  crewai-validation:
+    name: crewai-validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync --extra dev
+      - name: Validate CrewAI Local Setup
+        run: uv run pytest tests/test_crewai_local.py
