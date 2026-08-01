@@ -1,13 +1,13 @@
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class SystemAuditLogger:
     """Immutable, append-only system audit logger (/logs/system_audit.jsonl)."""
 
-    def __init__(self, log_file_path: Optional[str] = None):
+    def __init__(self, log_file_path: str | None = None):
         if log_file_path:
             self.log_file_path = log_file_path
         else:
@@ -20,9 +20,9 @@ class SystemAuditLogger:
         self,
         step: str,
         status: str,
-        reason: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        reason: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         record = {
             "timestamp": datetime.now().isoformat(),
             "step": step,

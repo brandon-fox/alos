@@ -31,16 +31,21 @@ This skill governs all source control mutation workflows in this repository. The
    - Verify un-tracked and ignored files before committing using `git status -s` and `git ls-files --others`.
    - Ensure temporary logs (`*.log`), scratch files (`scratch/`), python cache (`**/__pycache__/`, `*.pyc`), and virtual environment artifacts are un-tracked.
 
+5. **Agent Fix-First Mindset & Exception Documentation Mandate**:
+   - ALWAYS prefer fixing root-cause issues (lint errors, type errors, vulnerabilities, Sonar code smells) over suppressing them.
+   - If a suppression (e.g., `# noqa: F401`, `# type: ignore`) is strictly unavoidable, it MUST be accompanied by an explicit inline or preceding comment explaining the technical justification.
+
 ---
 
 ## STEP-BY-STEP COMMIT WORKFLOW
 
-### Step 1: Pre-Commit Quality & Validation
-Before staging files, ensure all pre-commit hooks and checks pass:
+### Step 1: Pre-Commit Quality, Native Linter & Validation
+Before staging files, ensure all pre-commit hooks, native linter rules (Ruff PGH/RUF, Mypy), and quality gates pass:
 ```powershell
 uv run ruff check alos tests
 uv run ruff format alos tests
 uv run mypy alos
+uv run bandit -r alos -s B101
 uv run pytest
 ```
 

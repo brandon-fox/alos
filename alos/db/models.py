@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy import JSON, DateTime, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -18,8 +18,8 @@ class AuditLogModel(Base):
     )
     step: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    metadata_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
 
 class DecisionRecordModel(Base):
@@ -37,10 +37,10 @@ class DecisionRecordModel(Base):
     risk_level: Mapped[str] = mapped_column(String(20), nullable=False)
     decision: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     rationale: Mapped[str] = mapped_column(Text, nullable=False)
-    constitution_articles_checked: Mapped[List[str]] = mapped_column(JSON, nullable=False)
-    preferences_checked: Mapped[List[str]] = mapped_column(JSON, nullable=False)
-    corrections_checked: Mapped[List[str]] = mapped_column(JSON, nullable=False)
-    alternatives_considered: Mapped[List[Any]] = mapped_column(JSON, nullable=False)
+    constitution_articles_checked: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    preferences_checked: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    corrections_checked: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    alternatives_considered: Mapped[list[Any]] = mapped_column(JSON, nullable=False)
     self_correction_rounds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 
@@ -52,7 +52,7 @@ class ExecutionStateModel(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     workflow_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    payload: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -68,7 +68,7 @@ class UserProfileModel(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
-    preferences: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    preferences: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

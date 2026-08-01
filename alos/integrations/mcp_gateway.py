@@ -1,5 +1,5 @@
 import uuid
-from typing import Any, Dict
+from typing import Any
 
 
 class MCPGateway:
@@ -10,7 +10,7 @@ class MCPGateway:
     def __init__(self, mock_mode: bool = True):
         self.mock_mode = mock_mode
 
-    def execute_tool(self, tool_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_tool(self, tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
         """Dispatch tool call via MCP protocol with structured output."""
         if tool_name == "todoist_create_task":
             task_id = str(uuid.uuid4())[:8]

@@ -4,7 +4,7 @@ Spec: specs/02-dual-loop-reasoning/plan.md
 Constitution: Article I §1, Article II §3, Article III §1
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from alos.core.context_assembler import ContextAssembler
 from alos.core.evaluator import EvaluatorNode
@@ -32,8 +32,8 @@ class ALOSStateGraph:
     def __init__(
         self,
         vault_dir: str,
-        audit_log_path: Optional[str] = None,
-        decision_log_path: Optional[str] = None,
+        audit_log_path: str | None = None,
+        decision_log_path: str | None = None,
     ):
         self.vault_dir = vault_dir
         self.context_assembler = ContextAssembler(vault_dir=vault_dir)
@@ -41,7 +41,7 @@ class ALOSStateGraph:
         self.audit_logger = SystemAuditLogger(log_file_path=audit_log_path)
         self.decision_logger = DecisionLogger(log_file_path=decision_log_path)
 
-    def run(self, user_query: str) -> Dict[str, Any]:
+    def run(self, user_query: str) -> dict[str, Any]:
         # --- Layer 2: Context Synthesis ---
         context = self.context_assembler.assemble_context(user_query)
         self.audit_logger.log_event(
@@ -60,9 +60,9 @@ class ALOSStateGraph:
             trigger=user_query,
         )
 
-        critique_feedback: Optional[str] = None
+        critique_feedback: str | None = None
         self_correction_rounds: int = 0
-        alternatives_considered: List[str] = []
+        alternatives_considered: list[str] = []
         final_action = None
 
         # --- Layer 3: Dual-Loop Reasoning ---

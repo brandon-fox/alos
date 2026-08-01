@@ -1,7 +1,7 @@
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from alos.core.evaluator import RiskLevel
 from alos.schemas.actions import BaseAction
@@ -29,7 +29,7 @@ class DecisionLogger:
         self_correction_rounds      : integer count of prior rejection rounds
     """
 
-    def __init__(self, log_file_path: Optional[str] = None):
+    def __init__(self, log_file_path: str | None = None):
         if log_file_path:
             self.log_file_path = log_file_path
         else:
@@ -45,15 +45,15 @@ class DecisionLogger:
         risk_level: RiskLevel,
         decision: str,
         rationale: str,
-        constitution_articles_checked: List[str],
-        preferences_checked: List[str],
-        corrections_checked: List[str],
-        alternatives_considered: List[str],
+        constitution_articles_checked: list[str],
+        preferences_checked: list[str],
+        corrections_checked: list[str],
+        alternatives_considered: list[str],
         self_correction_rounds: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Append one structured ADR Decision Log entry."""
         self._counter += 1
-        record: Dict[str, Any] = {
+        record: dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "decision_id": f"D-{self._counter:03d}",
             "trigger": trigger,

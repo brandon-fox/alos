@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -18,7 +18,7 @@ class SpecRAGIndexer:
 
     def __init__(self, root_dir: str):
         self.root_dir = os.path.abspath(root_dir)
-        self.chunks: List[SpecChunk] = []
+        self.chunks: list[SpecChunk] = []
         self._build_index()
 
     def _determine_source_type(self, rel_path: str) -> str:
@@ -33,9 +33,9 @@ class SpecRAGIndexer:
             return "reference"
         return "general"
 
-    def _chunk_markdown(self, file_path: str, content: str, source_type: str) -> List[SpecChunk]:
+    def _chunk_markdown(self, file_path: str, content: str, source_type: str) -> list[SpecChunk]:
         file_name = os.path.basename(file_path)
-        chunks: List[SpecChunk] = []
+        chunks: list[SpecChunk] = []
 
         # Split markdown by top-level or second-level headers (# or ## or ###)
         sections = re.split(r"(^|\n)(?=#+\s+)", content)
@@ -84,17 +84,17 @@ class SpecRAGIndexer:
                         source_type = self._determine_source_type(rel_path)
 
                         try:
-                            with open(full_path, "r", encoding="utf-8") as f:
+                            with open(full_path, encoding="utf-8") as f:
                                 content = f.read()
                             file_chunks = self._chunk_markdown(full_path, content, source_type)
                             self.chunks.extend(file_chunks)
-                        except Exception:  # noqa: S112
+                        except (OSError, UnicodeDecodeError):
                             continue
 
     def search(
-        self, query: str, top_k: int = 5, source_filter: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        results: List[Dict[str, Any]] = []
+        self, query: str, top_k: int = 5, source_filter: str | None = None
+    ) -> list[dict[str, Any]]:
+        results: list[dict[str, Any]] = []
         query_terms = [t.lower() for t in query.split()]
 
         for chunk in self.chunks:

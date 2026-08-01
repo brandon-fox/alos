@@ -52,6 +52,13 @@ The system SHALL NOT prompt the user for real-time interaction except for HIGH r
 
 Failed background loops MUST self-heal without human intervention.
 
+### VII. Code Quality, Exception Documentation & Sonar Scan Governance (NON-NEGOTIABLE)
+AI agents MUST ALWAYS prefer fixing root causes of issues (bugs, linting errors, typing issues, security vulnerabilities, Sonar code smells) over suppressing or ignoring them (`# noqa`, `# type: ignore`, `NOSONAR`, `# pragma: no cover`), even if fixing requires complex refactoring.
+
+All rule exceptions (`# noqa`, `# type: ignore`, etc.) MUST be documented with an explicit inline or preceding technical justification comment. Undocumented exceptions are strictly prohibited and will fail automated pre-commit and pre-push gates.
+
+Sonar code quality scans, static analysis (mypy), security audits (bandit), and unit testing (pytest) MUST pass cleanly in pre-commit and strict pre-push git hooks.
+
 ---
 
 ## Technology Constraints

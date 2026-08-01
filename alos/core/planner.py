@@ -1,5 +1,3 @@
-from typing import Optional
-
 from alos.core.context_assembler import ContextPayload
 from alos.schemas.actions import BaseAction, GoogleCalendarEvent, TodoistTaskCreate, WebSearchQuery
 
@@ -11,7 +9,7 @@ class PlannerNode:
         self.context = context
 
     def generate_draft_action(
-        self, user_query: str, critique_feedback: Optional[str] = None
+        self, user_query: str, critique_feedback: str | None = None
     ) -> BaseAction:
         query_lower = user_query.lower()
 

@@ -42,25 +42,38 @@ line-length = 100
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # Pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "S",   # flake8-bandit (security checks)
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # Pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "S",    # flake8-bandit (security checks)
+    "PGH",  # pygrep-hooks (enforces specific noqa codes, disallows bare noqa)
+    "RUF",  # ruff-specific rules (enforces unused noqa removal)
+    "UP",   # pyupgrade (modern Python 3.10+ syntax enforcement)
+    "SIM",  # flake8-simplify (code simplification rules)
+    "PL",   # Pylint (refactoring, code smells, design checks)
 ]
 ignore = [
-    "S101", # Use of assert in tests
+    "S101",    # Use of assert in tests
+    "PLR2004", # Magic value comparison in checks
+    "PLR0913", # Too many arguments in function definition
+    "PLR0917", # Too many positional arguments
+    "PLC0415", # Top-level import (lazy circular dependency resolution)
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106"]
+"tests/*" = ["S101", "S105", "S106", "PLC0415"]
 
 
 [tool.mypy]
 python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
+warn_unused_ignores = true
+show_error_codes = true
+strict_optional = true
+enable_error_code = ["ignore-without-code"]
 disallow_untyped_defs = false
 check_untyped_defs = true
 
