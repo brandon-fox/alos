@@ -26,9 +26,9 @@ logs/                         # Runtime output directory
 ### SystemAuditLogger (existing)
 ```python
 class SystemAuditLogger:
-    def log_event(self, step: str, status: str,
-                  reason: Optional[str] = None,
-                  metadata: Optional[Dict] = None) -> Dict: ...
+    def log_event(
+        self, step: str, status: str, reason: Optional[str] = None, metadata: Optional[Dict] = None
+    ) -> Dict: ...
 ```
 
 ### DecisionLogger (NEW)
@@ -40,7 +40,7 @@ class DecisionLogger:
         trigger: str,
         action: BaseAction,
         risk_level: RiskLevel,
-        decision: str,                         # "APPROVED" | "REJECTED"
+        decision: str,  # "APPROVED" | "REJECTED"
         rationale: str,
         constitution_articles_checked: List[str],
         preferences_checked: List[str],
@@ -53,10 +53,12 @@ class DecisionLogger:
 ### EvaluatorNode (modified)
 ```python
 class EvaluatorNode:
-    def __init__(self,
-                 context: Optional[ContextPayload] = None,
-                 decision_logger: Optional[DecisionLogger] = None,
-                 trigger: str = ""): ...
+    def __init__(
+        self,
+        context: Optional[ContextPayload] = None,
+        decision_logger: Optional[DecisionLogger] = None,
+        trigger: str = "",
+    ): ...
 ```
 
 ### ALOSStateGraph (modified)
