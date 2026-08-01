@@ -15,6 +15,10 @@ concurrency:
   group: quality-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   ruff-lint:
     name: ruff-lint
@@ -88,7 +92,7 @@ jobs:
         with:
           fail-on-severity: high
           comment-summary-in-pr: always
-          allow-licenses: 'MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, PSF-2.0, Python-2.0, Unlicense, 0BSD'
+          allow-licenses: 'MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, PSF-2.0, Python-2.0, Unlicense, 0BSD, MPL-2.0, CC0-1.0, LGPL-2.1-or-later, LGPL-3.0-or-later, BSD-3-Clause-Clear'
 
   docker-validate:
     name: docker-validate
