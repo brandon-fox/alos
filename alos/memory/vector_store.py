@@ -14,13 +14,16 @@ class LocalVectorStore:
         if not os.path.exists(self.vault_dir):
             return results
 
-        md_files = glob.glob(os.path.join(self.vault_dir, "*.md"))
+        md_files = glob.glob(os.path.join(self.vault_dir, "**", "*.md"), recursive=True)
         query_terms = [t.lower() for t in query.split()]
 
         for filepath in md_files:
             filename = os.path.basename(filepath)
-            with open(filepath, encoding="utf-8") as f:
-                content = f.read()
+            try:
+                with open(filepath, encoding="utf-8") as f:
+                    content = f.read()
+            except (OSError, UnicodeDecodeError):
+                continue
 
             content_lower = content.lower()
             score = sum(1 for term in query_terms if term in content_lower)
