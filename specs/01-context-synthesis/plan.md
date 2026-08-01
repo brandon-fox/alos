@@ -52,10 +52,10 @@ tests/
 ### ContextPayload (Pydantic Model)
 ```python
 class ContextPayload(BaseModel):
-    profile: Dict[str, Any]          # Parsed from USER_PROFILE.md
-    preferences: List[str]           # Lines from PREFERENCES.md
-    corrections: List[str]           # Lines from CORRECTION_LEDGER.md
-    rag_docs: List[Dict[str, Any]]   # Top-k ranked vault documents
+    profile: Dict[str, Any]  # Parsed from USER_PROFILE.md
+    preferences: List[str]  # Lines from PREFERENCES.md
+    corrections: List[str]  # Lines from CORRECTION_LEDGER.md
+    rag_docs: List[Dict[str, Any]]  # Top-k ranked vault documents
 ```
 
 ### ContextAssembler
@@ -70,5 +70,6 @@ class ContextAssembler:
 class LocalVectorStore:
     def __init__(self, vault_dir: str): ...
     def search(self, query: str, top_k: int = 5) -> List[Dict]: ...
+
     # Returns: [{"filename", "filepath", "content", "score"}]
 ```

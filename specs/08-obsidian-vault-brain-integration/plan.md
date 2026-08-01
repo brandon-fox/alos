@@ -18,6 +18,7 @@ class ObsidianNote(BaseModel):
     wiki_links: list[str] = Field(default_factory=list)
     content: str
 
+
 class KnowledgeGraphNeighborhood(BaseModel):
     center_note: str
     nodes: list[str] = Field(default_factory=list)
