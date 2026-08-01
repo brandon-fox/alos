@@ -275,9 +275,9 @@ def test_08_decision_log_alternatives_on_rejection(tmp_path):
             break
 
     assert approved_record is not None, "No APPROVED record found in decision log"
-    assert (
-        len(approved_record["alternatives_considered"]) >= 1
-    ), "alternatives_considered must contain at least one rejected alternative"
+    assert len(approved_record["alternatives_considered"]) >= 1, (
+        "alternatives_considered must contain at least one rejected alternative"
+    )
     assert approved_record["self_correction_rounds"] >= 1
 
 
@@ -285,10 +285,10 @@ def test_09_postgres_orm_and_alembic_migrations(tmp_path):
     """BDD Scenario & Spec 07: Validate PostgreSQL ORM model management and Alembic migrations.
     Spec: specs/07-postgres-orm-migrations/spec.md
     """
+    from alembic.config import Config
     from sqlalchemy import inspect
 
     from alembic import command
-    from alembic.config import Config
     from alos.db.models import (
         AuditLogModel,
         DecisionRecordModel,
