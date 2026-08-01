@@ -9,8 +9,10 @@ This file contains repository-scoped behavioral rules and directives for AI agen
 - **Forbidden**: NEVER manually create or edit Markdown files directly inside `docs/adr/`.
 
 ### 2. Spec-Driven Development (SpecKit / SDD)
+- **Mandatory Workflow & Skill (STRICT ENFORCEMENT)**: AI agents MUST NEVER bypass, skip, or ignore SpecKit workflows. No implementation code may be written or modified without an active, approved feature directory under `specs/<N>-<feature-name>/`.
 - **Specification Structure**: Features must follow the canonical SpecKit folder convention: `specs/<N>-<feature-name>/` containing `spec.md`, `plan.md`, `tasks.md`, and `checklists/requirements.md`.
 - **Constitution**: System constitution directives live in `.specify/memory/constitution.md`.
+- **Skill Usage**: Refer to `.agents/skills/speckit-workflow/SKILL.md` for explicit PowerShell script invocation (`create-new-feature.ps1`, `setup-plan.ps1`, `setup-tasks.ps1`), requirement tracing (`FR-XXX`), and TDD phase enforcement.
 
 ### 3. Testing & TDD
 - **Test-Driven Development**: Always follow Red-Green-Refactor. Write failing tests in `tests/test_sdd_bdd_features.py` before writing implementation code.
