@@ -6,9 +6,11 @@ Constitution: Article I §1, Article II §3, Article III §1
 
 from typing import Any
 
+from alos.core.config import ALOSConfig
 from alos.core.context_assembler import ContextAssembler
 from alos.core.evaluator import EvaluatorNode
 from alos.core.planner import PlannerNode
+from alos.core.protocols import AuditLoggerProtocol, DecisionLoggerProtocol, MCPGatewayProtocol
 from alos.integrations.mcp_gateway import MCPGateway
 from alos.logs.decision_log import DecisionLogger
 from alos.logs.system_audit import SystemAuditLogger
@@ -17,6 +19,7 @@ from alos.logs.system_audit import SystemAuditLogger
 class ALOSStateGraph:
     """State graph engine connecting all five ALOS layers.
 
+    Applies SOLID Dependency Inversion Principle (DIP) and 12-Factor Configuration (Factor III).
     Execution flow:
         ContextAssembler
             → PlannerNode (generates draft action)
@@ -31,15 +34,37 @@ class ALOSStateGraph:
 
     def __init__(
         self,
-        vault_dir: str,
+        vault_dir: str | None = None,
         audit_log_path: str | None = None,
         decision_log_path: str | None = None,
+        mcp_gateway: MCPGatewayProtocol | None = None,
+        audit_logger: AuditLoggerProtocol | None = None,
+        decision_logger: DecisionLoggerProtocol | None = None,
+        config: ALOSConfig | None = None,
     ):
-        self.vault_dir = vault_dir
-        self.context_assembler = ContextAssembler(vault_dir=vault_dir)
-        self.mcp_gateway = MCPGateway(mock_mode=True)
-        self.audit_logger = SystemAuditLogger(log_file_path=audit_log_path)
-        self.decision_logger = DecisionLogger(log_file_path=decision_log_path)
+        self.config = config or ALOSConfig()
+
+        resolved_vault_dir = vault_dir or self.config.vault_dir
+        resolved_audit_path = audit_log_path or self.config.audit_log_path
+        resolved_decision_path = decision_log_path or self.config.decision_log_path
+
+        self.vault_dir = resolved_vault_dir
+        self.context_assembler = ContextAssembler(vault_dir=resolved_vault_dir)
+
+        # Injected abstractions or default factory instances (SOLID: DIP)
+        self.mcp_gateway: MCPGatewayProtocol = (
+            mcp_gateway if mcp_gateway is not None else MCPGateway(mock_mode=self.config.mock_mode)
+        )
+        self.audit_logger: AuditLoggerProtocol = (
+            audit_logger
+            if audit_logger is not None
+            else SystemAuditLogger(log_file_path=resolved_audit_path)
+        )
+        self.decision_logger: DecisionLoggerProtocol = (
+            decision_logger
+            if decision_logger is not None
+            else DecisionLogger(log_file_path=resolved_decision_path)
+        )
 
     def run(self, user_query: str) -> dict[str, Any]:
         # --- Layer 2: Context Synthesis ---

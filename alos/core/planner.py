@@ -2,6 +2,42 @@ from alos.core.context_assembler import ContextPayload
 from alos.schemas.actions import BaseAction, GoogleCalendarEvent, TodoistTaskCreate, WebSearchQuery
 
 
+class ActionDraftBuilder:
+    """Strategy builder formulating execution actions from intent and critique (SOLID: SRP)."""
+
+    @staticmethod
+    def build_meeting_action(
+        query_lower: str, critique_feedback: str | None = None
+    ) -> GoogleCalendarEvent:
+        if critique_feedback and "5:00 PM" in critique_feedback:
+            return GoogleCalendarEvent(
+                title="Team Sync",
+                start_time="2026-08-01T14:00:00",
+                end_time="2026-08-01T15:00:00",
+            )
+        if "schedule meeting team sync" in query_lower:
+            return GoogleCalendarEvent(
+                title="Team Sync",
+                start_time="2026-08-01T17:30:00",
+                end_time="2026-08-01T18:00:00",
+            )
+        return GoogleCalendarEvent(
+            title="Planned Event",
+            start_time="2026-08-01T14:00:00",
+            end_time="2026-08-01T15:00:00",
+        )
+
+    @staticmethod
+    def build_task_action() -> TodoistTaskCreate:
+        return TodoistTaskCreate(
+            title="Schedule quarterly review", due_date="2026-08-05", priority=1
+        )
+
+    @staticmethod
+    def build_search_action(user_query: str) -> WebSearchQuery:
+        return WebSearchQuery(query=user_query)
+
+
 class PlannerNode:
     """Planner node formulating execution plans and adjusting drafts upon evaluator critique."""
 
@@ -14,32 +50,8 @@ class PlannerNode:
         query_lower = user_query.lower()
 
         if "meeting" in query_lower or "schedule" in query_lower:
-            # If previous critique noted a 5:00 PM preference violation, self-correct to 2:00 PM
-            if critique_feedback and "5:00 PM" in critique_feedback:
-                return GoogleCalendarEvent(
-                    title="Team Sync",
-                    start_time="2026-08-01T14:00:00",
-                    end_time="2026-08-01T15:00:00",
-                )
-            else:
-                # Default draft attempt (might start at 5:30 PM if initially
-                # unsophisticated, triggering self-correction)
-                if "schedule meeting team sync" in query_lower:
-                    return GoogleCalendarEvent(
-                        title="Team Sync",
-                        start_time="2026-08-01T17:30:00",
-                        end_time="2026-08-01T18:00:00",
-                    )
-                return GoogleCalendarEvent(
-                    title="Planned Event",
-                    start_time="2026-08-01T14:00:00",
-                    end_time="2026-08-01T15:00:00",
-                )
-
+            return ActionDraftBuilder.build_meeting_action(query_lower, critique_feedback)
         elif "task" in query_lower or "todoist" in query_lower:
-            return TodoistTaskCreate(
-                title="Schedule quarterly review", due_date="2026-08-05", priority=1
-            )
-
+            return ActionDraftBuilder.build_task_action()
         else:
-            return WebSearchQuery(query=user_query)
+            return ActionDraftBuilder.build_search_action(user_query)

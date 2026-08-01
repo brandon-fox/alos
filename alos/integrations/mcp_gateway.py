@@ -1,70 +1,110 @@
 import uuid
 from typing import Any
 
+from alos.core.protocols import MCPGatewayProtocol, ToolHandlerProtocol
 
-class MCPGateway:
-    """Model Context Protocol (MCP) Client Gateway for Google Workspace, Todoist,
-    and Local Vault APIs.
+
+class TodoistTaskHandler:
+    """Handler for Todoist task creation (SOLID: SRP)."""
+
+    def execute(self, payload: dict[str, Any]) -> dict[str, Any]:
+        task_id = str(uuid.uuid4())[:8]
+        return {
+            "status": "SUCCESS",
+            "tool": "todoist_create_task",
+            "task_id": task_id,
+            "title": payload.get("title"),
+            "due_date": payload.get("due_date"),
+        }
+
+
+class GoogleCalendarListHandler:
+    """Handler for listing Google Calendar events (SOLID: SRP)."""
+
+    def execute(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "status": "SUCCESS",
+            "tool": "google_calendar_list_events",
+            "date": payload.get("date"),
+            "events": [
+                {"title": "Morning Standup", "start_time": "09:30:00", "end_time": "10:00:00"},
+                {"title": "Focus Block", "start_time": "14:00:00", "end_time": "16:00:00"},
+            ],
+        }
+
+
+class GoogleCalendarCreateHandler:
+    """Handler for Google Calendar event creation (SOLID: SRP)."""
+
+    def execute(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "status": "SUCCESS",
+            "tool": "google_calendar_create_event",
+            "event_id": str(uuid.uuid4())[:8],
+            "title": payload.get("title"),
+            "start_time": payload.get("start_time"),
+            "end_time": payload.get("end_time"),
+        }
+
+
+class EmailDraftHandler:
+    """Handler for draft email creation (SOLID: SRP)."""
+
+    def execute(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "status": "SUCCESS",
+            "tool": "email_create_draft",
+            "draft_id": str(uuid.uuid4())[:8],
+            "to": payload.get("to_email"),
+            "subject": payload.get("subject"),
+        }
+
+
+class WebSearchHandler:
+    """Handler for web search queries (SOLID: SRP)."""
+
+    def execute(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "status": "SUCCESS",
+            "tool": "web_search",
+            "query": payload.get("query"),
+            "results": [
+                {"title": "Result 1", "snippet": "Sample search response for query"},
+            ],
+        }
+
+
+class MCPGateway(MCPGatewayProtocol):
+    """Model Context Protocol (MCP) Gateway for Workspace & Tool integrations.
+
+    Implements OCP by maintaining an extensible tool handler registry and DIP by
+    conforming to MCPGatewayProtocol.
     """
 
     def __init__(self, mock_mode: bool = True):
         self.mock_mode = mock_mode
+        self._handlers: dict[str, ToolHandlerProtocol] = {}
+        self._register_default_handlers()
+
+    def _register_default_handlers(self) -> None:
+        """Register default set of tool handlers."""
+        self.register_handler("todoist_create_task", TodoistTaskHandler())
+        self.register_handler("google_calendar_list_events", GoogleCalendarListHandler())
+        self.register_handler("google_calendar_create_event", GoogleCalendarCreateHandler())
+        self.register_handler("email_create_draft", EmailDraftHandler())
+        self.register_handler("web_search", WebSearchHandler())
+
+    def register_handler(self, tool_name: str, handler: ToolHandlerProtocol) -> None:
+        """Register a new tool handler without modifying gateway dispatch logic (SOLID: OCP)."""
+        self._handlers[tool_name] = handler
 
     def execute_tool(self, tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
-        """Dispatch tool call via MCP protocol with structured output."""
-        if tool_name == "todoist_create_task":
-            task_id = str(uuid.uuid4())[:8]
-            return {
-                "status": "SUCCESS",
-                "tool": tool_name,
-                "task_id": task_id,
-                "title": payload.get("title"),
-                "due_date": payload.get("due_date"),
-            }
-
-        elif tool_name == "google_calendar_list_events":
-            return {
-                "status": "SUCCESS",
-                "tool": tool_name,
-                "date": payload.get("date"),
-                "events": [
-                    {"title": "Morning Standup", "start_time": "09:30:00", "end_time": "10:00:00"},
-                    {"title": "Focus Block", "start_time": "14:00:00", "end_time": "16:00:00"},
-                ],
-            }
-
-        elif tool_name == "google_calendar_create_event":
-            return {
-                "status": "SUCCESS",
-                "tool": tool_name,
-                "event_id": str(uuid.uuid4())[:8],
-                "title": payload.get("title"),
-                "start_time": payload.get("start_time"),
-                "end_time": payload.get("end_time"),
-            }
-
-        elif tool_name == "email_create_draft":
-            return {
-                "status": "SUCCESS",
-                "tool": tool_name,
-                "draft_id": str(uuid.uuid4())[:8],
-                "to": payload.get("to_email"),
-                "subject": payload.get("subject"),
-            }
-
-        elif tool_name == "web_search":
-            return {
-                "status": "SUCCESS",
-                "tool": tool_name,
-                "query": payload.get("query"),
-                "results": [
-                    {"title": "Result 1", "snippet": "Sample search response for query"},
-                ],
-            }
-
-        else:
-            return {
-                "status": "UNKNOWN_TOOL",
-                "tool": tool_name,
-                "payload": payload,
-            }
+        """Dispatch tool execution via registered tool handler strategy."""
+        handler = self._handlers.get(tool_name)
+        if handler:
+            return handler.execute(payload)
+        return {
+            "status": "UNKNOWN_TOOL",
+            "tool": tool_name,
+            "payload": payload,
+        }
