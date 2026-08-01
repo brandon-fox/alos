@@ -25,6 +25,7 @@
 - fix(ci): add pyadr to optional dev dependencies (01b1b55)
 
 ### 🔧 Chores
+- chore(security): untrack personal vault notes and add open-source SECURITY policy & CODE_OF_CONDUCT (#13) (8a414dc)
 - chore(ci): bump actions/checkout from 4 to 7 (#9) (68525c3)
 - chore(ci): bump actions/setup-python from 5 to 7 (#7) (7736315)
 - chore(ci): bump actions/dependency-review-action from 4 to 5 (#8) (b53aad4)
