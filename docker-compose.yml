@@ -1,0 +1,115 @@
+networks:
+  n8n-network:
+    driver: bridge
+
+volumes:
+  postgres_storage:
+  redis_storage:
+  n8n_storage:
+
+services:
+  # 1. Persistence Layer: PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: n8n_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_storage:/var/lib/postgresql/data
+    networks:
+      - n8n-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # 2. Queue Broker: Redis
+  redis:
+    image: redis:7-alpine
+    container_name: n8n_redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_storage:/data
+    networks:
+      - n8n-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # 3. Main Instance (UI & Webhook Manager)
+  n8n-main:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n_main
+    restart: always
+    ports:
+      - "${N8N_PORT}:5678"
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+      - DB_POSTGRESDB_USER=${POSTGRES_USER}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      - EXECUTIONS_MODE=${EXECUTIONS_MODE}
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_HOST=${DOMAIN_NAME}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+      - EXECUTIONS_DATA_PRUNE=${EXECUTIONS_DATA_PRUNE}
+      - EXECUTIONS_DATA_MAX_AGE=${EXECUTIONS_DATA_MAX_AGE}
+      - EXECUTIONS_DATA_PRUNE_MAX_COUNT=${EXECUTIONS_DATA_PRUNE_MAX_COUNT}
+      - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=${OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS}
+    volumes:
+      - n8n_storage:/home/node/.n8n
+    networks:
+      - n8n-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # 4. Distributed Execution Worker(s)
+  n8n-worker:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n_worker
+    restart: always
+    command: worker
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+      - DB_POSTGRESDB_USER=${POSTGRES_USER}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      - EXECUTIONS_MODE=${EXECUTIONS_MODE}
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+    volumes:
+      - n8n_storage:/home/node/.n8n
+    networks:
+      - n8n-network
+    depends_on:
+      n8n-main:
+        condition: service_started
+
+  # 5. Local Tunneling Infra for Webhooks
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: n8n_tunnel
+    restart: always
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:-dummy}
+    profiles: ["tunnel"] # Only starts when explicitly called
+    networks:
+      - n8n-network
