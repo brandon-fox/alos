@@ -285,6 +285,8 @@ def test_09_postgres_orm_and_alembic_migrations(tmp_path):
     """BDD Scenario & Spec 07: Validate PostgreSQL ORM model management and Alembic migrations.
     Spec: specs/07-postgres-orm-migrations/spec.md
     """
+    from sqlalchemy import inspect
+
     from alembic import command
     from alembic.config import Config
     from alos.db.models import (
@@ -358,8 +360,6 @@ def test_09_postgres_orm_and_alembic_migrations(tmp_path):
     # 2. Programmatic Alembic Migration Upgrade & Downgrade Execution
     alembic_cfg = Config("alembic.ini")
     alembic_cfg.set_main_option("sqlalchemy.url", db_url)
-
-    from sqlalchemy import inspect
 
     # Upgrade to head (applies revision 0001)
     command.upgrade(alembic_cfg, "head")
