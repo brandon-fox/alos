@@ -19,6 +19,7 @@
 - feat(vault): implement local Obsidian memory vault and reference documentation (839b6ca)
 
 ### 🐛 Fixes
+- fix(ci): replace pascalgn/automerge-action with native gh pr merge --auto (#10) (015a75e)
 - fix(test): support workflows.example directory fallback in CI for test_workflow_json_files_exist_and_valid (4ef7854)
 - fix(lint): reorder alembic imports in test_sdd_bdd_features.py (4989cf4)
 - fix(ci): add pyadr to optional dev dependencies (01b1b55)
