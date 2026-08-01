@@ -36,7 +36,9 @@ class EvaluatorNode:
 ```python
 class PlannerNode:
     def __init__(self, context: ContextPayload): ...
-    def generate_draft_action(self, user_query: str, critique_feedback: Optional[str] = None) -> BaseAction: ...
+    def generate_draft_action(
+        self, user_query: str, critique_feedback: Optional[str] = None
+    ) -> BaseAction: ...
 ```
 
 ### ALOSStateGraph

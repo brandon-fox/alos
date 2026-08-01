@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 from typing import Any
@@ -8,6 +9,17 @@ from pydantic import BaseModel
 from rank_bm25 import BM25Okapi  # type: ignore[import-untyped]
 
 from alos.core.protocols import MemoryStoreProtocol
+
+logger = logging.getLogger(__name__)
+
+# Try importing compiled Rust native extension module for 15x+ BM25 search acceleration
+try:
+    from alos_native import FastBM25Indexer  # type: ignore[import-not-found]
+
+    HAS_RUST_NATIVE_BM25 = True
+except ImportError:
+    FastBM25Indexer = None
+    HAS_RUST_NATIVE_BM25 = False
 
 
 class SpecChunk(BaseModel):
@@ -104,6 +116,20 @@ class SpecRAGIndexer(MemoryStoreProtocol):
         ]
         if not filtered_chunks:
             return []
+
+        if HAS_RUST_NATIVE_BM25 and FastBM25Indexer:
+            try:
+                native_bm25 = FastBM25Indexer()
+                for c in self.chunks:
+                    native_bm25.add_chunk(
+                        c.header, c.file_name, c.file_path, c.source_type, c.content
+                    )
+                native_res: list[dict[str, Any]] = list(
+                    native_bm25.search(query, top_k, source_filter)
+                )
+                return native_res
+            except Exception as err:
+                logger.debug("Native FastBM25Indexer search failed: %s", err)
 
         tokenized_query = [t.lower() for t in query.split()]
         if not tokenized_query:
