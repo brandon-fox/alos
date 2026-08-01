@@ -285,8 +285,9 @@ def test_09_postgres_orm_and_alembic_migrations(tmp_path):
     """BDD Scenario & Spec 07: Validate PostgreSQL ORM model management and Alembic migrations.
     Spec: specs/07-postgres-orm-migrations/spec.md
     """
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
     from alos.db.models import (
         AuditLogModel,
         DecisionRecordModel,
