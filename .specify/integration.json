@@ -2,12 +2,17 @@
   "version": "0.12.5.dev0",
   "integration_state_schema": 1,
   "installed_integrations": [
-    "gemini"
+    "gemini",
+    "agy"
   ],
   "integration_settings": {
     "gemini": {
       "script": "ps",
       "invoke_separator": "."
+    },
+    "agy": {
+      "script": "ps",
+      "invoke_separator": "-"
     }
   },
   "integration": "gemini",
