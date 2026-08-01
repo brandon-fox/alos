@@ -2,9 +2,11 @@ import glob
 import os
 from typing import Any
 
+from alos.core.protocols import MemoryStoreProtocol
 
-class LocalVectorStore:
-    """Local vector / document retrieval store for Obsidian Markdown Vault notes."""
+
+class LocalVectorStore(MemoryStoreProtocol):
+    """Local document retrieval store for Obsidian Markdown Vault notes (SOLID: ISP & DIP)."""
 
     def __init__(self, vault_dir: str):
         self.vault_dir = vault_dir

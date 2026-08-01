@@ -4,6 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from alos.core.protocols import MemoryStoreProtocol
+
 
 class SpecChunk(BaseModel):
     file_path: str
@@ -13,8 +15,8 @@ class SpecChunk(BaseModel):
     source_type: str
 
 
-class SpecRAGIndexer:
-    """Spec-aware RAG Indexer for system specs, vault notes, and reference guides."""
+class SpecRAGIndexer(MemoryStoreProtocol):
+    """Spec-aware RAG Indexer for system specs, vault notes, and references (SOLID: ISP & DIP)."""
 
     def __init__(self, root_dir: str):
         self.root_dir = os.path.abspath(root_dir)
