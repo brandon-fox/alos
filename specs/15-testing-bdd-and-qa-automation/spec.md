@@ -1,16 +1,21 @@
 # Feature Specification: Testing, BDD & QA Automation (Spec 15)
 
-## Executive Summary
-This specification defines the quality assurance framework utilizing `pytest-bdd` Gherkin step definitions, `hypothesis` property-based testing, `time-machine` time travel mocks, `vcrpy` cassette recordings, `factory_boy` test factories, `mutmut` mutation testing, `pytest-xdist`, and `playwright`.
+**Feature Branch**: `15-testing-bdd-and-qa-automation`
+**Status**: Approved
 
-## Scope of Included Ideas (Ideas 61–70)
-61. `pytest-bdd` Gherkin feature scenario automation
-62. `hypothesis` property-based randomized test generation
-63. `time-machine` deterministic datetime travel mocks
-64. `vcrpy` HTTP cassette interaction recording
-65. `factory_boy` Pydantic & ORM test object factories
-66. `mutmut` mutation testing runner
-67. `pytest-mock` standardized `mocker` fixture usage
-68. `pytest-xdist` parallel test execution (`pytest -n auto`)
-69. `pytest-cov` strict coverage failure thresholds (`--cov-fail-under=85`)
-70. `playwright` browser integration test automation
+## User Stories & Functional Requirements
+
+### User Story 1: Core System Functionality
+- **As an** ALOS core engine component or developer,
+- **I want** Testing, BDD & QA Automation implemented according to architectural requirements,
+- **So that** system capabilities meet system specifications.
+
+## Functional Requirements
+- **FR-15-01**: Enforce Test-Driven Development (TDD) Red-Green-Refactor cycles across modules.
+- **FR-15-02**: Maintain Gherkin BDD feature acceptance tests in tests/features/.
+- **FR-15-03**: Execute pytest test suite with code coverage enforcement in pre-push hooks.
+- **FR-15-04**: Validate persona integration tests and self-correction loops.
+
+## Acceptance Criteria
+1. All functional requirements (FR-15-01, FR-15-02, FR-15-03, FR-15-04) MUST be implemented and tested.
+2. System passes all automated pytest suites and quality gates.
