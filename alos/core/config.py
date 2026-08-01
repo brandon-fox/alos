@@ -12,6 +12,7 @@ class ALOSConfig(BaseModel):
     """
 
     vault_dir: str = Field(default_factory=lambda: os.getenv("ALOS_VAULT_DIR", "vault"))
+    workflows_dir: str = Field(default_factory=lambda: os.getenv("ALOS_WORKFLOWS_DIR", "workflows"))
     audit_log_path: str | None = Field(default_factory=lambda: os.getenv("ALOS_AUDIT_LOG_PATH"))
     decision_log_path: str | None = Field(
         default_factory=lambda: os.getenv("ALOS_DECISION_LOG_PATH")

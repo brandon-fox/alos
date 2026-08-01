@@ -4,6 +4,15 @@
 *.pem
 *.key
 
+# Working directories (Use vault.example/ and workflows.example/ for open-source templates)
+/vault/
+/workflows/
+/docker-compose.override.yml
+!vault.example/
+!workflows.example/
+!.env.example
+!docker-compose.override.yml.example
+
 # Python / byte-compiled
 **/__pycache__/
 *.pyc
