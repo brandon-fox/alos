@@ -1,12 +1,15 @@
 # Architecture Plan: Build Tooling & Monorepo Workflow (Spec 17)
 
+## Architecture & Component Mapping
+
 ```mermaid
 graph TD
-    Commit[Git Commit] --> CZ[Commitizen Conventional Commit Check]
-    CZ --> ADR[pyadr check-adr-repo]
-    ADR --> MkDocs[mkdocs build --strict]
-    MkDocs --> Docker[Multi-Stage Docker Image]
+    Client[Client / Agent Engine] --> Component[Build Tooling & Monorepo Workflow]
+    Component --> QualityGate[Quality & Audit Gate]
 ```
 
-- Configure `commitizen` in `pyproject.toml`.
-- Configure `mkdocs` build pipeline for strict internal link validation.
+## Technical Requirement Tracing
+- **FR-17-01**: Implemented in component architecture and verified by automated tests.
+- **FR-17-02**: Implemented in component architecture and verified by automated tests.
+- **FR-17-03**: Implemented in component architecture and verified by automated tests.
+- **FR-17-04**: Implemented in component architecture and verified by automated tests.

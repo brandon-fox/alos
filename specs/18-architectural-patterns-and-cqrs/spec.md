@@ -1,16 +1,21 @@
-# Feature Specification: Architectural Design Patterns & CQRS (Spec 18)
+# Feature Specification: Architectural Patterns & CQRS (Spec 18)
 
-## Executive Summary
-This specification defines the architectural patterns and design principles governing ALOS code organization: DIP, SRP, ISP, OCP, CQRS (Command Query Responsibility Segregation), Event Bus, Repository Pattern, Strategy Pattern, Null Object Pattern, and Saga Pattern (Compensating Actions).
+**Feature Branch**: `18-architectural-patterns-and-cqrs`
+**Status**: Approved
 
-## Scope of Included Ideas (Ideas 91–100)
-91. Dependency Inversion Principle (DIP) via Python Protocols
-92. Single Responsibility Principle (SRP) module segregation
-93. Interface Segregation Principle (ISP) fine-grained protocols
-94. Open/Closed Principle (OCP) strategy handlers
-95. Command Query Responsibility Segregation (CQRS)
-96. Event Bus architecture for state notifications
-97. Repository Pattern for database decoupling
-98. Strategy Pattern for rule evaluation engines
-99. Null Object Pattern for safe default fallbacks
-100. Saga Pattern with compensating rollback handlers for agent execution failures
+## User Stories & Functional Requirements
+
+### User Story 1: Core System Functionality
+- **As an** ALOS core engine component or developer,
+- **I want** Architectural Patterns & CQRS implemented according to architectural requirements,
+- **So that** system capabilities meet system specifications.
+
+## Functional Requirements
+- **FR-18-01**: Separate read (query) and write (command) models using Command Query Responsibility Segregation (CQRS).
+- **FR-18-02**: Implement Event Sourcing for audit log and decision log state reconstruction.
+- **FR-18-03**: Decouple core domain logic from external infrastructure dependencies.
+- **FR-18-04**: Enforce Architectural Decision Record (ADR) creation via pyadr CLI.
+
+## Acceptance Criteria
+1. All functional requirements (FR-18-01, FR-18-02, FR-18-03, FR-18-04) MUST be implemented and tested.
+2. System passes all automated pytest suites and quality gates.

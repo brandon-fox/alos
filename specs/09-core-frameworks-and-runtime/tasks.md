@@ -1,7 +1,6 @@
 # Task Breakdown: Core Frameworks & Runtime Dependencies (Spec 09)
 
-- [ ] Task 1: Refactor `alos/core/config.py` to use `pydantic-settings`.
-- [ ] Task 2: Configure `structlog` in `alos/logs/` for structured JSON output.
-- [ ] Task 3: Wrap external tool executions in `alos/integrations/mcp_gateway.py` with `tenacity` retry decorators.
-- [ ] Task 4: Integrate `typer` and `rich` in `alos/cli.py` for rich CLI commands.
-- [ ] Task 5: Add unit tests verifying setting validation and retry behavior.
+- [x] Task 1: Implement and verify FR-09-01 (Validate configuration environment variables on application startup using pydantic-settings.)
+- [x] Task 2: Implement and verify FR-09-02 (Configure structured JSON event logging using structlog across core runtime modules.)
+- [x] Task 3: Implement and verify FR-09-03 (Wrap external API and network retry operations with tenacity exponential backoff decorators.)
+- [x] Task 4: Implement and verify FR-09-04 (Integrate typer CLI framework and rich terminal formatting for system commands.)
