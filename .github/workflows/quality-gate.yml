@@ -1,0 +1,107 @@
+# This workflow runs a comprehensive parallel quality gate for the ALOS project.
+# It includes 6 parallel jobs: ruff-lint, mypy-types, bandit-security, pytest-suite,
+# adr-governance, and dependency-review, as well as a docker validation step.
+# It uses a concurrency model to cancel in-progress runs for the same branch.
+
+name: Quality Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: quality-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  ruff-lint:
+    name: ruff-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync --extra dev
+      - name: Ruff Lint
+        run: uv run ruff check alos tests
+      - name: Ruff Format Check
+        run: uv run ruff format --check alos tests
+
+  mypy-types:
+    name: mypy-types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync --extra dev
+      - name: MyPy Static Analysis
+        run: uv run mypy alos
+
+  bandit-security:
+    name: bandit-security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync --extra dev
+      - name: Bandit Security Scan
+        run: uv run bandit -r alos -s B101 -f json -o bandit-report.json || true
+      - name: Bandit Human Report
+        run: uv run bandit -r alos -s B101
+
+  pytest-suite:
+    name: pytest-suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync --extra dev
+      - name: Run Tests with Coverage
+        run: uv run pytest --cov=alos --cov-report=xml:coverage.xml --cov-report=term-missing
+      - name: Upload Coverage Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 7
+
+  adr-governance:
+    name: adr-governance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync --extra dev
+      - name: Verify ADR Repository
+        run: uv run pyadr check-adr-repo
+
+  dependency-review:
+    name: dependency-review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: always
+          allow-licenses: 'MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, PSF-2.0, Python-2.0, Unlicense, 0BSD'
+
+  docker-validate:
+    name: docker-validate
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.message, 'docker') || contains(github.event.head_commit.message, 'compose')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Docker Compose
+        run: docker compose config --quiet
+      - name: Trivy IaC Scan
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
