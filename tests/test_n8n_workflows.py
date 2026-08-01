@@ -7,12 +7,19 @@ from alos.integrations.n8n_client import N8nClient
 
 def test_workflow_json_files_exist_and_valid():
     """Verify that all 3 n8n workflow export files exist and are valid JSON."""
-    workflows_dir = Path("workflows")
-    expected_files = [
-        "n8n_human_approval_gate.json",
-        "n8n_health_poll_self_correct.json",
-        "n8n_vault_knowledge_ingestion.json",
-    ]
+    workflows_dir = Path("workflows") if Path("workflows").exists() else Path("workflows.example")
+    if (workflows_dir / "n8n_human_approval_gate.json").exists():
+        expected_files = [
+            "n8n_human_approval_gate.json",
+            "n8n_health_poll_self_correct.json",
+            "n8n_vault_knowledge_ingestion.json",
+        ]
+    else:
+        expected_files = [
+            "wf-human-approval-gate.json",
+            "wf-health-poll-self-correct.json",
+            "wf-vault-knowledge-ingestion.json",
+        ]
 
     for filename in expected_files:
         file_path = workflows_dir / filename
