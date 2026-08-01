@@ -70,3 +70,10 @@ repos:
         types: [python]
         pass_filenames: false
         stages: [pre-push]
+
+      - id: pyadr-check
+        name: ADR Repository Sanity Gate (pyadr)
+        entry: pyadr check-adr-repo --no-ansi
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
