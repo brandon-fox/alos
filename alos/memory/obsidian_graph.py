@@ -3,8 +3,7 @@
 Spec: specs/08-obsidian-vault-brain-integration/spec.md
 """
 
-from collections import deque
-
+import networkx as nx
 from pydantic import BaseModel, Field
 
 from alos.memory.obsidian_vault import ObsidianVaultParser
@@ -16,7 +15,7 @@ class GraphNeighborhood(BaseModel):
 
 
 class ObsidianGraphEngine:
-    """Graph engine connecting Obsidian notes via [[WikiLink]] references."""
+    """Graph engine connecting Obsidian notes via [[WikiLink]] references using NetworkX."""
 
     def __init__(self, vault_dir: str):
         self.vault_dir = vault_dir
@@ -25,28 +24,19 @@ class ObsidianGraphEngine:
     def get_neighborhood(self, center_note: str, depth: int = 2) -> GraphNeighborhood:
         notes = self.parser.parse_all()
 
-        # Build adjacency mapping (bidirectional for note graph)
-        adj: dict[str, set[str]] = {}
+        # Build NetworkX undirected graph
+        graph: nx.Graph = nx.Graph()
         for note in notes:
             name = note.file_name.rsplit(".", 1)[0]
-            if name not in adj:
-                adj[name] = set()
+            graph.add_node(name)
             for link in note.wiki_links:
-                adj[name].add(link)
-                if link not in adj:
-                    adj[link] = set()
-                adj[link].add(name)
+                graph.add_edge(name, link)
 
-        visited: set[str] = {center_note}
-        queue: deque[tuple[str, int]] = deque([(center_note, 0)])
+        if not graph.has_node(center_note):
+            return GraphNeighborhood(center_note=center_note, nodes={center_note})
 
-        while queue:
-            curr, curr_depth = queue.popleft()
-            if curr_depth < depth:
-                neighbors = adj.get(curr, set())
-                for nxt in neighbors:
-                    if nxt not in visited:
-                        visited.add(nxt)
-                        queue.append((nxt, curr_depth + 1))
+        # Retrieve nodes within specified cutoff depth using NetworkX
+        lengths = nx.single_source_shortest_path_length(graph, center_note, cutoff=depth)
+        visited = set(lengths.keys())
 
         return GraphNeighborhood(center_note=center_note, nodes=visited)

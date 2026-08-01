@@ -7,6 +7,7 @@ import os
 import re
 from typing import Any
 
+import frontmatter
 from pydantic import BaseModel, Field
 
 
@@ -28,34 +29,21 @@ class ObsidianVaultParser:
         self.vault_dir = os.path.abspath(vault_dir)
 
     def _extract_frontmatter(self, raw_text: str) -> tuple[dict[str, Any], list[str], str]:
-        frontmatter: dict[str, Any] = {}
         tags: list[str] = []
-        body_text = raw_text
+        try:
+            post = frontmatter.loads(raw_text)
+            metadata = dict(post.metadata)
+            body_text = post.content
 
-        if raw_text.startswith("---"):
-            parts = raw_text.split("---", 2)
-            if len(parts) >= 3:
-                yaml_block = parts[1]
-                body_text = parts[2]
-                current_key: str | None = None
-                for line in yaml_block.splitlines():
-                    line_str = line.strip()
-                    if not line_str or line_str.startswith("#"):
-                        continue
-                    if ":" in line_str and not line_str.startswith("-"):
-                        k, v = line_str.split(":", 1)
-                        current_key = k.strip()
-                        val_str = v.strip()
-                        frontmatter[current_key] = val_str if val_str else []
-                    elif line_str.startswith("-") and current_key:
-                        item = line_str.lstrip("- ").strip()
-                        if isinstance(frontmatter.get(current_key), list):
-                            frontmatter[current_key].append(item)
-
-                if "tags" in frontmatter and isinstance(frontmatter["tags"], list):
-                    tags.extend(frontmatter["tags"])
-
-        return frontmatter, tags, body_text
+            if "tags" in metadata:
+                val = metadata["tags"]
+                if isinstance(val, list):
+                    tags.extend([str(t) for t in val])
+                elif isinstance(val, str):
+                    tags.append(val)
+            return metadata, tags, body_text
+        except Exception:
+            return {}, [], raw_text
 
     def parse_file(self, file_path: str) -> ObsidianNote:
         file_name = os.path.basename(file_path)

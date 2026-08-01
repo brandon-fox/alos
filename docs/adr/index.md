@@ -11,6 +11,8 @@
 * [0005 - Enforce SpecKit SDD BDD and TDD Development Paradigms](0005-enforce-speckit-sdd-bdd-and-tdd-development-paradigms.md)
 * [0006 - Capture Runtime Action Decisions with DecisionLogger ADR Records](0006-capture-runtime-action-decisions-with-decisionlogger-adr-records.md)
 * [0007 - Adopt SQLAlchemy ORM and Alembic for PostgreSQL Data Models and Migrations](0007-adopt-sqlalchemy-orm-and-alembic-for-postgresql-data-models-and-migrations.md)
+* [0008 - Integrate Obsidian Vault Brain Engine into ALOS Memory Architecture](0008-integrate-obsidian-vault-brain-engine-into-alos-memory-architecture.md)
+* [0009 - Adopt Open-Source Dependencies for ALOS Core Architecture](0009-adopt-open-source-dependencies-for-alos-core-architecture.md)
 
 ## Rejected Records
 

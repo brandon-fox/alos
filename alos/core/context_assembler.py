@@ -4,7 +4,6 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from alos.core.protocols import MemoryStoreProtocol
-from alos.memory.vector_store import LocalVectorStore
 
 
 class ContextPayload(BaseModel):
@@ -21,6 +20,8 @@ class ContextAssembler:
     """
 
     def __init__(self, vault_dir: str, vector_store: MemoryStoreProtocol | None = None):
+        from alos.memory.vector_store import LocalVectorStore
+
         self.vault_dir = vault_dir
         self.vector_store: MemoryStoreProtocol = (
             vector_store if vector_store is not None else LocalVectorStore(vault_dir=vault_dir)

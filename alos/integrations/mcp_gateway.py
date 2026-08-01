@@ -1,6 +1,8 @@
 import uuid
 from typing import Any
 
+import mcp.types as mcp_types
+
 from alos.core.protocols import MCPGatewayProtocol, ToolHandlerProtocol
 
 
@@ -77,13 +79,14 @@ class WebSearchHandler:
 class MCPGateway(MCPGatewayProtocol):
     """Model Context Protocol (MCP) Gateway for Workspace & Tool integrations.
 
-    Implements OCP by maintaining an extensible tool handler registry and DIP by
-    conforming to MCPGatewayProtocol.
+    Integrates official Anthropic mcp SDK types (mcp.types) and implements OCP by maintaining an
+    extensible tool handler registry and DIP by conforming to MCPGatewayProtocol.
     """
 
     def __init__(self, mock_mode: bool = True):
         self.mock_mode = mock_mode
         self._handlers: dict[str, ToolHandlerProtocol] = {}
+        self._mcp_tools: dict[str, Any] = {}
         self._register_default_handlers()
 
     def _register_default_handlers(self) -> None:
@@ -97,6 +100,12 @@ class MCPGateway(MCPGatewayProtocol):
     def register_handler(self, tool_name: str, handler: ToolHandlerProtocol) -> None:
         """Register a new tool handler without modifying gateway dispatch logic (SOLID: OCP)."""
         self._handlers[tool_name] = handler
+        # Register standard MCP Tool schema representation
+        self._mcp_tools[tool_name] = mcp_types.Tool(
+            name=tool_name,
+            description=f"ALOS Integration Tool for {tool_name}",
+            input_schema={"type": "object"},
+        )
 
     def execute_tool(self, tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
         """Dispatch tool execution via registered tool handler strategy."""

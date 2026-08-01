@@ -2,11 +2,14 @@ import glob
 import os
 from typing import Any
 
+# Third-party library rank_bm25 lacks PEP 561 py.typed marker or type stubs
+from rank_bm25 import BM25Okapi  # type: ignore[import-untyped]
+
 from alos.core.protocols import MemoryStoreProtocol
 
 
 class LocalVectorStore(MemoryStoreProtocol):
-    """Local document retrieval store for Obsidian Markdown Vault notes (SOLID: ISP & DIP)."""
+    """Local document retrieval store for Obsidian notes using Okapi BM25 (SOLID: DIP)."""
 
     def __init__(self, vault_dir: str):
         self.vault_dir = vault_dir
@@ -17,7 +20,11 @@ class LocalVectorStore(MemoryStoreProtocol):
             return results
 
         md_files = glob.glob(os.path.join(self.vault_dir, "**", "*.md"), recursive=True)
-        query_terms = [t.lower() for t in query.split()]
+        if not md_files:
+            return results
+
+        documents: list[dict[str, Any]] = []
+        tokenized_corpus: list[list[str]] = []
 
         for filepath in md_files:
             filename = os.path.basename(filepath)
@@ -27,13 +34,25 @@ class LocalVectorStore(MemoryStoreProtocol):
             except (OSError, UnicodeDecodeError):
                 continue
 
-            content_lower = content.lower()
-            score = sum(1 for term in query_terms if term in content_lower)
+            documents.append({"filename": filename, "filepath": filepath, "content": content})
+            tokenized_corpus.append(content.lower().split())
 
-            if score > 0 or not query_terms:
-                results.append(
-                    {"filename": filename, "filepath": filepath, "content": content, "score": score}
-                )
+        if not documents:
+            return results
 
-        results.sort(key=lambda x: int(x["score"]), reverse=True)
-        return results[:top_k]
+        tokenized_query = [t.lower() for t in query.split()]
+        if not tokenized_query:
+            for doc in documents[:top_k]:
+                results.append({**doc, "score": 0.0})
+            return results
+
+        bm25 = BM25Okapi(tokenized_corpus)
+        scores = bm25.get_scores(tokenized_query)
+
+        scored_docs: list[dict[str, Any]] = []
+        for doc, score in zip(documents, scores, strict=False):
+            if score > 0:
+                scored_docs.append({**doc, "score": float(score)})
+
+        scored_docs.sort(key=lambda x: float(x["score"]), reverse=True)
+        return scored_docs[:top_k]
