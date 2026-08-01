@@ -28,3 +28,14 @@ This file contains repository-scoped behavioral rules and directives for AI agen
 - **Fix-First Directive (MANDATORY)**: AI agents MUST always prefer resolving and fixing code issues, bugs, linting errors, typing issues, security vulnerabilities, and Sonar code smells over ignoring or suppressing them (`# noqa`, `# type: ignore`, `NOSONAR`, `# pragma: no cover`), even if fixing is significantly harder or requires refactoring.
 - **Mandatory Exception Documentation & Native Linter Enforcement**: Suppressions (`# noqa`, `# type: ignore`, `NOSONAR`, etc.) are permitted ONLY when fixing is technically impossible or limited by external framework requirements. Every exception MUST be preceded or accompanied by an explicit justification comment. Native linters strictly enforce rule specificity (`ruff` `PGH004` disallows bare `# noqa`, `RUF100` disallows unused `# noqa`, `mypy` `enable_error_code = ["ignore-without-code"]` disallows bare `# type: ignore`).
 - **Sonar Scans & Quality Gates**: All code MUST pass Sonar code quality scans, ruff lint checks, mypy type checks, bandit security audits, and pytest suites. Pre-commit hooks run fast linting and formatting checks; pre-push hooks strictly enforce passing test suites, type checking, security audits, and Sonar quality gates.
+
+### 7. Subagent Delegation Protocol & Adaptive Workspace Rules
+- **Proactive Delegation**: AI agents MUST spawn specialized subagents (`invoke_subagent` or `define_subagent`) for parallel research, heavy context searching, code quality audits, and test execution.
+- **Risk-Adaptive Workspaces**:
+  - `Workspace: inherit` (Shared Workspace): Use for low-risk, non-destructive, or read-only subtasks (e.g. running test suites, querying git history, reading documentation, auditing code quality).
+  - `Workspace: branch` (Isolated Workspace): Use for high-risk or structural refactoring, major architectural changes, and experimental feature branches.
+- **Skill Usage**: Refer to `.agents/skills/agentic-autonomy/SKILL.md` for guidance on subagent composition and background task orchestration.
+
+### 8. Tooling Autonomy, Proactive Permissions & Non-Blocking Execution
+- **Proactive Permission Elevation**: At session start or when introducing new CLI tools, agents MUST request broad command prefix grants using `ask_permission` (e.g. `Action: command`, `Target: "uv"`, `Target: "git"`, `Target: "docker"`, `Target: "pyadr"`, `Target: "pre-commit"`) to eliminate interactive user prompts for safe tool execution.
+- **Asynchronous Execution & Scheduling**: Long-running operations (test suites, container spinups, quality audits) MUST be executed as non-blocking background tasks (`run_command` async or `schedule` timers), enabling parallel execution without blocking interaction.
