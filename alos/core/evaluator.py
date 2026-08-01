@@ -8,7 +8,7 @@ Article V (Safety Matrix)
 from __future__ import annotations
 
 from enum import Enum
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
@@ -31,8 +31,8 @@ class EvaluationResult(BaseModel):
     risk_level: RiskLevel = RiskLevel.LOW
     requires_approval: bool = False
     # Captured for Decision Log accumulation in StateGraph
-    preferences_checked: List[str] = []
-    corrections_checked: List[str] = []
+    preferences_checked: list[str] = []
+    corrections_checked: list[str] = []
 
 
 class EvaluatorNode:
@@ -46,8 +46,8 @@ class EvaluatorNode:
 
     def __init__(
         self,
-        context: Optional["ContextPayload"] = None,
-        decision_logger: Optional["DecisionLogger"] = None,
+        context: ContextPayload | None = None,
+        decision_logger: DecisionLogger | None = None,
         trigger: str = "",
     ):
         # Lazy import to avoid circular at module load time
@@ -84,7 +84,7 @@ class EvaluatorNode:
     def evaluate_action(
         self,
         action: BaseAction,
-        alternatives_considered: Optional[List[str]] = None,
+        alternatives_considered: list[str] | None = None,
         self_correction_rounds: int = 0,
     ) -> EvaluationResult:
         """Validate action against preferences and correction ledger.
@@ -94,8 +94,8 @@ class EvaluatorNode:
         risk_level = self.classify_risk(action)
         requires_approval = risk_level == RiskLevel.HIGH
 
-        preferences_checked: List[str] = []
-        corrections_checked: List[str] = []
+        preferences_checked: list[str] = []
+        corrections_checked: list[str] = []
         constitution_articles_checked = ["I §1", "V"]
 
         # --- Validate GoogleCalendarEvent against time-based preferences ---
@@ -149,7 +149,7 @@ class EvaluatorNode:
                         risk_level=risk_level,
                         decision="REJECTED",
                         rationale=result.critique,
-                        constitution_articles_checked=constitution_articles_checked + ["III §1"],
+                        constitution_articles_checked=[*constitution_articles_checked, "III §1"],
                         preferences_checked=preferences_checked,
                         corrections_checked=corrections_checked,
                         alternatives_considered=alternatives_considered or [],
@@ -194,10 +194,10 @@ class EvaluatorNode:
         risk_level: RiskLevel,
         decision: str,
         rationale: str,
-        constitution_articles_checked: List[str],
-        preferences_checked: List[str],
-        corrections_checked: List[str],
-        alternatives_considered: List[str],
+        constitution_articles_checked: list[str],
+        preferences_checked: list[str],
+        corrections_checked: list[str],
+        alternatives_considered: list[str],
         self_correction_rounds: int,
     ) -> None:
         """Emit one ADR record via DecisionLogger if one is wired in."""

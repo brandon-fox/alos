@@ -8,10 +8,10 @@ from alos.db.models import (
 from alos.db.session import DatabaseManager
 
 __all__ = [
-    "Base",
     "AuditLogModel",
+    "Base",
+    "DatabaseManager",
     "DecisionRecordModel",
     "ExecutionStateModel",
     "UserProfileModel",
-    "DatabaseManager",
 ]

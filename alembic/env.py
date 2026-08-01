@@ -3,6 +3,9 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
 
+# EXCEPTION JUSTIFICATION: Importing alos.db.models registers all SQLAlchemy ORM
+# models with Base.metadata so Alembic autogenerate can detect table schemas.
+# The module is not directly referenced by name in env.py.
 import alos.db.models  # noqa: F401
 from alembic import context
 

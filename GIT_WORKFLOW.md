@@ -72,11 +72,22 @@ To support concurrent AI agent operations and ensure atomic revision history:
   - YAML/JSON/TOML syntax checks
   - Private key & secret leak detection
   - `ruff` linting and formatting (`ruff check --fix`, `ruff format`)
+  - Exception documentation validator (`check_exception_docs.py`)
+  - Sonar code quality scan verification
 
-- **Pre-Push Hooks** (`git push`):
-  - `pytest`: All unit & integration tests must pass
-  - `mypy`: Static type check verification
+- **Pre-Push Hooks** (`git push` - Strict Gate):
   - `bandit`: AST security vulnerability scan
+  - `mypy`: Strict type check verification across codebase
+  - `pytest`: All unit & integration tests must pass with coverage enforcement
+  - `check-exception-docs`: Automated check ensuring zero undocumented `# noqa` or `# type: ignore` suppressions
+  - `sonar-scanner`: Comprehensive Sonar code quality and bug / vulnerability gate audit
+
+---
+
+## 6. Code Quality, Exception Documentation & Agent Directives
+
+- **Fix-First Mindset**: AI agents and developers must ALWAYS prioritize fixing bugs, lint warnings, type errors, and Sonar code smells over ignoring or suppressing them (`# noqa`, `# type: ignore`, `NOSONAR`), even when fixing is significantly harder.
+- **Rule Exception Documentation**: Every inline suppression (e.g. `# noqa: F401`, `# type: ignore`) MUST be accompanied by an explicit inline or preceding technical justification comment. Undocumented suppressions will fail pre-commit and pre-push validation.
 
 ---
 

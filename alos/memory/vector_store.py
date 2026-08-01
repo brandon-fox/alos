@@ -1,6 +1,6 @@
 import glob
 import os
-from typing import Any, Dict, List
+from typing import Any
 
 
 class LocalVectorStore:
@@ -9,8 +9,8 @@ class LocalVectorStore:
     def __init__(self, vault_dir: str):
         self.vault_dir = vault_dir
 
-    def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        results: List[Dict[str, Any]] = []
+    def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
+        results: list[dict[str, Any]] = []
         if not os.path.exists(self.vault_dir):
             return results
 
@@ -19,7 +19,7 @@ class LocalVectorStore:
 
         for filepath in md_files:
             filename = os.path.basename(filepath)
-            with open(filepath, "r", encoding="utf-8") as f:
+            with open(filepath, encoding="utf-8") as f:
                 content = f.read()
 
             content_lower = content.lower()

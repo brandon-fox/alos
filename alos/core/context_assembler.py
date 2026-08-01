@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, List
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -7,10 +7,10 @@ from alos.memory.vector_store import LocalVectorStore
 
 
 class ContextPayload(BaseModel):
-    profile: Dict[str, Any] = Field(default_factory=dict)
-    preferences: List[str] = Field(default_factory=list)
-    corrections: List[str] = Field(default_factory=list)
-    rag_docs: List[Dict[str, Any]] = Field(default_factory=list)
+    profile: dict[str, Any] = Field(default_factory=dict)
+    preferences: list[str] = Field(default_factory=list)
+    corrections: list[str] = Field(default_factory=list)
+    rag_docs: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ContextAssembler:
@@ -30,7 +30,7 @@ class ContextAssembler:
         # Read USER_PROFILE.md
         profile_path = os.path.join(self.vault_dir, "USER_PROFILE.md")
         if os.path.exists(profile_path):
-            with open(profile_path, "r", encoding="utf-8") as f:
+            with open(profile_path, encoding="utf-8") as f:
                 for line in f:
                     if ":" in line and not line.startswith("#"):
                         parts = line.strip().lstrip("- ").split(":", 1)
@@ -40,7 +40,7 @@ class ContextAssembler:
         # Read PREFERENCES.md
         pref_path = os.path.join(self.vault_dir, "PREFERENCES.md")
         if os.path.exists(pref_path):
-            with open(pref_path, "r", encoding="utf-8") as f:
+            with open(pref_path, encoding="utf-8") as f:
                 for line in f:
                     cleaned = line.strip().lstrip("- ").strip()
                     if cleaned and not line.startswith("#"):
@@ -49,7 +49,7 @@ class ContextAssembler:
         # Read CORRECTION_LEDGER.md
         corr_path = os.path.join(self.vault_dir, "CORRECTION_LEDGER.md")
         if os.path.exists(corr_path):
-            with open(corr_path, "r", encoding="utf-8") as f:
+            with open(corr_path, encoding="utf-8") as f:
                 for line in f:
                     cleaned = line.strip().lstrip("- ").strip()
                     if cleaned and not line.startswith("#"):

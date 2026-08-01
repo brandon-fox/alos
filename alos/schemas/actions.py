@@ -1,5 +1,3 @@
-from typing import List, Optional
-
 from pydantic import BaseModel, Field
 
 
@@ -12,9 +10,9 @@ class TodoistTaskCreate(BaseAction):
     action_type: str = "todoist_create_task"
     description: str = "Create task in Todoist"
     title: str
-    due_date: Optional[str] = None
+    due_date: str | None = None
     priority: int = 1
-    labels: List[str] = Field(default_factory=list)
+    labels: list[str] = Field(default_factory=list)
 
 
 class GoogleCalendarEvent(BaseAction):
@@ -23,7 +21,7 @@ class GoogleCalendarEvent(BaseAction):
     title: str
     start_time: str
     end_time: str
-    attendees: List[str] = Field(default_factory=list)
+    attendees: list[str] = Field(default_factory=list)
 
 
 class EmailDraft(BaseAction):
@@ -50,5 +48,5 @@ class WebSearchQuery(BaseAction):
 class ActionPlan(BaseModel):
     plan_id: str
     goal: str
-    actions: List[BaseAction] = Field(default_factory=list)
+    actions: list[BaseAction] = Field(default_factory=list)
     risk_level: str = "LOW"
