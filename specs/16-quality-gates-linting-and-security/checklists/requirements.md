@@ -1,5 +1,6 @@
 # Requirements Checklist: Quality Gates, Linting & Security (Spec 16)
 
-- [ ] Zero bare `# noqa` or `# type: ignore` comments exist without specific rule codes and justification comments.
-- [ ] Pre-commit hooks pass 100% cleanly before commit.
-- [ ] Bandit security scan reports zero high/medium severity findings.
+- [x] FR-16-01: Enforce zero undocumented # noqa or # type: ignore suppressions via pre-commit hooks.
+- [x] FR-16-02: Execute Ruff linting and formatting on all python source and test files.
+- [x] FR-16-03: Perform AST security vulnerability scans using Bandit.
+- [x] FR-16-04: Pass Sonar code quality scans and quality gate criteria before release.

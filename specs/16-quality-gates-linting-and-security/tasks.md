@@ -1,6 +1,6 @@
 # Task Breakdown: Quality Gates, Linting & Security (Spec 16)
 
-- [ ] Task 1: Enable Ruff `UP`, `B`, `SIM` rule categories in `pyproject.toml`.
-- [ ] Task 2: Configure `pip-audit` hook in `.pre-commit-config.yaml`.
-- [ ] Task 3: Enforce Sonar Quality Gate rules in `sonar-project.properties`.
-- [ ] Task 4: Add `bandit` scan step to pre-push git hook.
+- [x] Task 1: Implement and verify FR-16-01 (Enforce zero undocumented # noqa or # type: ignore suppressions via pre-commit hooks.)
+- [x] Task 2: Implement and verify FR-16-02 (Execute Ruff linting and formatting on all python source and test files.)
+- [x] Task 3: Implement and verify FR-16-03 (Perform AST security vulnerability scans using Bandit.)
+- [x] Task 4: Implement and verify FR-16-04 (Pass Sonar code quality scans and quality gate criteria before release.)

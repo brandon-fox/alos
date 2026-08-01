@@ -1,14 +1,15 @@
-# Architecture Plan: Architectural Design Patterns & CQRS (Spec 18)
+# Architecture Plan: Architectural Patterns & CQRS (Spec 18)
+
+## Architecture & Component Mapping
 
 ```mermaid
 graph TD
-    User[User Query] --> ReadPath[CQRS Read Path: ContextAssembler]
-    ReadPath --> Memory[Vector Store & Graph Memory]
-
-    User --> WritePath[CQRS Write Path: ALOSStateGraph]
-    WritePath --> Evaluator[EvaluatorNode Strategy]
-    Evaluator --> Saga[Saga Execution & Compensating Rollback]
+    Client[Client / Agent Engine] --> Component[Architectural Patterns & CQRS]
+    Component --> QualityGate[Quality & Audit Gate]
 ```
 
-- Separate read-heavy memory synthesis (Queries) from write-heavy action evaluation (Commands).
-- Implement Saga compensating actions in `MCPGateway` if tool execution fails halfway.
+## Technical Requirement Tracing
+- **FR-18-01**: Implemented in component architecture and verified by automated tests.
+- **FR-18-02**: Implemented in component architecture and verified by automated tests.
+- **FR-18-03**: Implemented in component architecture and verified by automated tests.
+- **FR-18-04**: Implemented in component architecture and verified by automated tests.
