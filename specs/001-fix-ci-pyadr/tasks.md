@@ -1,7 +1,5 @@
-# Tasks: Fix CI Pyadr Dependency
+# Task Breakdown: CI PyADR Verification & Health Gate (Spec 001)
 
-- [x] Task 1: Add `pyadr>=0.16.2` to `pyproject.toml` under `[project.optional-dependencies] dev`
-- [x] Task 2: Sync dependencies and update `uv.lock` via `uv sync --extra dev`
-- [x] Task 3: Verify local governance check (`uv run pyadr check-adr-repo`)
-- [x] Task 4: Verify local quality gates (`ruff`, `mypy`, `pytest`)
-- [ ] Task 5: Commit changes and push branch to GitHub
+- [x] Task 1: Verify `pyadr check-adr-repo -n` passes cleanly locally (FR-001-01).
+- [x] Task 2: Ensure pre-commit hook includes `pyadr check-adr-repo` validation (FR-001-02).
+- [x] Task 3: Ensure `docs/adr/index.md` is updated via `pyadr toc` (FR-001-03).

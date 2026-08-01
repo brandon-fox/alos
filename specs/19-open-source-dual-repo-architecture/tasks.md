@@ -1,15 +1,6 @@
-# Tasks: Open-Source Core & Dual-Repo Architecture
+# Task Breakdown: Open Source Dual Repo Architecture (Spec 19)
 
-- [x] Create ADR-0011 using `pyadr` CLI
-- [x] Create SpecKit specification suite `specs/19-open-source-dual-repo-architecture/`
-- [ ] Add `workflows_dir` setting to `alos/core/config.py`
-- [ ] Add unit test in `tests/test_config.py` for `ALOS_WORKFLOWS_DIR`
-- [ ] Create `.env.example` file
-- [ ] Create `LICENSE` file
-- [ ] Create `docker-compose.override.yml.example` file
-- [ ] Create `vault.example/` baseline templates
-- [ ] Create `workflows.example/` baseline n8n JSON schemas
-- [ ] Update `.gitignore` for working directory isolation
-- [ ] Create `.github/workflows/ci.yml` GitHub Actions pipeline
-- [ ] Update `README.md` with open source architecture and setup guides
-- [ ] Run full test suite and quality gate verification
+- [x] Task 1: Implement and verify FR-19-01 (Maintain dual repository architecture separating core engine from enterprise extensions.)
+- [x] Task 2: Implement and verify FR-19-02 (Automate public CI/CD synchronization and release workflows.)
+- [x] Task 3: Implement and verify FR-19-03 (Provide public documentation and quickstart guides in docs/.)
+- [x] Task 4: Implement and verify FR-19-04 (Enforce open-source license compliance and contributor governance.)

@@ -1,16 +1,21 @@
 # Feature Specification: Database & ORM Evolution (Spec 10)
 
-## Executive Summary
-This specification defines the modernization of ALOS relational and vector storage using SQLAlchemy 2.0 type-annotated `Mapped[T]` models, `alembic` auto-generated migrations, PostgreSQL `pgvector` distance indexing, `asyncpg` connection pooling, `duckdb` local analytics, and `polars` fast data processing.
+**Feature Branch**: `10-database-and-orm-evolution`
+**Status**: Approved
 
-## Scope of Included Ideas (Ideas 11–20)
-11. SQLAlchemy Mapped Columns (`Mapped[T]`)
-12. Alembic Auto-migration revision generation
-13. `pgvector` native PostgreSQL vector distance operations
-14. `asyncpg` connection pooling
-15. `sqlmodel` schema unification
-16. `duckdb` embedded analytics
-17. `polars` high-performance DataFrames
-18. `redis-py` transient state synchronization
-19. ORM Event Listeners for audit timestamps
-20. `sqltap` query profiling and N+1 query prevention
+## User Stories & Functional Requirements
+
+### User Story 1: Core System Functionality
+- **As an** ALOS core engine component or developer,
+- **I want** Database & ORM Evolution implemented according to architectural requirements,
+- **So that** system capabilities meet system specifications.
+
+## Functional Requirements
+- **FR-10-01**: Implement SQLAlchemy 2.0 async engine and declarative model definitions.
+- **FR-10-02**: Manage database schema migrations deterministically using Alembic revision scripts.
+- **FR-10-03**: Maintain audit log and decision log persistence in PostgreSQL database tables.
+- **FR-10-04**: Provide fallback SQLite local storage engine for disconnected operation.
+
+## Acceptance Criteria
+1. All functional requirements (FR-10-01, FR-10-02, FR-10-03, FR-10-04) MUST be implemented and tested.
+2. System passes all automated pytest suites and quality gates.

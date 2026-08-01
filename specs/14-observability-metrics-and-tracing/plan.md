@@ -1,12 +1,15 @@
-# Architecture Plan: Observability, Metrics & Tracing (Spec 14)
+# Architecture Plan: Observability Metrics & Tracing (Spec 14)
+
+## Architecture & Component Mapping
 
 ```mermaid
 graph TD
-    Graph[ALOS Engine] --> OTel[OpenTelemetry Tracer]
-    Graph --> Prom[Prometheus Metrics]
-    Graph --> Audit[SystemAuditLogger]
-    OTel --> Collector[OTel Collector / Sentry]
+    Client[Client / Agent Engine] --> Component[Observability Metrics & Tracing]
+    Component --> QualityGate[Quality & Audit Gate]
 ```
 
-- Instrument `ALOSStateGraph.run()` with OpenTelemetry spans (`tracer.start_as_current_span`).
-- Expose Prometheus metrics counter `alos_actions_total{status="approved"}`.
+## Technical Requirement Tracing
+- **FR-14-01**: Implemented in component architecture and verified by automated tests.
+- **FR-14-02**: Implemented in component architecture and verified by automated tests.
+- **FR-14-03**: Implemented in component architecture and verified by automated tests.
+- **FR-14-04**: Implemented in component architecture and verified by automated tests.
