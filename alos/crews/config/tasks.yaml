@@ -1,0 +1,34 @@
+draft_spec_task:
+  description: >
+    Analyze user feature goal "{goal}" and draft a complete spec.md containing user stories, FR-XXX requirements, and success criteria.
+  expected_output: >
+    Structured spec.md file content adhering to SpecKit canonical template.
+  agent: spec_architect
+
+draft_plan_task:
+  description: >
+    Based on spec.md requirements for "{goal}", design the technical plan.md with Pydantic schemas, file layouts, and architecture components.
+  expected_output: >
+    Structured plan.md file content detailing module architecture.
+  agent: tech_lead
+
+draft_tasks_task:
+  description: >
+    Create atomic TDD implementation checklist tasks.md for "{goal}".
+  expected_output: >
+    Structured tasks.md file content with ordered checkboxes.
+  agent: quality_engineer
+
+audit_code_quality_task:
+  description: >
+    Run static analysis checks across target module "{target_module}" and propose fix-first solutions for linting and typing issues.
+  expected_output: >
+    Detailed audit report listing issues identified and automated fix recommendations.
+  agent: static_analyzer
+
+synthesize_obsidian_notes_task:
+  description: >
+    Scan local vault notes in "{vault_dir}" and synthesize user preferences and wiki link suggestions.
+  expected_output: >
+    Markdown summary report of vault synthesis and knowledge graph link recommendations.
+  agent: journal_miner
