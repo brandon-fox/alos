@@ -41,7 +41,7 @@ repos:
 
       - id: bandit-check
         name: Security Vulnerability Scan (bandit)
-        entry: bandit -r alos -s B101
+        entry: uv run bandit -r alos -s B101
         language: system
         types: [python]
         pass_filenames: false
@@ -49,7 +49,7 @@ repos:
 
       - id: mypy-check
         name: Strict Type Check (mypy)
-        entry: mypy alos
+        entry: uv run mypy alos
         language: system
         types: [python]
         pass_filenames: false
@@ -57,7 +57,7 @@ repos:
 
       - id: pytest-check
         name: Unit Tests & Coverage Gate (pytest)
-        entry: pytest --cov=alos --cov-report=term-missing
+        entry: uv run pytest --cov=alos --cov-report=term-missing
         language: system
         types: [python]
         pass_filenames: false
@@ -73,7 +73,7 @@ repos:
 
       - id: pyadr-check
         name: ADR Repository Sanity Gate (pyadr)
-        entry: pyadr check-adr-repo --no-ansi
+        entry: uv run pyadr check-adr-repo --no-ansi
         language: system
         pass_filenames: false
         stages: [pre-push]
