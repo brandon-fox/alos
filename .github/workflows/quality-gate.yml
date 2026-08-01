@@ -20,7 +20,7 @@ jobs:
     name: ruff-lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --extra dev
       - name: Ruff Lint
@@ -32,7 +32,7 @@ jobs:
     name: mypy-types
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --extra dev
       - name: MyPy Static Analysis
@@ -42,7 +42,7 @@ jobs:
     name: bandit-security
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --extra dev
       - name: Bandit Security Scan
@@ -54,7 +54,7 @@ jobs:
     name: pytest-suite
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --extra dev
       - name: Run Tests with Coverage
@@ -71,7 +71,7 @@ jobs:
     name: adr-governance
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --extra dev
       - name: Verify ADR Repository
@@ -82,9 +82,9 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Dependency Review
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: high
           comment-summary-in-pr: always
@@ -95,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     if: contains(github.event.head_commit.message, 'docker') || contains(github.event.head_commit.message, 'compose')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Validate Docker Compose
         run: docker compose config --quiet
       - name: Trivy IaC Scan
