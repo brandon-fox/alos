@@ -4,6 +4,9 @@ from typing import Any
 
 from pydantic import BaseModel
 
+# Third-party library rank_bm25 lacks PEP 561 py.typed marker or type stubs
+from rank_bm25 import BM25Okapi  # type: ignore[import-untyped]
+
 from alos.core.protocols import MemoryStoreProtocol
 
 
@@ -16,7 +19,7 @@ class SpecChunk(BaseModel):
 
 
 class SpecRAGIndexer(MemoryStoreProtocol):
-    """Spec-aware RAG Indexer for system specs, vault notes, and references (SOLID: ISP & DIP)."""
+    """Spec-aware RAG Indexer for specs and vault notes using BM25 (SOLID: DIP)."""
 
     def __init__(self, root_dir: str):
         self.root_dir = os.path.abspath(root_dir)
@@ -96,25 +99,16 @@ class SpecRAGIndexer(MemoryStoreProtocol):
     def search(
         self, query: str, top_k: int = 5, source_filter: str | None = None
     ) -> list[dict[str, Any]]:
-        results: list[dict[str, Any]] = []
-        query_terms = [t.lower() for t in query.split()]
+        filtered_chunks = [
+            c for c in self.chunks if not source_filter or c.source_type == source_filter
+        ]
+        if not filtered_chunks:
+            return []
 
-        for chunk in self.chunks:
-            if source_filter and chunk.source_type != source_filter:
-                continue
-
-            content_lower = chunk.content.lower()
-            header_lower = chunk.header.lower()
-
-            # Score matches in header (weighted higher) and content
-            score = 0
-            for term in query_terms:
-                if term in header_lower:
-                    score += 3
-                if term in content_lower:
-                    score += 1
-
-            if score > 0 or not query_terms:
+        tokenized_query = [t.lower() for t in query.split()]
+        if not tokenized_query:
+            results: list[dict[str, Any]] = []
+            for chunk in filtered_chunks[:top_k]:
                 results.append(
                     {
                         "header": chunk.header,
@@ -122,9 +116,31 @@ class SpecRAGIndexer(MemoryStoreProtocol):
                         "file_path": chunk.file_path,
                         "source_type": chunk.source_type,
                         "content": chunk.content,
-                        "score": score,
+                        "score": 0.0,
+                    }
+                )
+            return results
+
+        # Header terms boosted in tokenized chunk corpus
+        tokenized_corpus = [
+            f"{c.header} {c.header} {c.header} {c.content}".lower().split() for c in filtered_chunks
+        ]
+        bm25 = BM25Okapi(tokenized_corpus)
+        scores = bm25.get_scores(tokenized_query)
+
+        scored_results: list[dict[str, Any]] = []
+        for chunk, score in zip(filtered_chunks, scores, strict=False):
+            if score > 0:
+                scored_results.append(
+                    {
+                        "header": chunk.header,
+                        "file_name": chunk.file_name,
+                        "file_path": chunk.file_path,
+                        "source_type": chunk.source_type,
+                        "content": chunk.content,
+                        "score": float(score),
                     }
                 )
 
-        results.sort(key=lambda x: x["score"], reverse=True)
-        return results[:top_k]
+        scored_results.sort(key=lambda x: float(x["score"]), reverse=True)
+        return scored_results[:top_k]
