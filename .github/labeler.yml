@@ -1,0 +1,43 @@
+core:
+  - changed-files:
+      - any-glob-to-any-file: ['alos/core/**']
+
+database:
+  - changed-files:
+      - any-glob-to-any-file: ['alos/db/**', 'alembic/**']
+
+engine:
+  - changed-files:
+      - any-glob-to-any-file: ['alos/engine/**']
+
+memory:
+  - changed-files:
+      - any-glob-to-any-file: ['alos/memory/**']
+
+integrations:
+  - changed-files:
+      - any-glob-to-any-file: ['alos/integrations/**']
+
+testing:
+  - changed-files:
+      - any-glob-to-any-file: ['tests/**']
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file: ['docs/**', '*.md']
+
+'ci/cd':
+  - changed-files:
+      - any-glob-to-any-file: ['.github/**']
+
+infrastructure:
+  - changed-files:
+      - any-glob-to-any-file: ['docker-compose*', 'Dockerfile*', '.dockerignore']
+
+specs:
+  - changed-files:
+      - any-glob-to-any-file: ['specs/**']
+
+schemas:
+  - changed-files:
+      - any-glob-to-any-file: ['alos/schemas/**']

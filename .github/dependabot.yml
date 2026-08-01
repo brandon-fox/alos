@@ -1,11 +1,47 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
-
 version: 2
 updates:
-  - package-ecosystem: "uv" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  # Python dependencies via uv
+  - package-ecosystem: "uv"
+    directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    open-pull-requests-limit: 5
+
+  # GitHub Actions versions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "ci/cd"
+      - "automated"
+    commit-message:
+      prefix: "chore(ci)"
+    open-pull-requests-limit: 3
+
+  # Docker image versions
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "infrastructure"
+      - "automated"
+    commit-message:
+      prefix: "chore(docker)"
+    open-pull-requests-limit: 2
