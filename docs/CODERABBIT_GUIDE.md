@@ -85,7 +85,28 @@ You can interact directly with CodeRabbit in any PR conversation by leaving a co
 
 ---
 
-## 5. Recommended CodeRabbit Web App & GitHub Settings
+## 5. Rate Limit & OSS Quota Optimization Strategy
+
+If CodeRabbit encounters rate limits or quota exhaustion on Open Source / free tiers, apply these configuration strategies:
+
+1. **Path Filters (Ignore High-Volume Files)**:
+   - Exclude markdown files (`!**/*.md`), specs (`!specs/**`), docs (`!docs/**`), workflows (`!.github/**`), lockfiles, and JSON/YAML templates in `.coderabbit.yaml`.
+   - Ensures CodeRabbit ONLY consumes LLM tokens when core application source code (`alos/**/*.py`, `crates/**/*.rs`) changes.
+
+2. **Disable Token-Intensive Features**:
+   - Set `sequence_diagrams: false` to skip heavy multi-step LLM sequence graph generation per commit.
+   - Set `collapse_walkthrough: true` to generate compact summary output.
+   - Set `profile: "chill"` for concise, low-token review comments.
+
+3. **Disable Redundant Linters**:
+   - Disable secondary linters in CodeRabbit (`actionlint`, `markdownlint`, `ast-grep`) if they already run in GitHub Actions CI.
+
+4. **Label-Based or Manual Triggers (Extreme Quota Saving)**:
+   - If auto-review still hits rate limits, change `auto_review.enabled: false` in `.coderabbit.yaml` and trigger reviews on demand by leaving `@coderabbitai review` on open PRs.
+
+---
+
+## 6. Recommended CodeRabbit Web App & GitHub Settings
 
 To maximize integration across GitHub:
 
