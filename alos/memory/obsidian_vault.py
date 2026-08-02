@@ -1,6 +1,6 @@
 """Obsidian Vault Parser for ALOS Memory.
 
-Spec: specs/08-obsidian-vault-brain-integration/spec.md
+Spec: specs/013-obsidian-vault-brain-integration/spec.md
 """
 
 import logging

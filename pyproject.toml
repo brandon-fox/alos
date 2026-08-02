@@ -52,6 +52,10 @@ dev = [
 pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+markers = [
+    "meta: Meta-testing suite for repository structure, SpecKit adherence, ADR compliance, and AST quality metrics",
+    "source: Source code testing suite targeting ALOS runtime packages",
+]
 
 [tool.ruff]
 target-version = "py310"

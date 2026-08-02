@@ -1,6 +1,6 @@
 # Tasks: MCP Integration Layer
 
-**Input**: `specs/04-mcp-integrations/spec.md`, `specs/04-mcp-integrations/plan.md`
+**Input**: `specs/009-mcp-integrations/spec.md`, `specs/009-mcp-integrations/plan.md`
 
 ## Phase 1: User Story 1+2 — Gateway Implementation (P1)
 

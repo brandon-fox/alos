@@ -16,7 +16,7 @@ class DecisionLogger:
     Every evaluate_action() call produces one append-only JSONL record in
     logs/decision_log.jsonl capturing the full rationale for APPROVED/REJECTED decisions.
 
-    Record schema (12 required fields per specs/05-audit-and-decision-log/spec.md FR-006):
+    Record schema (12 required fields per specs/010-audit-and-decision-log/spec.md FR-006):
         timestamp                   : ISO-8601
         decision_id                 : "D-NNN" (session-scoped counter)
         trigger                     : original user query

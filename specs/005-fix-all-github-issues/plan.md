@@ -2,7 +2,7 @@
 
 **Branch**: `004-fix-all-github-issues` | **Date**: [DATE] | **Spec**: [link]
 
-**Input**: Feature specification from `/specs/004-fix-all-github-issues/spec.md`
+**Input**: Feature specification from `/specs/005-fix-all-github-issues/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
 

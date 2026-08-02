@@ -1,6 +1,6 @@
 # Tasks: Context Synthesis & Local Vault RAG Retrieval
 
-**Input**: `specs/01-context-synthesis/spec.md`, `specs/01-context-synthesis/plan.md`
+**Input**: `specs/006-context-synthesis/spec.md`, `specs/006-context-synthesis/plan.md`
 
 ---
 
