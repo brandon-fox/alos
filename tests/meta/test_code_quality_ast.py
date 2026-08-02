@@ -1,6 +1,6 @@
-"""AST Analysis Anti-Regression Quality Gate Test Suite.
+"""AST Analysis Anti-Regression Quality Gate Meta Test Suite.
 
-Spec: specs/002-rust-core-architectural-refactor/spec.md (FR-013, NFR-002)
+Spec: specs/003-rust-core-architectural-refactor/spec.md (FR-013, NFR-002)
 Constitution: Article VII (Code Quality, Exception Documentation & Sonar Scan Governance)
 """
 
@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+
+import pytest
 
 
 class CyclomaticComplexityVisitor(ast.NodeVisitor):
@@ -63,6 +65,7 @@ def analyze_file_ast(file_path: Path) -> list[tuple[str, int]]:
     return results
 
 
+@pytest.mark.meta
 def test_ast_cyclomatic_complexity_cap() -> None:
     """Verify all functions across alos/ satisfy Cyclomatic Complexity CC <= 12
     (pre-refactor baseline max 11 in vector_store.py).
@@ -83,7 +86,8 @@ def test_ast_cyclomatic_complexity_cap() -> None:
     )
 
 
+@pytest.mark.meta
 def test_ast_baseline_json_snapshot_exists() -> None:
     """Verify that ast_metrics_baseline.json exists and contains valid thresholds."""
-    baseline_path = Path("tests/quality/ast_metrics_baseline.json")
+    baseline_path = Path("tests/meta/ast_metrics_baseline.json")
     assert baseline_path.exists(), "AST baseline snapshot JSON file missing"

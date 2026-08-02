@@ -1,6 +1,6 @@
 """Performance Benchmark Test Suite measuring Pure-Python vs Native Bridge Latency & Throughput.
 
-Spec: specs/002-rust-core-architectural-refactor/spec.md (NFR-001)
+Spec: specs/003-rust-core-architectural-refactor/spec.md (NFR-001)
 """
 
 from __future__ import annotations

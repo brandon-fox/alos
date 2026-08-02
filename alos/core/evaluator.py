@@ -1,6 +1,6 @@
 """Evaluator / Critic Node — ALOS Dual-Loop Reasoning Core.
 
-Spec: specs/02-dual-loop-reasoning/spec.md, specs/03-safety-matrix/spec.md
+Spec: specs/007-dual-loop-reasoning/spec.md, specs/008-safety-matrix/spec.md
 Constitution: Article I §1 (Safety Gate), Article III §1 (Decision Provenance),
 Article V (Safety Matrix)
 """

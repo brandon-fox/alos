@@ -1,6 +1,6 @@
 # Tasks: Safety Matrix & Risk Tier Enforcement
 
-**Input**: `specs/03-safety-matrix/spec.md`, `specs/03-safety-matrix/plan.md`
+**Input**: `specs/008-safety-matrix/spec.md`, `specs/008-safety-matrix/plan.md`
 
 ## Phase 1: User Story 1 — Risk Classification (P1)
 

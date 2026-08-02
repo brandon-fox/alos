@@ -1,6 +1,6 @@
 # Tasks: Rust Native Performance Extensions (PyO3 + Maturin)
 
-**Branch**: `feat/003-rust-native-perf` | **Spec**: [specs/003-rust-native-perf/spec.md](file:///c:/Users/bfoxt/n8nSetup/specs/003-rust-native-perf/spec.md)
+**Branch**: `feat/003-rust-native-perf` | **Spec**: [specs/004-rust-native-perf/spec.md](file:///c:/Users/bfoxt/n8nSetup/specs/004-rust-native-perf/spec.md)
 
 ## Tasks
 

@@ -1,8 +1,8 @@
 # Implementation Plan: Rust Native Performance Extensions (PyO3 + Maturin)
 
-**Branch**: `feat/003-rust-native-perf` | **Date**: 2026-08-01 | **Spec**: [specs/003-rust-native-perf/spec.md](file:///c:/Users/bfoxt/n8nSetup/specs/003-rust-native-perf/spec.md)
+**Branch**: `feat/003-rust-native-perf` | **Date**: 2026-08-01 | **Spec**: [specs/004-rust-native-perf/spec.md](file:///c:/Users/bfoxt/n8nSetup/specs/004-rust-native-perf/spec.md)
 
-**Input**: Feature specification from `specs/003-rust-native-perf/spec.md`
+**Input**: Feature specification from `specs/004-rust-native-perf/spec.md`
 
 ## Summary
 

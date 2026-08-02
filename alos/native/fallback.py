@@ -1,6 +1,6 @@
 """Pure-Python Fallback Implementations for ALOS Native Extensions.
 
-Spec: specs/002-rust-core-architectural-refactor/spec.md (FR-009)
+Spec: specs/003-rust-core-architectural-refactor/spec.md (FR-009)
 Constitution: Article VI (Human-Centric Non-Intrusiveness & Zero External Dependency Fallbacks)
 """
 
