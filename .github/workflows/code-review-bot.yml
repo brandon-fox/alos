@@ -1,0 +1,132 @@
+name: AI Code Review Bot
+
+on:
+  pull_request:
+    paths:
+      - 'alos/**'
+      - 'crates/**'
+      - 'tests/**'
+      - '.github/workflows/code-review-bot.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  code-review:
+    name: Code Quality & Architecture Review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Collect Code Analysis Findings
+        id: review
+        run: |
+          cat << 'EOF' > code_review.py
+          import subprocess, json, os
+
+          report = ["### 🤖 Automated AI Code Review Digest", ""]
+
+          # 1. Ruff Lint
+          ruff_res = subprocess.run(["uv", "run", "ruff", "check", "alos", "--format=json"], capture_output=True, text=True)
+          try:
+              ruff_issues = json.loads(ruff_res.stdout) if ruff_res.stdout else []
+          except Exception:
+              ruff_issues = []
+
+          report.append(f"#### 🔍 Ruff Lint & Style")
+          if not ruff_issues:
+              report.append("✅ No lint or formatting issues detected.")
+          else:
+              report.append(f"⚠️ Found {len(ruff_issues)} issue(s):")
+              for issue in ruff_issues[:5]:
+                  filename = os.path.basename(issue.get("filename", ""))
+                  line = issue.get("location", {}).get("row", 0)
+                  code = issue.get("code", "")
+                  msg = issue.get("message", "")
+                  report.append(f"- `{filename}:{line}` [{code}]: {msg}")
+              if len(ruff_issues) > 5:
+                  report.append(f"- *... and {len(ruff_issues) - 5} more issue(s).*")
+          report.append("")
+
+          # 2. MyPy Typing Scan
+          mypy_res = subprocess.run(["uv", "run", "mypy", "alos"], capture_output=True, text=True)
+          report.append(f"#### 🏷️ Type Safety (MyPy)")
+          if mypy_res.returncode == 0:
+              report.append("✅ All static type checks passed successfully.")
+          else:
+              errors = [line for line in mypy_res.stdout.splitlines() if "error:" in line]
+              report.append(f"⚠️ Found {len(errors)} type error(s):")
+              for err in errors[:5]:
+                  report.append(f"- `{err}`")
+              if len(errors) > 5:
+                  report.append(f"- *... and {len(errors) - 5} more type error(s).*")
+          report.append("")
+
+          # 3. Security (Bandit)
+          bandit_res = subprocess.run(["uv", "run", "bandit", "-r", "alos", "-s", "B101", "-f", "json"], capture_output=True, text=True)
+          report.append(f"#### 🛡️ Security Audit (Bandit)")
+          try:
+              b_data = json.loads(bandit_res.stdout) if bandit_res.stdout else {}
+              results = b_data.get("results", [])
+              if not results:
+                  report.append("✅ No security vulnerabilities identified.")
+              else:
+                  report.append(f"⚠️ Found {len(results)} potential security issue(s):")
+                  for r in results[:5]:
+                      report.append(f"- `{r.get('filename')}:{r.get('line_number')}` ({r.get('issue_severity')}): {r.get('issue_text')}")
+          except Exception:
+              report.append("ℹ️ Bandit scan completed.")
+          report.append("")
+
+          report.append("\n*Automated review posted by AI Code Review Bot.*")
+
+          with open("code_review_report.md", "w", encoding="utf-8") as f:
+              f.write("\n".join(report))
+          EOF
+
+          python code_review.py
+
+      - name: Post or Update PR Comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const bodyContent = fs.readFileSync('code_review_report.md', 'utf8');
+            const botTag = '<!-- ai-code-review-bot-comment -->';
+            const fullBody = `${botTag}\n${bodyContent}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existingComment = comments.find(comment => comment.body && comment.body.includes(botTag));
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: fullBody,
+              });
+              core.info(`Updated existing Code Review comment ID: ${existingComment.id}`);
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: fullBody,
+              });
+              core.info(`Created new Code Review comment on PR #${context.issue.number}`);
+            }
