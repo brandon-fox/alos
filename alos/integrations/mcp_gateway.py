@@ -111,7 +111,7 @@ class MCPGateway(MCPGatewayProtocol):
         self._mcp_tools[tool_name] = mcp_types.Tool(
             name=tool_name,
             description=f"ALOS Integration Tool for {tool_name}",
-            inputSchema={"type": "object"},
+            input_schema={"type": "object"},
         )
 
     def execute_tool(self, tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
