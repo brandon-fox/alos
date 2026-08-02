@@ -18,6 +18,7 @@ reviews:
       - "main"
       - "upstream/main"
   path_filters:
+    - ".coderabbit.yaml"
     # --- Ignore non-code & high-volume files to prevent rate limits ---
     - "!**/*.md"
     - "!specs/**"
