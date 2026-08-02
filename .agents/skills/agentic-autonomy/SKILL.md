@@ -55,16 +55,22 @@ Agents should define specialized roles when embarking on complex tasks:
 
 ---
 
-## 4. WORKFLOW EXECUTION SUMMARY
+## 4. WORKFLOW & WORKTREE LIFECYCLE SUMMARY
 
 ```mermaid
-flowchart LR
+flowchart TD
     A[Start Session] --> B[Proactive ask_permission Grants]
     B --> C{Task Type?}
     C -->|Read-Only / Test Audit| D[Subagent: inherit]
-    C -->|Heavy Code Refactor| E[Subagent: branch]
+    C -->|Heavy Code Refactor| E[Subagent: branch / worktree]
     C -->|Long Build / Test Run| F[run_command async + schedule]
     D --> G[Synthesize Results]
-    E --> G
     F --> G
+    E --> H[Commit & Push Branch]
+    H --> I[Open Pull Request]
+    I --> J[Monitor CI Checks & Auto-Merge]
+    J --> K{PR Merged?}
+    K -->|Yes| L[Clean up Worktree & Branch]
+    K -->|Pending| J
+    L --> G
 ```

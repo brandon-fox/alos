@@ -81,7 +81,7 @@ git commit -m "feat(scope): short summary of atomic change
 - `refactor`: Restructuring existing code without behavior changes.
 
 ### Step 5: Push Feature Branch
-Ensure you are on a feature branch (e.g., `feat/...`, `fix/...`, `chore/...`) branched off `upstream/main`:
+Ensure you are on a feature branch (e.g., `feat/...`, `fix/...`, `chore/...`, `027-...`) branched off `upstream/main`:
 ```powershell
 git push origin <branch-name>
 ```
@@ -89,3 +89,31 @@ git push origin <branch-name>
 > [!NOTE]
 > **Auth Failure Fallback**: If `git push` returns `403 Forbidden`, update the remote URL to include the explicit username:
 > `git remote set-url origin https://<username>@github.com/<owner>/<repo>.git`
+
+### Step 6: Open Pull Request
+Every worktree session MUST end by opening a Pull Request against `main`:
+```powershell
+gh pr create --title "<type>(<scope>): <summary>" --body "### Rationale & Changes`n- Detailed summary of implementation" --auto --squash
+```
+
+### Step 7: Monitor PR & CI Checks
+Agents MUST monitor the PR state until it is merged:
+```powershell
+gh pr view --json state,statusCheckRollup,mergedAt
+```
+If CI checks are pending, use a non-blocking background task or schedule timer to poll PR status until state is `MERGED`.
+
+### Step 8: Worktree & Branch Cleanup
+Once the PR is merged, clean up local worktree and branch resources:
+```powershell
+# 1. Switch parent back to main and update
+git checkout main
+git pull origin main
+
+# 2. Safely remove the completed worktree
+git worktree remove <worktree-path>
+
+# 3. Delete local and remote feature branch
+git branch -d <branch-name>
+git push origin --delete <branch-name>
+```

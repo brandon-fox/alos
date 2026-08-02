@@ -91,6 +91,7 @@ jobs:
           gh pr merge "$PR_NUMBER" \
             --auto \
             --squash \
+            --delete-branch \
             --repo "${{ github.repository }}"
 
   dependabot-automerge:
@@ -116,4 +117,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr review --approve "$PR_URL"
-          gh pr merge --auto --squash "$PR_URL"
+          gh pr merge --auto --squash --delete-branch "$PR_URL"
