@@ -12,7 +12,7 @@ use safety::FastSafetyEvaluator;
 use vault::{FastVaultParser, PyObsidianNote};
 
 #[pymodule]
-fn alos_native(_py: Python, m: &PyModule) -> PyResult<()> {
+fn alos_native(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<FastVaultParser>()?;
     m.add_class::<PyObsidianNote>()?;
     m.add_class::<FastBM25Indexer>()?;
