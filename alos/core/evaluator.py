@@ -49,18 +49,17 @@ class RiskClassifier:
         "email_create_draft",
     }
 
+    def __init__(self) -> None:
+        from alos.native import get_safety_evaluator
+
+        self._native_evaluator = get_safety_evaluator()
+
     def classify(self, action: BaseAction) -> RiskLevel:
-        """Fail-safe risk classification logic."""
+        """Fail-safe risk classification logic utilizing native engine."""
         if isinstance(action, EmailDraft):
             return RiskLevel.HIGH
-        if action.action_type in self.HIGH_ACTION_TYPES:
-            return RiskLevel.HIGH
-        if action.action_type in self.MEDIUM_ACTION_TYPES:
-            return RiskLevel.MEDIUM
-        if action.action_type == "web_search":
-            return RiskLevel.LOW
-        # Fail-safe: unknown → HIGH (Constitution Article V FR-004)
-        return RiskLevel.HIGH
+        risk_str = self._native_evaluator.classify_risk(action.action_type)
+        return RiskLevel(risk_str)
 
 
 class RuleValidator:

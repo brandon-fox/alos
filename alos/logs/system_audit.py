@@ -1,7 +1,16 @@
+"""Immutable Append-Only System Audit Logger.
+
+Spec: specs/05-audit-and-decision-log/spec.md
+"""
+
+from __future__ import annotations
+
 import json
 import os
 from datetime import datetime
 from typing import Any
+
+from alos.native import get_journal_writer
 
 
 class SystemAuditLogger:
@@ -15,6 +24,7 @@ class SystemAuditLogger:
 
         # Ensure log folder exists
         os.makedirs(os.path.dirname(self.log_file_path), exist_ok=True)
+        self._writer = get_journal_writer(self.log_file_path)
 
     def log_event(
         self,
@@ -30,6 +40,5 @@ class SystemAuditLogger:
             "reason": reason,
             "metadata": metadata or {},
         }
-        with open(self.log_file_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record) + "\n")
+        self._writer.append_record(json.dumps(record))
         return record
