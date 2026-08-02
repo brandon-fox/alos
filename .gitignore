@@ -56,5 +56,8 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
+# Generated Reports
+spec_review_report.md
+
 # Logs
 logs/*.jsonl
