@@ -1,0 +1,15 @@
+{
+  "integration": "speckit.archive",
+  "version": "1.0.0",
+  "description": "SpecKit Specification Archiving & Restoration Engine",
+  "installed_at": "2026-08-02T17:00:00.000000+00:00",
+  "commands": {
+    "archive.run": "Archive a completed or deprecated feature specification",
+    "archive.restore": "Restore an archived feature specification back to active specs directory",
+    "archive.list": "List archived feature specifications in the repository"
+  },
+  "files": {
+    ".specify/scripts/powershell/archive-feature.ps1": "archive_powershell_script",
+    "alos/integrations/speckit/archiver.py": "archiver_python_engine"
+  }
+}
