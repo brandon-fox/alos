@@ -1,5 +1,4 @@
-# yaml-language-server: $schema=https://coderabbit.ai/integrations/coderabbit-overrides.v2.json
-version: "2"
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 language: "en-US"
 tone_instructions: "Be extremely concise, direct, and token-efficient. Focus strictly on critical code bugs, security flaws, and Fix-First policy violations."
 early_access: false
