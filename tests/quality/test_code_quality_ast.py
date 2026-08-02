@@ -78,9 +78,9 @@ def test_ast_cyclomatic_complexity_cap() -> None:
             if cc > 12:
                 high_complexity_functions.append((func_name, cc))
 
-    assert (
-        not high_complexity_functions
-    ), f"Functions exceeded Cyclomatic Complexity baseline CC > 12: {high_complexity_functions}"
+    assert not high_complexity_functions, (
+        f"Functions exceeded Cyclomatic Complexity baseline CC > 12: {high_complexity_functions}"
+    )
 
 
 def test_ast_baseline_json_snapshot_exists() -> None:
