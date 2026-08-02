@@ -29,7 +29,7 @@ jobs:
     steps:
       - name: Check PR eligibility
         id: check
-        uses: actions/github-script@v7
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdeb # v7.0.1
         with:
           result-encoding: string
           script: |
@@ -91,6 +91,7 @@ jobs:
           gh pr merge "$PR_NUMBER" \
             --auto \
             --squash \
+            --delete-branch \
             --repo "${{ github.repository }}"
 
   dependabot-automerge:
@@ -103,7 +104,7 @@ jobs:
     steps:
       - name: Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@v2
+        uses: dependabot/fetch-metadata@dbb08c909e4d5885f8185d263a4369e81b671d1e # v2.3.0
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
@@ -116,4 +117,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr review --approve "$PR_URL"
-          gh pr merge --auto --squash "$PR_URL"
+          gh pr merge --auto --squash --delete-branch "$PR_URL"

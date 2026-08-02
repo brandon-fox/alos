@@ -112,3 +112,32 @@ def test_quality_gate_enhancements() -> None:
     jobs = parsed.get("jobs", {})
 
     assert "uv-lock-check" in jobs, "uv-lock-check job missing from quality-gate.yml"
+
+
+@pytest.mark.meta
+def test_all_github_actions_use_fixed_hashes() -> None:
+    """Verify all GitHub Actions in workflow files use full 40-character commit SHA hashes."""
+    import re
+
+    sha_regex = re.compile(r"^[0-9a-fA-F]{40}$")
+    uses_regex = re.compile(r"uses:\s*([^\s@]+)@([^\s#]+)")
+
+    unpinned: list[str] = []
+    yaml_files = list(WORKFLOWS_DIR.glob("*.yml")) + list(WORKFLOWS_DIR.glob("*.yaml"))
+
+    for wf_path in yaml_files:
+        lines = wf_path.read_text(encoding="utf-8").splitlines()
+        for idx, line in enumerate(lines, 1):
+            match = uses_regex.search(line)
+            if match:
+                action, ref = match.group(1), match.group(2)
+                # Ignore local action references starting with ./
+                if action.startswith("./"):
+                    continue
+                if not sha_regex.match(ref):
+                    unpinned.append(f"{wf_path.name}:{idx} -> {action}@{ref}")
+
+    assert not unpinned, (
+        f"Found {len(unpinned)} unpinned GitHub Actions (must use 40-char commit SHA):\n"
+        + "\n".join(unpinned)
+    )
