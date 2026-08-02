@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/coderabbit-overrides.v2.json
+version: "2"
+language: "en-US"
+tone_instructions: "Be concise, constructive, rigorous, and strictly enforce repository architecture and quality directives."
+early_access: false
+reviews:
+  profile: "assertive"
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+  auto_title_placeholder: "@coderabbitai title"
+  sequence_diagrams: true
+  poem: false
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "main"
+      - "upstream/main"
+  path_filters:
+    - "!uv.lock"
+    - "!Cargo.lock"
+    - "!**/__pycache__/**"
+    - "!.mypy_cache/**"
+    - "!.pytest_cache/**"
+    - "!.ruff_cache/**"
+    - "!alos.egg-info/**"
+    - "!.coverage"
+    - "!logs/**"
+    - "!alembic/versions/**"
+  path_instructions:
+    - path: "alos/**/*.py"
+      instructions: |
+        - Strict Typing & Quality: All Python functions must have full type annotations compatible with `mypy`.
+        - Fix-First Policy: Any `# type: ignore` or `# noqa` must include explicit error codes (e.g. `# noqa: F401`) AND a technical justification comment. Bare suppressions or undocumented suppressions are strictly prohibited.
+        - Robust Error Handling: Never swallow exceptions silently or return dummy fallbacks. Trace root causes and maintain clean error tracebacks.
+        - Code Style & Linters: Code must pass `ruff check`, `ruff format`, and `bandit` security scans.
+    - path: "crates/**/*.rs"
+      instructions: |
+        - Rust Standards: Enforce idiomatic Rust code, memory safety, explicit error propagation using `Result` and `Option`, and zero unnecessary `unsafe` blocks.
+        - Performance & Correctness: Ensure proper concurrency primitives and clean FFI interfaces with Python/PyO3 where applicable.
+    - path: "specs/**"
+      instructions: |
+        - SpecKit SDD Compliance: Verify specs follow canonical SpecKit structure (`specs/<N>-<feature-name>/`) containing `spec.md`, `plan.md`, `tasks.md`, and `checklists/requirements.md`.
+        - Traceability: Ensure requirement IDs follow canonical formatting (e.g., `FR-XXX`) and connect to implementation tasks.
+    - path: "docs/adr/**"
+      instructions: |
+        - ADR Directives: ADR markdown files must NOT be manually edited or created directly. Verify changes conform to `pyadr` standards.
+    - path: "tests/**"
+      instructions: |
+        - TDD & BDD Rules: Enforce Red-Green-Refactor test methodologies.
+        - Verify Gherkin feature files in `tests/features/` match step definitions in `tests/test_sdd_bdd_features.py`.
+        - Ensure tests do not suppress errors or mock out core logic without clear assertions.
+    - path: ".github/workflows/**"
+      instructions: |
+        - Workflow Hygiene: Use strict path filtering (e.g., `dorny/paths-filter@v3`).
+        - Performance: Verify caching setups (`setup-uv`, `rust-cache`, `actions/cache`).
+        - Comment Noise Control: Ensure PR comment bots update existing comments in-place using HTML comment markers.
+  instructions: |
+    - Core Repository Directives:
+      1. Fix-First Mindset: Always prefer resolving and fixing code bugs, lints, typing, and security smells over ignoring or suppressing them.
+      2. Security Audit: Check for OWASP security vulnerabilities, hardcoded secrets, shell injection vectors, and unauthorized file mutations.
+      3. Git & Scope Isolation: Ensure PRs remain focused and atomic without unnecessary formatting churn across unrelated components.
+  tools:
+    ruff:
+      enabled: true
+    mypy:
+      enabled: true
+    bandit:
+      enabled: true
+    actionlint:
+      enabled: true
+    markdownlint:
+      enabled: true
+    ast-grep:
+      enabled: true
+chat:
+  auto_reply: true
