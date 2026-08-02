@@ -8,4 +8,7 @@ COPY .specify/ .specify/
 
 RUN pip install --no-cache-dir .
 
+RUN useradd -m alosuser && chown -R alosuser:alosuser /app
+USER alosuser
+
 ENTRYPOINT ["python", "-m", "alos.cli"]
