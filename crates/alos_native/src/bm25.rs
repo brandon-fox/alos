@@ -84,10 +84,8 @@ impl FastBM25Indexer {
             return Ok(Vec::new());
         }
 
-        let query_tokens: Vec<String> = query
-            .split_whitespace()
-            .map(|s| s.to_lowercase())
-            .collect();
+        let query_tokens: Vec<String> =
+            query.split_whitespace().map(|s| s.to_lowercase()).collect();
 
         if query_tokens.is_empty() {
             let mut results = Vec::new();

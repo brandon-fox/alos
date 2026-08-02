@@ -1,0 +1,329 @@
+name: Post-Merge Analysis Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: post-merge-pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sonarcloud:
+    name: SonarCloud Analysis
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run pytest with coverage XML
+        run: uv run pytest --cov=alos --cov-report=xml:coverage.xml -q || true
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: -Dsonar.organization=${{ vars.SONAR_ORG || 'brandon-fox' }}
+
+  generate-changelog:
+    name: Generate Post-Merge Changelog
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate Changelog
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo '')
+          if [ -z "$LAST_TAG" ]; then
+            RANGE='HEAD'
+          else
+            RANGE="${LAST_TAG}..HEAD"
+          fi
+
+          echo '# Changelog' > CHANGELOG.md
+          echo '' >> CHANGELOG.md
+          echo "## Unreleased" >> CHANGELOG.md
+          echo '' >> CHANGELOG.md
+
+          # Features
+          echo '### ✨ Features' >> CHANGELOG.md
+          git log $RANGE --oneline --grep='^feat' --format='- %s (%h)' >> CHANGELOG.md || true
+          echo '' >> CHANGELOG.md
+
+          # Fixes
+          echo '### 🐛 Fixes' >> CHANGELOG.md
+          git log $RANGE --oneline --grep='^fix' --format='- %s (%h)' >> CHANGELOG.md || true
+          echo '' >> CHANGELOG.md
+
+          # Chores
+          echo '### 🔧 Chores' >> CHANGELOG.md
+          git log $RANGE --oneline --grep='^chore' --format='- %s (%h)' >> CHANGELOG.md || true
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "docs(changelog): auto-update changelog"
+          title: "docs(changelog): auto-update changelog"
+          branch: "chore/bot-changelog"
+          labels: "documentation,automated"
+          delete-branch: true
+
+  complexity-scan:
+    name: Complexity Scan
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Radon
+        run: uv pip install --system radon
+
+      - name: Run Complexity Scanner
+        id: scan
+        run: |
+          python .github/scripts/complexity_scanner.py > complexity_report.txt || true
+          COUNT=$(wc -l < complexity_report.txt || echo 0)
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Issue
+        if: steps.scan.outputs.count > 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date +'%Y-%m-%d')
+          COUNT=${{ steps.scan.outputs.count }}
+          TITLE="🧮 Complexity Report: $COUNT hotspots ($DATE)"
+
+          gh issue create --title "$TITLE" --body-file complexity_report.txt --label "refactoring,automated,code-health"
+
+  coverage-gap:
+    name: Coverage Gap Analysis
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run pytest with JSON coverage
+        run: uv run pytest --cov=alos --cov-report=json:coverage.json --cov-report=term-missing -q || true
+
+      - name: Run Coverage Gap Analyzer
+        run: python .github/scripts/coverage_gap_analyzer.py || true
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore(tests): add coverage gap test stubs"
+          title: "chore(tests): automated coverage gap test stubs"
+          branch: "chore/bot-coverage-gap"
+          labels: "testing,automated,coverage-gap"
+          delete-branch: true
+          body: "Auto-generated coverage gap analysis and test stubs."
+
+  audit-docstrings:
+    name: Docstring Audit
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run AST Docstring Audit
+        id: audit
+        run: |
+          cat << 'EOF' > doc_audit.py
+          import ast
+          import os
+
+          missing = []
+          for root, _, files in os.walk('alos'):
+              for file in files:
+                  if not file.endswith('.py'): continue
+                  path = os.path.join(root, file)
+                  with open(path, 'r', encoding='utf-8') as f:
+                      try: tree = ast.parse(f.read())
+                      except: continue
+
+                  if not ast.get_docstring(tree):
+                      missing.append(f"Module: {path}")
+
+                  for node in ast.walk(tree):
+                      if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                          if not node.name.startswith('_') and not ast.get_docstring(node):
+                              missing.append(f"{type(node).__name__}: {node.name} in {path}")
+
+          with open('doc_report.txt', 'w', encoding='utf-8') as f:
+              f.write('\n'.join(missing))
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"count={len(missing)}\n")
+          EOF
+
+          python doc_audit.py
+
+      - name: Create or Update Issue
+        if: steps.audit.outputs.count > 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date +'%Y-%m-%d')
+          COUNT=${{ steps.audit.outputs.count }}
+          TITLE="📖 Docstring Audit: $COUNT missing docstrings ($DATE)"
+
+          echo '### Missing Docstrings' > issue_body.txt
+          echo '```text' >> issue_body.txt
+          cat doc_report.txt >> issue_body.txt
+          echo '```' >> issue_body.txt
+
+          EXISTING_ISSUE=$(gh issue list --label "documentation" --state open --limit 1 --json number --jq '.[0].number')
+
+          if [ -n "$EXISTING_ISSUE" ]; then
+            gh issue comment "$EXISTING_ISSUE" --body-file issue_body.txt
+          else
+            gh issue create --title "$TITLE" --body-file issue_body.txt --label "documentation,automated"
+          fi
+
+  spec-gap:
+    name: Spec Gap Analysis
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Spec Gap Analyzer
+        id: analyze
+        run: |
+          python .github/scripts/spec_gap_analyzer.py > spec_report.txt || true
+          COUNT=$(wc -l < spec_report.txt || echo 0)
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Issue
+        if: steps.analyze.outputs.count > 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date +'%Y-%m-%d')
+          COUNT=${{ steps.analyze.outputs.count }}
+          TITLE="📐 Spec Gap Analysis: $COUNT gaps found ($DATE)"
+
+          gh issue create --title "$TITLE" --body-file spec_report.txt --label "specs,automated,governance"
+
+  harvest-todos:
+    name: Tech Debt & TODO Harvester
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Scan for Tech Debt Markers
+        id: scan
+        run: |
+          grep -rnE '(TODO|FIXME|HACK|XXX|NOSONAR):?\s' alos/ tests/ --include='*.py' > todo_report.txt || true
+          COUNT=$(wc -l < todo_report.txt || echo 0)
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Create or Update GitHub Issue
+        if: steps.scan.outputs.count > 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date +'%Y-%m-%d')
+          COUNT=${{ steps.scan.outputs.count }}
+          TITLE="🔍 Tech Debt Scan: $COUNT markers found ($DATE)"
+
+          echo '### Tech Debt Markers Found' > issue_body.txt
+          echo '```text' >> issue_body.txt
+          cat todo_report.txt >> issue_body.txt
+          echo '```' >> issue_body.txt
+
+          EXISTING_ISSUE=$(gh issue list --label "tech-debt" --state open --limit 1 --json number --jq '.[0].number')
+
+          if [ -n "$EXISTING_ISSUE" ]; then
+            gh issue comment "$EXISTING_ISSUE" --body-file issue_body.txt
+          else
+            gh issue create --title "$TITLE" --body-file issue_body.txt --label "tech-debt,automated"
+          fi
+
+  type-coverage:
+    name: Type Coverage Analysis
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run mypy analysis
+        run: uv run mypy alos --txt-report mypy_report || true
+
+      - name: Find Low Coverage Files
+        id: parse
+        run: |
+          if [ -f "mypy_report/index.txt" ]; then
+            awk -F'|' 'NR>2 && $6 < 70.0 {print $1, $6}' mypy_report/index.txt > low_coverage.txt || true
+            COUNT=$(wc -l < low_coverage.txt || echo 0)
+          else
+            COUNT=0
+            touch low_coverage.txt
+          fi
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Issue
+        if: steps.parse.outputs.count > 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date +'%Y-%m-%d')
+          COUNT=${{ steps.parse.outputs.count }}
+          TITLE="🏷️ Type Coverage Report: $COUNT files below threshold ($DATE)"
+
+          echo '### Files with Type Coverage < 70%' > issue_body.txt
+          echo '```text' >> issue_body.txt
+          cat low_coverage.txt >> issue_body.txt
+          echo '```' >> issue_body.txt
+
+          gh issue create --title "$TITLE" --body-file issue_body.txt --label "typing,automated"
