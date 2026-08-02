@@ -47,6 +47,19 @@ jobs:
               - 'Dockerfile*'
               - 'docker-compose*'
 
+  uv-lock-check:
+    name: uv-lock-check
+    needs: [changes]
+    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Verify uv.lock Sync
+        run: uv lock --check
+
   ruff-lint:
     name: ruff-lint
     needs: [changes]
