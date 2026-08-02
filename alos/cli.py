@@ -24,9 +24,7 @@ def _handle_speckit_lifecycle(args: argparse.Namespace) -> None:
         if not args.feature or not args.target_state:
             print("Error: --feature and --target-state required.", file=sys.stderr)
             sys.exit(1)
-        res = manager.transition_state(
-            args.feature, args.target_state, reason=args.reason
-        )
+        res = manager.transition_state(args.feature, args.target_state, reason=args.reason)
     elif args.feature:
         res = manager.get_status(args.feature)
     else:
@@ -95,18 +93,14 @@ def main() -> None:
     lifecycle_parser.add_argument("--target-state", help="Target state for transition action")
     lifecycle_parser.add_argument("--reason", help="Reason for state transition")
 
-    archive_parser = speckit_subparsers.add_parser(
-        "archive", help="SpecKit archiving operations"
-    )
+    archive_parser = speckit_subparsers.add_parser("archive", help="SpecKit archiving operations")
     archive_parser.add_argument(
         "--feature", help="Feature specification name to archive or restore"
     )
     archive_parser.add_argument(
         "--restore", action="store_true", help="Restore feature specification"
     )
-    archive_parser.add_argument(
-        "--list", action="store_true", help="List archived specifications"
-    )
+    archive_parser.add_argument("--list", action="store_true", help="List archived specifications")
 
     parser.add_argument("query", nargs="?", help="Task or life logistics prompt for ALOS")
     parser.add_argument(

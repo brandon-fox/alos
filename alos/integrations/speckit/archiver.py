@@ -34,9 +34,7 @@ class SpecKitArchiver:
         return {}
 
     def _write_archive_index(self, index_data: dict[str, dict[str, Any]]) -> None:
-        self.archive_index_path.write_text(
-            json.dumps(index_data, indent=2), encoding="utf-8"
-        )
+        self.archive_index_path.write_text(json.dumps(index_data, indent=2), encoding="utf-8")
 
     def archive_feature(self, feature_name: str) -> dict[str, Any]:
         """Archive an active feature specification directory.
@@ -52,9 +50,7 @@ class SpecKitArchiver:
         """
         source_dir = self.specs_dir / feature_name
         if not source_dir.exists() or not source_dir.is_dir():
-            raise FileNotFoundError(
-                f"Feature specification directory '{source_dir}' not found."
-            )
+            raise FileNotFoundError(f"Feature specification directory '{source_dir}' not found.")
 
         dest_dir = self.archive_dir / feature_name
         if dest_dir.exists():
