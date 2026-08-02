@@ -1,0 +1,15 @@
+{
+  "integration": "speckit.lifecycle",
+  "version": "1.0.0",
+  "description": "SpecKit Specification Lifecycle State Manager & Validation Integration",
+  "installed_at": "2026-08-02T17:00:00.000000+00:00",
+  "commands": {
+    "lifecycle.status": "Query current specification lifecycle state",
+    "lifecycle.transition": "Transition specification lifecycle state",
+    "lifecycle.list": "List feature specifications filtered by lifecycle state"
+  },
+  "files": {
+    ".specify/scripts/powershell/lifecycle.ps1": "lifecycle_powershell_script",
+    "alos/integrations/speckit/lifecycle.py": "lifecycle_python_engine"
+  }
+}
