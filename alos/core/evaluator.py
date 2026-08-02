@@ -1,6 +1,6 @@
 """Evaluator / Critic Node — ALOS Dual-Loop Reasoning Core.
 
-Spec: specs/02-dual-loop-reasoning/spec.md, specs/03-safety-matrix/spec.md
+Spec: specs/007-dual-loop-reasoning/spec.md, specs/008-safety-matrix/spec.md
 Constitution: Article I §1 (Safety Gate), Article III §1 (Decision Provenance),
 Article V (Safety Matrix)
 """
@@ -20,12 +20,16 @@ if TYPE_CHECKING:
 
 
 class RiskLevel(str, Enum):
+    """Enumeration of safety matrix risk classification levels."""
+
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
 
 
 class EvaluationResult(BaseModel):
+    """Result of an evaluator node assessment including safety and risk levels."""
+
     valid: bool
     critique: str
     risk_level: RiskLevel = RiskLevel.LOW

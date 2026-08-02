@@ -1,3 +1,5 @@
+"""CrewAI agent crew for code quality, static analysis, and refactoring audits."""
+
 import os
 from typing import Any
 

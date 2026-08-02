@@ -1,6 +1,6 @@
 """Stage 1 Test Coverage Fortification Suite.
 
-Spec: specs/002-rust-core-architectural-refactor/spec.md (FR-001)
+Spec: specs/003-rust-core-architectural-refactor/spec.md (FR-001)
 """
 
 from __future__ import annotations

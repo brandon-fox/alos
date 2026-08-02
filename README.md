@@ -15,6 +15,7 @@ Explore our comprehensive, human-readable documentation suite:
 | 🏗️ [**Architecture Deep Dive**](file:///c:/Users/bfoxt/n8nSetup/docs/architecture.md) | Technical blueprint, LangGraph state machine, Evaluator safety gate, Obsidian brain, and MCP gateways. |
 | 📋 [**Spec-Driven Development (SpecKit)**](file:///c:/Users/bfoxt/n8nSetup/docs/specs_setup.md) | SpecKit structure (`spec.md`, `plan.md`, `tasks.md`), `pyadr` ADR management, and TDD/BDD workflow. |
 | 🤖 [**Agents vs Gemini Customization Guide**](file:///c:/Users/bfoxt/n8nSetup/docs/agents_vs_gemini_guide.md) | Architectural comparison between `.agents/` workspace rules and `.gemini/` global skills. |
+| 🐰 [**CodeRabbit AI Integration Guide**](file:///c:/Users/bfoxt/n8nSetup/docs/CODERABBIT_GUIDE.md) | How to use CodeRabbit AI reviews, custom repository directives, and slash commands in PRs. |
 
 ---
 

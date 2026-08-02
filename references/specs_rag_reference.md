@@ -70,9 +70,9 @@ This reference document synthesizes key system architecture specifications, safe
 
 ## 5. Specification Index
 
-- **Feature 01**: Context Synthesis (`specs/01-context-synthesis/spec.md`)
-- **Feature 02**: Dual-Loop Reasoning (`specs/02-dual-loop-reasoning/spec.md`)
-- **Feature 03**: Safety Matrix (`specs/03-safety-matrix/spec.md`)
-- **Feature 04**: MCP Integrations (`specs/04-mcp-integrations/spec.md`)
-- **Feature 05**: Audit & Decision Log (`specs/05-audit-and-decision-log/spec.md`)
-- **Feature 06**: RAG & Knowledge Base (`specs/06-rag-and-knowledge-base/spec.md`)
+- **Feature 01**: Context Synthesis (`specs/006-context-synthesis/spec.md`)
+- **Feature 02**: Dual-Loop Reasoning (`specs/007-dual-loop-reasoning/spec.md`)
+- **Feature 03**: Safety Matrix (`specs/008-safety-matrix/spec.md`)
+- **Feature 04**: MCP Integrations (`specs/009-mcp-integrations/spec.md`)
+- **Feature 05**: Audit & Decision Log (`specs/010-audit-and-decision-log/spec.md`)
+- **Feature 06**: RAG & Knowledge Base (`specs/011-rag-and-knowledge-base/spec.md`)

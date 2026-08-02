@@ -1,6 +1,6 @@
 """Obsidian Brain Synthesizer for ALOS Memory.
 
-Spec: specs/08-obsidian-vault-brain-integration/spec.md
+Spec: specs/013-obsidian-vault-brain-integration/spec.md
 """
 
 import os
@@ -13,6 +13,7 @@ class ObsidianBrainSynthesizer:
         self.vault_dir = os.path.abspath(vault_dir)
 
     def append_daily_note(self, date_str: str, content: str, tags: list[str] | None = None) -> str:
+        """Append daily entry to specified date note in vault Daily Notes folder."""
         daily_dir = os.path.join(self.vault_dir, "Daily Notes")
         os.makedirs(daily_dir, exist_ok=True)
         file_path = os.path.join(daily_dir, f"{date_str}.md")
@@ -35,6 +36,7 @@ class ObsidianBrainSynthesizer:
         tags: list[str] | None = None,
         wiki_links: list[str] | None = None,
     ) -> str:
+        """Create structured memory note in vault Memory folder."""
         mem_dir = os.path.join(self.vault_dir, "Memory")
         os.makedirs(mem_dir, exist_ok=True)
         file_path = os.path.join(mem_dir, f"{title}.md")

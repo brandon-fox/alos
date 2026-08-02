@@ -12,7 +12,7 @@ In traditional software development, developers frequently write code directly b
 
 In ALOS:
 1. **The Specification is the Living Blueprint**: The files in `specs/` define the exact system behavior, functional requirements (`FR-XXX`), edge cases, and acceptance criteria.
-2. **Code Traces Back to Specs**: Every class, function, and test in `alos/` explicitly cites its corresponding spec file (e.g., `Spec: specs/02-dual-loop-reasoning/spec.md`).
+2. **Code Traces Back to Specs**: Every class, function, and test in `alos/` explicitly cites its corresponding spec file (e.g., `Spec: specs/007-dual-loop-reasoning/spec.md`).
 3. **Quality Gates Enforce Spec Compliance**: Automated tests and pre-push hooks verify that implementations fulfill every requirement defined in the spec.
 
 ---
@@ -22,7 +22,7 @@ In ALOS:
 Every feature or capability module in ALOS lives inside `specs/<N>-<feature-name>/` and follows a standardized 4-part structure:
 
 ```
-specs/02-dual-loop-reasoning/
+specs/007-dual-loop-reasoning/
 ├── spec.md                   # WHAT & WHY: User stories, functional requirements, acceptance criteria
 ├── plan.md                   # HOW: Architecture design, class contracts, data flow, file touchpoints
 ├── tasks.md                  # IMPLEMENTATION: Atomic, step-by-step checklist with task dependencies
@@ -70,24 +70,24 @@ ALOS capabilities are organized across 18 core specification modules:
 
 | Spec Directory | Feature Domain | Key Technologies & Patterns |
 | :--- | :--- | :--- |
-| `specs/01-context-synthesis/` | Context Assembly & Synthesis | Profile loading, preference merging, RAG context |
-| `specs/02-dual-loop-reasoning/` | Reasoning Engine | Fast Loop Planner, Slow Loop Evaluator, self-correction |
-| `specs/03-safety-matrix/` | Safety Matrix & Risk Gates | LOW/MEDIUM/HIGH risk tiers, human consent gates |
-| `specs/04-mcp-integrations/` | MCP Gateways & Protocol | Anthropic MCP, Google Calendar, Todoist, n8n webhooks |
-| `specs/05-audit-and-decision-log/` | Decision Provenance & Audit | `logs/decision_log.jsonl`, `logs/system_audit.jsonl` |
-| `specs/06-rag-and-knowledge-base/` | Vector Store & Local RAG | Hybrid BM25 + dense embeddings over markdown specs |
-| `specs/07-postgres-orm-migrations/` | Database & ORM | SQLAlchemy 2.0 ORM, Alembic migrations, `pgvector` |
-| `specs/08-obsidian-vault-brain-integration/` | Obsidian Vault Memory | Markdown vault engine, frontmatter parsing, NetworkX graph |
-| `specs/09-core-frameworks-and-runtime/` | Core Frameworks | `pydantic-settings`, `tenacity`, `structlog`, `rich`, `typer` |
-| `specs/10-database-and-orm-evolution/` | DB Evolution | `Mapped[T]`, `asyncpg` pooling, DuckDB, Polars |
-| `specs/11-vector-store-and-rag-pipeline/` | Advanced RAG | LanceDB, ChromaDB, SentenceTransformers, RapidFuzz |
-| `specs/12-agent-orchestration-and-state-graphs/` | Agent State Graphs | LangGraph state machine, `instructor`, FSM transitions |
-| `specs/13-mcp-gateways-and-protocols/` | MCP Gateways | `fastmcp`, `httpx` async, `pybreaker` circuit breakers |
-| `specs/14-observability-metrics-and-tracing/` | Observability & Tracing | OpenTelemetry, Prometheus metrics, Sentry SDK |
-| `specs/15-testing-bdd-and-qa-automation/` | BDD & Testing | `pytest-bdd` Gherkin, `hypothesis` property testing |
-| `specs/16-quality-gates-linting-and-security/` | Quality Gates | Ruff, Mypy strict mode, Bandit AST security scans |
-| `specs/17-build-tooling-and-monorepo-workflow/` | Build Tooling | `uv` package manager, `pyadr` CLI, Docker multi-stage |
-| `specs/18-architectural-patterns-and-cqrs/` | Design Patterns | CQRS, Event Bus, Repository Pattern, Strategy Pattern |
+| `specs/006-context-synthesis/` | Context Assembly & Synthesis | Profile loading, preference merging, RAG context |
+| `specs/007-dual-loop-reasoning/` | Reasoning Engine | Fast Loop Planner, Slow Loop Evaluator, self-correction |
+| `specs/008-safety-matrix/` | Safety Matrix & Risk Gates | LOW/MEDIUM/HIGH risk tiers, human consent gates |
+| `specs/009-mcp-integrations/` | MCP Gateways & Protocol | Anthropic MCP, Google Calendar, Todoist, n8n webhooks |
+| `specs/010-audit-and-decision-log/` | Decision Provenance & Audit | `logs/decision_log.jsonl`, `logs/system_audit.jsonl` |
+| `specs/011-rag-and-knowledge-base/` | Vector Store & Local RAG | Hybrid BM25 + dense embeddings over markdown specs |
+| `specs/012-postgres-orm-migrations/` | Database & ORM | SQLAlchemy 2.0 ORM, Alembic migrations, `pgvector` |
+| `specs/013-obsidian-vault-brain-integration/` | Obsidian Vault Memory | Markdown vault engine, frontmatter parsing, NetworkX graph |
+| `specs/015-core-frameworks-and-runtime/` | Core Frameworks | `pydantic-settings`, `tenacity`, `structlog`, `rich`, `typer` |
+| `specs/016-database-and-orm-evolution/` | DB Evolution | `Mapped[T]`, `asyncpg` pooling, DuckDB, Polars |
+| `specs/017-vector-store-and-rag-pipeline/` | Advanced RAG | LanceDB, ChromaDB, SentenceTransformers, RapidFuzz |
+| `specs/018-agent-orchestration-and-state-graphs/` | Agent State Graphs | LangGraph state machine, `instructor`, FSM transitions |
+| `specs/019-mcp-gateways-and-protocols/` | MCP Gateways | `fastmcp`, `httpx` async, `pybreaker` circuit breakers |
+| `specs/020-observability-metrics-and-tracing/` | Observability & Tracing | OpenTelemetry, Prometheus metrics, Sentry SDK |
+| `specs/021-testing-bdd-and-qa-automation/` | BDD & Testing | `pytest-bdd` Gherkin, `hypothesis` property testing |
+| `specs/022-quality-gates-linting-and-security/` | Quality Gates | Ruff, Mypy strict mode, Bandit AST security scans |
+| `specs/023-build-tooling-and-monorepo-workflow/` | Build Tooling | `uv` package manager, `pyadr` CLI, Docker multi-stage |
+| `specs/024-architectural-patterns-and-cqrs/` | Design Patterns | CQRS, Event Bus, Repository Pattern, Strategy Pattern |
 
 ---
 

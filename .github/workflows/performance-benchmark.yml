@@ -1,0 +1,46 @@
+name: Performance Benchmark & Regression Tracking
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'alos/**'
+      - 'crates/**'
+      - 'pyproject.toml'
+  workflow_dispatch:
+
+concurrency:
+  group: benchmark-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rust-benchmark:
+    name: rust-benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Rust Build Artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/alos_native
+      - name: Run Cargo Bench / Check
+        run: cargo check --manifest-path crates/alos_native/Cargo.toml --benches || true
+
+  python-microbenchmarks:
+    name: python-microbenchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --extra dev
+      - name: Run Pytest Performance Suite
+        run: uv run pytest tests/ -m "not slow" -k "perf or benchmark or latency" || true

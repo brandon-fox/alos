@@ -1,6 +1,6 @@
 """Immutable Append-Only System Audit Logger.
 
-Spec: specs/05-audit-and-decision-log/spec.md
+Spec: specs/010-audit-and-decision-log/spec.md
 """
 
 from __future__ import annotations
@@ -33,6 +33,7 @@ class SystemAuditLogger:
         reason: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Log structured audit event entry to append-only journal file."""
         record = {
             "timestamp": datetime.now().isoformat(),
             "step": step,

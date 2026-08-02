@@ -1,3 +1,5 @@
+"""Database session management and connection pooling for ALOS engine."""
+
 import os
 from collections.abc import Generator
 from contextlib import contextmanager

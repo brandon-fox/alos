@@ -1,6 +1,6 @@
 """Obsidian Vault Parser for ALOS Memory.
 
-Spec: specs/08-obsidian-vault-brain-integration/spec.md
+Spec: specs/013-obsidian-vault-brain-integration/spec.md
 """
 
 import logging
@@ -24,6 +24,8 @@ except ImportError:
 
 
 class ObsidianNote(BaseModel):
+    """Structured representation of an Obsidian vault markdown note."""
+
     file_name: str
     file_path: str
     content: str
@@ -61,6 +63,7 @@ class ObsidianVaultParser:
             return {}, [], raw_text
 
     def parse_file(self, file_path: str) -> ObsidianNote:
+        """Parse single markdown note file into structured ObsidianNote."""
         if self._native_parser:
             try:
                 native_note = self._native_parser.parse_file(file_path)
@@ -106,6 +109,7 @@ class ObsidianVaultParser:
         )
 
     def parse_all(self) -> list[ObsidianNote]:
+        """Parse all markdown notes in vault directory recursively."""
         if self._native_parser:
             try:
                 native_notes = self._native_parser.parse_all()

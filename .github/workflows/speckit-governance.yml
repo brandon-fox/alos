@@ -1,0 +1,57 @@
+name: SpecKit & Architecture Governance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'specs/**'
+      - 'docs/adr/**'
+      - '.specify/**'
+
+concurrency:
+  group: speckit-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  speckit-matrix-audit:
+    name: speckit-matrix-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --extra dev
+      - name: Validate SpecKit Specs Completeness
+        run: |
+          uv run python -c "
+          from pathlib import Path
+          specs = list(Path('specs').glob('[0-9][0-9][0-9]-*'))
+          missing = []
+          for spec_dir in specs:
+              req_files = ['spec.md', 'plan.md', 'tasks.md']
+              for f in req_files:
+                  if not (spec_dir / f).exists():
+                      missing.append(f'{spec_dir.name}/{f}')
+          if missing:
+              print(f'Missing SpecKit files: {missing}')
+              raise SystemExit(1)
+          print(f'Audited {len(specs)} SpecKit feature directories cleanly.')
+          "
+
+  adr-provenance-check:
+    name: adr-provenance-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --extra dev
+      - name: Verify ADR Repository Immutability and Integrity
+        run: uv run pyadr check-adr-repo
