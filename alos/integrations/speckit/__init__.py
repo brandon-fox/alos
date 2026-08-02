@@ -9,9 +9,9 @@ from alos.integrations.speckit.lifecycle import (
 from alos.integrations.speckit.plugins import SpecKitPluginRegistry
 
 __all__ = [
-    "LifecycleState",
     "InvalidStateTransitionError",
-    "SpecKitLifecycleManager",
+    "LifecycleState",
     "SpecKitArchiver",
+    "SpecKitLifecycleManager",
     "SpecKitPluginRegistry",
 ]
