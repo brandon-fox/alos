@@ -40,11 +40,11 @@ impl PyObsidianNote {
                                 } else if let Some(f) = n.as_f64() {
                                     f.into_py(py)
                                 } else {
-                                    n.to_string().into_py(py)
+                                    format!("{:?}", n).into_py(py)
                                 }
                             }
                             serde_yaml::Value::Bool(b) => b.into_py(py),
-                            _ => v.to_string().into_py(py),
+                            _ => format!("{:?}", v).into_py(py),
                         };
                         let _ = dict.set_item(k_str, py_val);
                     }
