@@ -27,7 +27,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
       - name: Cache Rust Build Artifacts
-        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # ff98106e4c7b2bc287b24eaf42907196329070c7.7.7
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.7.7
         with:
           workspaces: crates/alos_native
       - name: Run Cargo Bench / Check
