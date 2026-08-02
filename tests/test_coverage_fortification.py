@@ -107,14 +107,17 @@ def test_cli_main_help_output(
 def test_cli_main_with_query(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Test CLI main function with query argument."""
+    """Test CLI main function with crew command argument."""
     from alos.cli import main
 
-    vault_dir = str(tmp_path / "cli_vault")
-    monkeypatch.setattr("sys.argv", ["alos.cli", "search web for news", "--vault", vault_dir])
-    main()
+    monkeypatch.setattr(
+        "sys.argv", ["alos.cli", "crew", "run", "--name", "speckit_architect", "--goal", "test"]
+    )
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+    assert exc_info.value.code == 0
     captured = capsys.readouterr()
-    assert "status" in captured.out or "result" in captured.out
+    assert "status" in captured.out or "crew" in captured.out or "goal" in captured.out
 
 
 def test_scheduler_lifecycle(tmp_path: Path) -> None:
