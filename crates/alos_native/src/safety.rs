@@ -61,7 +61,10 @@ impl FastSafetyEvaluator {
                         .any(|&h| start_time.contains(h));
                     if after_5pm {
                         result.set_item("valid", false)?;
-                        result.set_item("critique", "Violates preference: No meetings scheduled after 5:00 PM")?;
+                        result.set_item(
+                            "critique",
+                            "Violates preference: No meetings scheduled after 5:00 PM",
+                        )?;
                         result.set_item("preferences_checked", preferences_checked)?;
                         return Ok(result);
                     }
@@ -87,9 +90,15 @@ impl FastSafetyEvaluator {
 
         for corr in &corrections {
             corrections_checked.push(corr.clone());
-            if corr.contains("Delta") && query_lower.contains("flight") && !query_lower.contains("delta") {
+            if corr.contains("Delta")
+                && query_lower.contains("flight")
+                && !query_lower.contains("delta")
+            {
                 result.set_item("valid", false)?;
-                result.set_item("critique", format!("Violates historical correction: {}", corr))?;
+                result.set_item(
+                    "critique",
+                    format!("Violates historical correction: {}", corr),
+                )?;
                 result.set_item("corrections_checked", corrections_checked)?;
                 return Ok(result);
             }
