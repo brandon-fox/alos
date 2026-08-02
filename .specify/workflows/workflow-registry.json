@@ -4,10 +4,26 @@
     "speckit": {
       "name": "Full SDD Cycle",
       "version": "1.0.0",
-      "description": "Runs specify \u2192 plan \u2192 tasks \u2192 implement with review gates",
+      "description": "Runs specify → plan → tasks → implement with review gates",
       "source": "bundled",
       "installed_at": "2026-08-01T17:58:33.787941+00:00",
       "updated_at": "2026-08-01T17:58:33.787941+00:00"
+    },
+    "lifecycle": {
+      "name": "Spec Lifecycle Management",
+      "version": "1.0.0",
+      "description": "Manages specification state transitions and lifecycle validation gates",
+      "source": "bundled",
+      "installed_at": "2026-08-02T17:00:00.000000+00:00",
+      "updated_at": "2026-08-02T17:00:00.000000+00:00"
+    },
+    "archive": {
+      "name": "Spec Archiving and Restoration",
+      "version": "1.0.0",
+      "description": "Archives completed specs to specs/archive and supports restoring them",
+      "source": "bundled",
+      "installed_at": "2026-08-02T17:00:00.000000+00:00",
+      "updated_at": "2026-08-02T17:00:00.000000+00:00"
     }
   }
 }

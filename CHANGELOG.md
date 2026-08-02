@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### ✨ Features
+- feat(native): implement stage 2 rust core extensions and python native bridge with fallbacks (#22) (e8b1460)
+- feat(refactor): Stage 1 system-wide architectural refactor & Rust core plan (#21) (120da87)
+- feat(perf): add Rust native extension for ALOS memory & graph acceleration via PyO3 (#17) (6fb6560)
+- feat(speckit): enforce explicit SpecKit skills and install specify-cli (#16) (17f6062)
+- feat(crewai): 100% local agents-as-code CrewAI orchestration framework (#15) (dc8e709)
 - feat(ci): self-driving GitHub Actions development machine (#4) (52a3be5)
 - Merge pull request #3 from brandon-fox/fix/ci-pyadr-dependency (6c885cd)
 - feat(open-source): adopt dual-repo open source architecture and public CI/CD pipeline (19b2153)
@@ -25,6 +30,7 @@
 - fix(ci): add pyadr to optional dev dependencies (01b1b55)
 
 ### 🔧 Chores
+- chore(deps): bump SonarSource/sonarqube-scan-action (#26) (b2be4d0)
 - chore(security): untrack personal vault notes and add open-source SECURITY policy & CODE_OF_CONDUCT (#13) (8a414dc)
 - chore(ci): bump actions/checkout from 4 to 7 (#9) (68525c3)
 - chore(ci): bump actions/setup-python from 5 to 7 (#7) (7736315)

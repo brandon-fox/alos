@@ -36,7 +36,6 @@ jobs:
       - name: Verify Package Metadata
         run: |
           uv sync --extra dev
-          uv run python -m pip install twine
           uv run twine check dist/*
       - name: Upload Python Artifacts
         uses: actions/upload-artifact@b4b15b13689678382660e0eea9a505c6a0c650c3 # v4.6.0
