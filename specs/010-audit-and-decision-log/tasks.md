@@ -28,5 +28,5 @@
 
 ## Phase 3: Polish
 
-- [ ] T012 [P] Move Gherkin to `tests/features/05_audit_logging.feature`
-- [ ] T013 [P] Verify checklist requirements met
+- [x] T012 [P] Move Gherkin to `tests/features/05_audit_logging.feature`
+- [x] T013 [P] Verify checklist requirements met
