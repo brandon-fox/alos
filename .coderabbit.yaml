@@ -18,12 +18,10 @@ reviews:
       - "main"
       - "upstream/main"
   path_filters:
-    - ".coderabbit.yaml"
     # --- Ignore non-code & high-volume files to prevent rate limits ---
     - "!**/*.md"
     - "!specs/**"
     - "!docs/**"
-    - "!.github/**"
     - "!uv.lock"
     - "!Cargo.lock"
     - "!**/__pycache__/**"
@@ -35,8 +33,6 @@ reviews:
     - "!logs/**"
     - "!alembic/versions/**"
     - "!*.json"
-    - "!*.yaml"
-    - "!*.yml"
   path_instructions:
     - path: "alos/**/*.py"
       instructions: |
