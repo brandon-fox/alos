@@ -22,11 +22,11 @@ jobs:
     name: gitleaks-scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
       - name: Gitleaks Secret Scan
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@af92631526372d8bc9ecb9b8b0e77478051e94ca # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
@@ -40,18 +40,18 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
       - name: OpenSSF Scorecard Analysis
-        uses: ossf/scorecard-action@v2.4.0
+        uses: ossf/scorecard-action@62b44769829e3086106d3183df4c37a63795a672 # v2.4.0
         with:
           results_file: scorecard-results.sarif
           results_format: sarif
           publish_results: true
         continue-on-error: true
       - name: Upload SARIF report
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@4dd3e590013d420f188365f57ee1d89fa3ef0a22 # v3.28.10
         with:
           sarif_file: scorecard-results.sarif
         continue-on-error: true
@@ -68,10 +68,10 @@ jobs:
       matrix:
         language: ['python']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@4dd3e590013d420f188365f57ee1d89fa3ef0a22 # v3.28.10
         with:
           languages: ${{ matrix.language }}
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@4dd3e590013d420f188365f57ee1d89fa3ef0a22 # v3.28.10
