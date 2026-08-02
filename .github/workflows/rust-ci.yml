@@ -1,0 +1,48 @@
+name: Rust CI Pipeline
+
+on:
+  pull_request:
+    paths:
+      - 'crates/**'
+      - 'Cargo.lock'
+      - '.github/workflows/rust-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'crates/**'
+      - 'Cargo.lock'
+      - '.github/workflows/rust-ci.yml'
+
+concurrency:
+  group: rust-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rust-checks:
+    name: Rust Code Quality & Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Rust Dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/alos_native
+
+      - name: Format Check
+        run: cargo fmt --manifest-path crates/alos_native/Cargo.toml -- --check
+
+      - name: Clippy Lint Scan
+        run: cargo clippy --manifest-path crates/alos_native/Cargo.toml -- -D warnings
+
+      - name: Run Native Unit Tests
+        run: cargo test --manifest-path crates/alos_native/Cargo.toml

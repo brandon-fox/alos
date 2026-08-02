@@ -26,16 +26,24 @@ repos:
         name: Ruff Lint Check (pre-commit)
         entry: uv run ruff check --fix
         language: system
-        types: [python]
         pass_filenames: false
+        always_run: true
         stages: [pre-commit]
 
-      - id: ruff-format-check
+      - id: ruff-format
         name: Ruff Format Check (pre-commit)
         entry: uv run ruff format
         language: system
-        types: [python]
         pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: cargo-fmt
+        name: Cargo Rust Formatter (pre-commit)
+        entry: python -c "import subprocess, shutil; cmd = shutil.which('cargo'); subprocess.run([cmd, 'fmt', '--manifest-path', 'crates/alos_native/Cargo.toml']) if cmd else print('Cargo not available locally, skipping cargo fmt')"
+        language: system
+        pass_filenames: false
+        always_run: true
         stages: [pre-commit]
 
   - repo: local

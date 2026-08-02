@@ -254,6 +254,14 @@ After reporting, check if `.specify/extensions.yml` exists in the project root.
 - **Use examples over exhaustive rules** (cite specific instances, not generic patterns)
 - **Report zero issues gracefully** (emit success report with coverage statistics)
 
+## CI & Automated Bot Review Integration
+
+The analysis logic defined in this skill is integrated into GitHub Actions via `.github/workflows/spec-analyzer-bot.yml`.
+When a pull request touches `specs/**` or `.specify/memory/constitution.md`:
+- The `Spec Review Bot` automatically runs structural and consistency audits across all active feature specifications.
+- It parses requirement traceability (`FR-XXX`), task execution progress, and artifact completeness.
+- Findings are rendered as a single in-place updated comment on the PR to prevent noise while giving instant feedback.
+
 ## Context
 
 $ARGUMENTS

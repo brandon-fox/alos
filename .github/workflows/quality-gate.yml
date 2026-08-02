@@ -1,7 +1,6 @@
 # This workflow runs a comprehensive parallel quality gate for the ALOS project.
-# It includes 6 parallel jobs: ruff-lint, mypy-types, bandit-security, pytest-suite,
-# adr-governance, and dependency-review, as well as a docker validation step.
-# It uses a concurrency model to cancel in-progress runs for the same branch.
+# It includes path filtering to isolate Python checks from Rust-only changes,
+# optimized uv dependency caching, and open-source ML model weight caching (up to 2GB).
 
 name: Quality Gate
 
@@ -20,12 +19,44 @@ permissions:
   pull-requests: write
 
 jobs:
+  changes:
+    name: Detect Changed Components
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+      rust: ${{ steps.filter.outputs.rust }}
+      docker: ${{ steps.filter.outputs.docker }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            python:
+              - 'alos/**'
+              - 'tests/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'alembic/**'
+              - 'alembic.ini'
+              - '.github/workflows/quality-gate.yml'
+            rust:
+              - 'crates/**'
+              - 'Cargo.lock'
+            docker:
+              - 'Dockerfile*'
+              - 'docker-compose*'
+
   ruff-lint:
     name: ruff-lint
+    needs: [changes]
+    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
       - run: uv sync --extra dev
       - name: Ruff Lint
         run: uv run ruff check alos tests
@@ -34,20 +65,28 @@ jobs:
 
   mypy-types:
     name: mypy-types
+    needs: [changes]
+    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
       - run: uv sync --extra dev
       - name: MyPy Static Analysis
         run: uv run mypy alos
 
   bandit-security:
     name: bandit-security
+    needs: [changes]
+    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
       - run: uv sync --extra dev
       - name: Bandit Security Scan
         run: uv run bandit -r alos -s B101 -f json -o bandit-report.json || true
@@ -56,11 +95,24 @@ jobs:
 
   pytest-suite:
     name: pytest-suite
+    needs: [changes]
+    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
       - run: uv sync --extra dev
+      - name: Cache Open Source AI Model Weights (Up to 2GB)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/huggingface/hub
+            ~/.cache/torch/hub
+          key: ${{ runner.os }}-model-weights-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-model-weights-
       - name: Run Tests with Coverage
         run: uv run pytest --cov=alos --cov-report=xml:coverage.xml --cov-report=term-missing
       - name: Upload Coverage Artifact
@@ -73,20 +125,25 @@ jobs:
 
   adr-governance:
     name: adr-governance
+    needs: [changes]
+    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
       - run: uv sync --extra dev
       - name: Verify ADR Repository
         run: uv run pyadr check-adr-repo
 
   dependency-review:
     name: dependency-review
+    needs: [changes]
+    if: github.event_name == 'pull_request' && (needs.changes.outputs.python == 'true' || needs.changes.outputs.rust == 'true')
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
       - name: Dependency Review
         uses: actions/dependency-review-action@v5
         continue-on-error: true
@@ -96,10 +153,11 @@ jobs:
 
   docker-validate:
     name: docker-validate
+    needs: [changes]
+    if: needs.changes.outputs.docker == 'true' || contains(github.event.head_commit.message, 'docker') || contains(github.event.head_commit.message, 'compose')
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.message, 'docker') || contains(github.event.head_commit.message, 'compose')
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
       - name: Validate Docker Compose
         run: docker compose config --quiet
       - name: Trivy IaC Scan
@@ -112,10 +170,23 @@ jobs:
 
   crewai-validation:
     name: crewai-validation
+    needs: [changes]
+    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
       - run: uv sync --extra dev
+      - name: Cache Open Source AI Model Weights (Up to 2GB)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/huggingface/hub
+            ~/.cache/torch/hub
+          key: ${{ runner.os }}-model-weights-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-model-weights-
       - name: Validate CrewAI Local Setup
         run: uv run pytest tests/test_crewai_local.py
