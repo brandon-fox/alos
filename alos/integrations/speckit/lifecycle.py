@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, ClassVar
 
 from alos.integrations.speckit.plugins import SpecKitPluginRegistry
 
@@ -29,7 +29,7 @@ class InvalidStateTransitionError(ValueError):
 class SpecKitLifecycleManager:
     """Manager for querying and transitioning feature specification lifecycle states."""
 
-    VALID_TRANSITIONS: Dict[LifecycleState, Set[LifecycleState]] = {
+    VALID_TRANSITIONS: ClassVar[dict[LifecycleState, set[LifecycleState]]] = {
         LifecycleState.DRAFT: {
             LifecycleState.IN_PROGRESS,
             LifecycleState.APPROVED,
@@ -58,7 +58,7 @@ class SpecKitLifecycleManager:
         },
     }
 
-    def __init__(self, root_dir: Optional[Path] = None) -> None:
+    def __init__(self, root_dir: Path | None = None) -> None:
         self.root_dir = root_dir.resolve() if root_dir else Path.cwd().resolve()
         self.specs_dir = self.root_dir / "specs"
         self.records_dir = self.root_dir / ".specify" / "lifecycle_records"
@@ -69,7 +69,7 @@ class SpecKitLifecycleManager:
         clean_name = feature_name.replace("/", "_").replace("\\", "_")
         return self.records_dir / f"{clean_name}.json"
 
-    def get_status(self, feature_name: str) -> Dict[str, Any]:
+    def get_status(self, feature_name: str) -> dict[str, Any]:
         """Retrieve current lifecycle status and history for a given feature spec.
 
         Args:
@@ -81,9 +81,9 @@ class SpecKitLifecycleManager:
         record_path = self._get_record_path(feature_name)
         if record_path.exists():
             try:
-                data: Dict[str, Any] = json.loads(record_path.read_text(encoding="utf-8"))
+                data: dict[str, Any] = json.loads(record_path.read_text(encoding="utf-8"))
                 return data
-            except Exception:
+            except (json.JSONDecodeError, OSError):
                 pass
 
         # Default record for specs without explicit record
@@ -106,8 +106,8 @@ class SpecKitLifecycleManager:
         self,
         feature_name: str,
         target_state: str | LifecycleState,
-        reason: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        reason: str | None = None,
+    ) -> dict[str, Any]:
         """Transition feature specification to target lifecycle state.
 
         Args:
@@ -184,7 +184,7 @@ class SpecKitLifecycleManager:
 
         return current_record
 
-    def list_features(self, state_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_features(self, state_filter: str | None = None) -> list[dict[str, Any]]:
         """List feature specifications with their lifecycle status.
 
         Args:
@@ -193,7 +193,7 @@ class SpecKitLifecycleManager:
         Returns:
             List of feature lifecycle summary records.
         """
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
 
         # Scan active specs
         if self.specs_dir.exists():

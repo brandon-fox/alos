@@ -1,6 +1,7 @@
 """Plugin registry and event hook dispatching for SpecKit integration plugins."""
 
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any, Optional
 
 
 class SpecKitPluginRegistry:
@@ -9,7 +10,7 @@ class SpecKitPluginRegistry:
     _instance: Optional["SpecKitPluginRegistry"] = None
 
     def __init__(self) -> None:
-        self._hooks: Dict[str, List[Callable[..., Any]]] = {
+        self._hooks: dict[str, list[Callable[..., Any]]] = {
             "pre_lifecycle_transition": [],
             "on_lifecycle_transition": [],
             "post_lifecycle_transition": [],
@@ -44,7 +45,7 @@ class SpecKitPluginRegistry:
         if callback not in self._hooks[event_name]:
             self._hooks[event_name].append(callback)
 
-    def dispatch_event(self, event_name: str, **kwargs: Any) -> List[Any]:
+    def dispatch_event(self, event_name: str, **kwargs: Any) -> list[Any]:
         """Dispatch event to all registered plugin hooks for event_name.
 
         Args:
@@ -54,13 +55,13 @@ class SpecKitPluginRegistry:
         Returns:
             List of results returned by invoked callbacks.
         """
-        results: List[Any] = []
+        results: list[Any] = []
         if event_name in self._hooks:
             for callback in self._hooks[event_name]:
                 res = callback(**kwargs)
                 results.append(res)
         return results
 
-    def list_hooks(self) -> Dict[str, int]:
+    def list_hooks(self) -> dict[str, int]:
         """List registered hook counts per event name."""
         return {event: len(callbacks) for event, callbacks in self._hooks.items()}

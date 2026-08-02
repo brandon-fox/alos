@@ -4,7 +4,7 @@ import json
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from alos.integrations.speckit.lifecycle import LifecycleState, SpecKitLifecycleManager
 from alos.integrations.speckit.plugins import SpecKitPluginRegistry
@@ -13,7 +13,7 @@ from alos.integrations.speckit.plugins import SpecKitPluginRegistry
 class SpecKitArchiver:
     """Archiving and restoration engine for SpecKit feature specifications."""
 
-    def __init__(self, root_dir: Optional[Path] = None) -> None:
+    def __init__(self, root_dir: Path | None = None) -> None:
         self.root_dir = root_dir.resolve() if root_dir else Path.cwd().resolve()
         self.specs_dir = self.root_dir / "specs"
         self.archive_dir = self.specs_dir / "archive"
@@ -22,23 +22,23 @@ class SpecKitArchiver:
         self.lifecycle_manager = SpecKitLifecycleManager(root_dir=self.root_dir)
         self.plugin_registry = SpecKitPluginRegistry.get_instance()
 
-    def _read_archive_index(self) -> Dict[str, Dict[str, Any]]:
+    def _read_archive_index(self) -> dict[str, dict[str, Any]]:
         if self.archive_index_path.exists():
             try:
-                data: Dict[str, Dict[str, Any]] = json.loads(
+                data: dict[str, dict[str, Any]] = json.loads(
                     self.archive_index_path.read_text(encoding="utf-8")
                 )
                 return data
-            except Exception:
+            except (json.JSONDecodeError, OSError):
                 pass
         return {}
 
-    def _write_archive_index(self, index_data: Dict[str, Dict[str, Any]]) -> None:
+    def _write_archive_index(self, index_data: dict[str, dict[str, Any]]) -> None:
         self.archive_index_path.write_text(
             json.dumps(index_data, indent=2), encoding="utf-8"
         )
 
-    def archive_feature(self, feature_name: str) -> Dict[str, Any]:
+    def archive_feature(self, feature_name: str) -> dict[str, Any]:
         """Archive an active feature specification directory.
 
         Args:
@@ -108,7 +108,7 @@ class SpecKitArchiver:
 
         return archive_info
 
-    def restore_feature(self, feature_name: str) -> Dict[str, Any]:
+    def restore_feature(self, feature_name: str) -> dict[str, Any]:
         """Restore an archived feature specification directory back to specs/.
 
         Args:
@@ -160,7 +160,7 @@ class SpecKitArchiver:
 
         return restore_info
 
-    def list_archived_features(self) -> List[Dict[str, Any]]:
+    def list_archived_features(self) -> list[dict[str, Any]]:
         """List archived feature specifications from archive index."""
         index = self._read_archive_index()
         return list(index.values())
