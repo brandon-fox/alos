@@ -1,3 +1,5 @@
+"""Abstract protocol interfaces for ALOS core components (SOLID: ISP & DIP)."""
+
 from typing import Any, Protocol, runtime_checkable
 
 
@@ -5,7 +7,9 @@ from typing import Any, Protocol, runtime_checkable
 class MemoryStoreProtocol(Protocol):
     """Protocol for vector and spec-aware memory stores (SOLID: ISP)."""
 
-    def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]: ...
+    def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
+        """Search memory store for relevant records matching query."""
+        ...
 
 
 @runtime_checkable
@@ -18,7 +22,9 @@ class AuditLoggerProtocol(Protocol):
         status: str,
         reason: str | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+        """Log system audit event."""
+        ...
 
 
 @runtime_checkable
@@ -37,18 +43,24 @@ class DecisionLoggerProtocol(Protocol):
         corrections_checked: list[str],
         alternatives_considered: list[str],
         self_correction_rounds: int,
-    ) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+        """Log architectural decision record."""
+        ...
 
 
 @runtime_checkable
 class ToolHandlerProtocol(Protocol):
     """Protocol for discrete MCP tool execution handlers (SOLID: SRP & OCP)."""
 
-    def execute(self, payload: dict[str, Any]) -> dict[str, Any]: ...
+    def execute(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Execute discrete tool with provided payload."""
+        ...
 
 
 @runtime_checkable
 class MCPGatewayProtocol(Protocol):
     """Protocol for MCP gateway integrations (SOLID: ISP & DIP)."""
 
-    def execute_tool(self, tool_name: str, payload: dict[str, Any]) -> dict[str, Any]: ...
+    def execute_tool(self, tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Execute named tool via MCP gateway."""
+        ...

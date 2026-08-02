@@ -1,3 +1,5 @@
+"""Background scheduler wrapper using APScheduler for ALOS routines."""
+
 from typing import Any
 
 # Third-party library apscheduler lacks PEP 561 py.typed marker or type stubs

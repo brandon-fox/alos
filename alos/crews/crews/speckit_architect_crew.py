@@ -1,3 +1,5 @@
+"""CrewAI agent crew for SpecKit architecture specification generation."""
+
 import os
 from typing import Any
 
@@ -10,12 +12,16 @@ from alos.crews.tools.obsidian_tool import ObsidianVaultTool
 
 
 class CrewAgentSpec(BaseModel):
+    """Specification model for a CrewAI agent role and goal."""
+
     role: str
     goal: str
     backstory: str
 
 
 class CrewTaskSpec(BaseModel):
+    """Specification model for a CrewAI task definition."""
+
     description: str
     expected_output: str
     agent: str
@@ -44,6 +50,7 @@ class SpecKitArchitectCrew:
         return {}
 
     def get_agent_spec(self, name: str) -> CrewAgentSpec:
+        """Parse agent specification for named agent configuration."""
         data = self.agents_config.get(name, {})
         role = str(data.get("role", name.replace("_", " ").title())).strip()
         goal = str(data.get("goal", f"Achieve goals for {name}")).strip()
@@ -51,6 +58,7 @@ class SpecKitArchitectCrew:
         return CrewAgentSpec(role=role, goal=goal, backstory=backstory)
 
     def get_task_spec(self, name: str) -> CrewTaskSpec:
+        """Parse task specification for named task configuration."""
         data = self.tasks_config.get(name, {})
         desc = str(data.get("description", f"Execute task {name}")).strip()
         out = str(data.get("expected_output", "Task completion output")).strip()

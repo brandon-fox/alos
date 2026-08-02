@@ -1,3 +1,5 @@
+"""CrewAI local LLM configuration and privacy telemetry control."""
+
 import os
 from typing import Any
 

@@ -1,3 +1,5 @@
+"""CrewAI agent crew for synthesizing Obsidian vault notes and knowledge graphs."""
+
 import os
 from typing import Any
 

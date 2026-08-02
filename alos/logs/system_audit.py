@@ -33,6 +33,7 @@ class SystemAuditLogger:
         reason: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Log structured audit event entry to append-only journal file."""
         record = {
             "timestamp": datetime.now().isoformat(),
             "step": step,

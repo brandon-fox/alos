@@ -1,3 +1,5 @@
+"""MCP gateway bridge tool integration for CrewAI agent tasks."""
+
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -6,6 +8,8 @@ from alos.integrations.mcp_gateway import MCPGateway
 
 
 class MCPGatewayInput(BaseModel):
+    """Input payload schema for executing tools via MCP gateway."""
+
     tool_name: str = Field(
         ..., description="Name of the MCP tool to execute (e.g. web_search, todoist_create_task)"
     )
@@ -25,6 +29,7 @@ class MCPGatewayTool:
         self.gateway = MCPGateway()
 
     def run(self, tool_name: str, payload: dict[str, Any] | None = None) -> str:
+        """Execute specified tool name with payload via MCP gateway."""
         params = payload or {}
         res = self.gateway.execute_tool(tool_name, params)
         return str(res)

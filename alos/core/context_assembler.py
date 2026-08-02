@@ -1,3 +1,5 @@
+"""Context assembly and retrieval pipeline for ALOS runtime."""
+
 import os
 from typing import Any
 
@@ -7,6 +9,8 @@ from alos.core.protocols import MemoryStoreProtocol
 
 
 class ContextPayload(BaseModel):
+    """Container payload for aggregated user profile, preferences, and RAG context."""
+
     profile: dict[str, Any] = Field(default_factory=dict)
     preferences: list[str] = Field(default_factory=list)
     corrections: list[str] = Field(default_factory=list)
@@ -62,6 +66,7 @@ class ContextAssembler:
         return items
 
     def assemble_context(self, user_query: str) -> ContextPayload:
+        """Assemble complete context payload from vault, preferences, and RAG search."""
         wiki_links = self._collect_wiki_links()
         profile = self._read_profile()
         preferences = self._read_vault_list("PREFERENCES.md")

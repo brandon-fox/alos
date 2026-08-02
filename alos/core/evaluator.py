@@ -20,12 +20,16 @@ if TYPE_CHECKING:
 
 
 class RiskLevel(str, Enum):
+    """Enumeration of safety matrix risk classification levels."""
+
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
 
 
 class EvaluationResult(BaseModel):
+    """Result of an evaluator node assessment including safety and risk levels."""
+
     valid: bool
     critique: str
     risk_level: RiskLevel = RiskLevel.LOW
