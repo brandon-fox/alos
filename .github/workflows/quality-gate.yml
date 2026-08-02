@@ -174,7 +174,7 @@ jobs:
       - name: Validate Docker Compose
         run: docker compose config --quiet
       - name: Trivy IaC Scan
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
