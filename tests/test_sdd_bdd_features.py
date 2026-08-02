@@ -2,14 +2,14 @@ import json
 
 # TDD Tests mapping directly to SDD System Spec & BDD Gherkin Feature Specifications
 # Feature spec traceability:
-#   test_01  → specs/01-context-synthesis/spec.md
-#   test_02  → specs/02-dual-loop-reasoning/spec.md
-#   test_03  → specs/03-safety-matrix/spec.md
-#   test_04  → specs/04-mcp-integrations/spec.md
-#   test_05  → specs/05-audit-and-decision-log/spec.md (SystemAuditLogger)
-#   test_06  → specs/02-dual-loop-reasoning/spec.md (end-to-end)
-#   test_07  → specs/05-audit-and-decision-log/spec.md (DecisionLogger entry structure)
-#   test_08  → specs/05-audit-and-decision-log/spec.md (alternatives_considered on rejection)
+#   test_01  → specs/006-context-synthesis/spec.md
+#   test_02  → specs/007-dual-loop-reasoning/spec.md
+#   test_03  → specs/008-safety-matrix/spec.md
+#   test_04  → specs/009-mcp-integrations/spec.md
+#   test_05  → specs/010-audit-and-decision-log/spec.md (SystemAuditLogger)
+#   test_06  → specs/007-dual-loop-reasoning/spec.md (end-to-end)
+#   test_07  → specs/010-audit-and-decision-log/spec.md (DecisionLogger entry structure)
+#   test_08  → specs/010-audit-and-decision-log/spec.md (alternatives_considered on rejection)
 
 
 def test_01_context_synthesis_from_vault(tmp_path):
@@ -153,7 +153,7 @@ def test_05_audit_logging_append_only(tmp_path):
 
 def test_06_end_to_end_state_graph_dual_loop(tmp_path):
     """Integration Test: Full dual-loop execution with self-correction
-    Spec: specs/02-dual-loop-reasoning/spec.md — User Story 2
+    Spec: specs/007-dual-loop-reasoning/spec.md — User Story 2
     """
     from alos.core.graph import ALOSStateGraph
 
@@ -182,7 +182,7 @@ def test_06_end_to_end_state_graph_dual_loop(tmp_path):
 
 def test_07_decision_log_entry_structure(tmp_path):
     """TDD — RED phase: DecisionLogger must write all 12 required ADR fields.
-    Spec: specs/05-audit-and-decision-log/spec.md — FR-005, FR-006, SC-001, SC-003
+    Spec: specs/010-audit-and-decision-log/spec.md — FR-005, FR-006, SC-001, SC-003
     """
     from alos.core.evaluator import RiskLevel
     from alos.logs.decision_log import DecisionLogger
@@ -242,7 +242,7 @@ def test_07_decision_log_entry_structure(tmp_path):
 
 def test_08_decision_log_alternatives_on_rejection(tmp_path):
     """TDD — RED phase: After one self-correction round, alternatives_considered must be non-empty.
-    Spec: specs/05-audit-and-decision-log/spec.md — FR-008, SC-002
+    Spec: specs/010-audit-and-decision-log/spec.md — FR-008, SC-002
     """
     from alos.core.graph import ALOSStateGraph
 
@@ -283,7 +283,7 @@ def test_08_decision_log_alternatives_on_rejection(tmp_path):
 
 def test_09_postgres_orm_and_alembic_migrations(tmp_path):
     """BDD Scenario & Spec 07: Validate PostgreSQL ORM model management and Alembic migrations.
-    Spec: specs/07-postgres-orm-migrations/spec.md
+    Spec: specs/012-postgres-orm-migrations/spec.md
     """
     from alembic.config import Config
     from sqlalchemy import inspect
@@ -381,7 +381,7 @@ def test_09_postgres_orm_and_alembic_migrations(tmp_path):
 
 def test_19_open_source_workflows_dir_configuration(monkeypatch, tmp_path):
     """BDD Scenario & Spec 19: Open-source configuration supports custom ALOS_WORKFLOWS_DIR
-    Spec: specs/19-open-source-dual-repo-architecture/spec.md
+    Spec: specs/025-open-source-dual-repo-architecture/spec.md
     """
     from alos.core.config import ALOSConfig
 

@@ -1,6 +1,6 @@
 """Unit and Integration Tests for ALOS Native Bridge & Fallbacks.
 
-Spec: specs/002-rust-core-architectural-refactor/spec.md (FR-009)
+Spec: specs/003-rust-core-architectural-refactor/spec.md (FR-009)
 """
 
 from __future__ import annotations

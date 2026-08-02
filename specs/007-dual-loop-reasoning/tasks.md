@@ -1,6 +1,6 @@
 # Tasks: Dual-Loop Reasoning & Evaluator Self-Correction
 
-**Input**: `specs/02-dual-loop-reasoning/spec.md`, `specs/02-dual-loop-reasoning/plan.md`
+**Input**: `specs/007-dual-loop-reasoning/spec.md`, `specs/007-dual-loop-reasoning/plan.md`
 
 ---
 

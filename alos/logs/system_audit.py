@@ -1,6 +1,6 @@
 """Immutable Append-Only System Audit Logger.
 
-Spec: specs/05-audit-and-decision-log/spec.md
+Spec: specs/010-audit-and-decision-log/spec.md
 """
 
 from __future__ import annotations

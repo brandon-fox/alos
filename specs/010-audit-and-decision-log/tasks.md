@@ -1,6 +1,6 @@
 # Tasks: Audit Logger & Runtime Decision Log (ADR)
 
-**Input**: `specs/05-audit-and-decision-log/spec.md`, `specs/05-audit-and-decision-log/plan.md`
+**Input**: `specs/010-audit-and-decision-log/spec.md`, `specs/010-audit-and-decision-log/plan.md`
 
 ## Phase 1: User Story 1 — SystemAuditLogger (P1) [Already implemented; validate]
 

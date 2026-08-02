@@ -1,6 +1,6 @@
 """Structured Execution Telemetry & Span Tracing Module.
 
-Spec: specs/002-rust-core-architectural-refactor/spec.md (FR-002)
+Spec: specs/003-rust-core-architectural-refactor/spec.md (FR-002)
 Constitution: Article III §2 (Audit & Observability Integrity)
 """
 

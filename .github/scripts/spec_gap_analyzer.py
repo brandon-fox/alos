@@ -98,7 +98,7 @@ def main() -> None:
     for sp in subpackages:
         if not any(sp in base_name for base_name in spec_base_names):
             highest_spec_num += 1
-            missing_specs.append((sp, f"{highest_spec_num:02d}-{sp}"))
+            missing_specs.append((sp, f"{highest_spec_num:03d}-{sp}"))
 
     orphaned_specs = []
     for full_name, base_name, _num in specs:

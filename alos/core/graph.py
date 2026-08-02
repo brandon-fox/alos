@@ -1,6 +1,6 @@
 """ALOS State Graph — Dual-Loop Reasoning Orchestrator.
 
-Spec: specs/02-dual-loop-reasoning/plan.md
+Spec: specs/007-dual-loop-reasoning/plan.md
 Constitution: Article I §1, Article II §3, Article III §1
 """
 
