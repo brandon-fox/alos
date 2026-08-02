@@ -48,7 +48,7 @@ impl FastSafetyEvaluator {
         action_type: &str,
         start_time: &str,
         preferences: Vec<String>,
-    ) -> PyResult<&'py PyDict> {
+    ) -> PyResult<Bound<'py, PyDict>> {
         let result = PyDict::new(py);
         let mut preferences_checked = Vec::new();
 
