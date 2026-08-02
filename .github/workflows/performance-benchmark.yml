@@ -23,11 +23,11 @@ jobs:
     name: rust-benchmark
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@a27d2c4314c449339e7616c68a48b50259b15239 # stable
       - name: Cache Rust Build Artifacts
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@f0deed1e0edfc6a9beeee541004cd3f707f3e8f7 # v2.7.7
         with:
           workspaces: crates/alos_native
       - name: Run Cargo Bench / Check
@@ -37,8 +37,8 @@ jobs:
     name: python-microbenchmarks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@f943832d735fb2565cc5fa44b360df92b9514742 # v5.3.0
         with:
           enable-cache: true
       - run: uv sync --extra dev

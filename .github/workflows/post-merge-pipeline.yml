@@ -20,12 +20,12 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@f943832d735fb2565cc5fa44b360df92b9514742 # v5.3.0
         with:
           enable-cache: true
 
@@ -36,7 +36,7 @@ jobs:
         run: uv run pytest --cov=alos --cov-report=xml:coverage.xml -q || true
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@v6
+        uses: SonarSource/sonarqube-scan-action@d0a5bd75b5b2fb8dcfeb12a43b22cf904e2808c1 # v6.0.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
@@ -48,7 +48,7 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
@@ -81,7 +81,7 @@ jobs:
           git log $RANGE --oneline --grep='^chore' --format='- %s (%h)' >> CHANGELOG.md || true
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@c5a029f1efe0057e6587ab19a3b6329437198a28 # v7.0.6
         with:
           commit-message: "docs(changelog): auto-update changelog"
           title: "docs(changelog): auto-update changelog"
@@ -95,10 +95,10 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@f943832d735fb2565cc5fa44b360df92b9514742 # v5.3.0
         with:
           enable-cache: true
 
@@ -129,10 +129,10 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@f943832d735fb2565cc5fa44b360df92b9514742 # v5.3.0
         with:
           enable-cache: true
 
@@ -146,7 +146,7 @@ jobs:
         run: python .github/scripts/coverage_gap_analyzer.py || true
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@c5a029f1efe0057e6587ab19a3b6329437198a28 # v7.0.6
         with:
           commit-message: "chore(tests): add coverage gap test stubs"
           title: "chore(tests): automated coverage gap test stubs"
@@ -161,7 +161,7 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Run AST Docstring Audit
         id: audit
@@ -224,7 +224,7 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Run Spec Gap Analyzer
         id: analyze
@@ -250,7 +250,7 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Scan for Tech Debt Markers
         id: scan
@@ -287,10 +287,10 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@f943832d735fb2565cc5fa44b360df92b9514742 # v5.3.0
         with:
           enable-cache: true
 

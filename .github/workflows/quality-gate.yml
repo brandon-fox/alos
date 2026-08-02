@@ -27,8 +27,8 @@ jobs:
       rust: ${{ steps.filter.outputs.rust }}
       docker: ${{ steps.filter.outputs.docker }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dorny/paths-filter@de568385ba8010406528d6c8b9186638b97d8b3a # v3.0.2
         id: filter
         with:
           filters: |
@@ -53,8 +53,8 @@ jobs:
     if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@f943832d735fb2565cc5fa44b360df92b9514742 # v5.3.0
         with:
           enable-cache: true
       - name: Verify uv.lock Sync
@@ -66,8 +66,8 @@ jobs:
     if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@f943832d735fb2565cc5fa44b360df92b9514742 # v5.3.0
         with:
           enable-cache: true
       - run: uv sync --extra dev
@@ -82,8 +82,8 @@ jobs:
     if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@f943832d735fb2565cc5fa44b360df92b9514742 # v5.3.0
         with:
           enable-cache: true
       - run: uv sync --extra dev
@@ -96,8 +96,8 @@ jobs:
     if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@f943832d735fb2565cc5fa44b360df92b9514742 # v5.3.0
         with:
           enable-cache: true
       - run: uv sync --extra dev
@@ -112,13 +112,13 @@ jobs:
     if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@f943832d735fb2565cc5fa44b360df92b9514742 # v5.3.0
         with:
           enable-cache: true
       - run: uv sync --extra dev
       - name: Cache Open Source AI Model Weights (Up to 2GB)
-        uses: actions/cache@v4
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.2.2
         with:
           path: |
             ~/.cache/huggingface/hub
@@ -130,7 +130,7 @@ jobs:
         run: uv run pytest --cov=alos --cov-report=xml:coverage.xml --cov-report=term-missing
       - name: Upload Coverage Artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b4b15b13689678382660e0eea9a505c6a0c650c3 # v4.6.0
         with:
           name: coverage-report
           path: coverage.xml
@@ -142,8 +142,8 @@ jobs:
     if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@f943832d735fb2565cc5fa44b360df92b9514742 # v5.3.0
         with:
           enable-cache: true
       - run: uv sync --extra dev
@@ -156,9 +156,9 @@ jobs:
     if: github.event_name == 'pull_request' && (needs.changes.outputs.python == 'true' || needs.changes.outputs.rust == 'true')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Dependency Review
-        uses: actions/dependency-review-action@v5
+        uses: actions/dependency-review-action@4861ef17ef7a6279f0412850982df0978cece4d8 # v5.0.0
         continue-on-error: true
         with:
           comment-summary-in-pr: always
@@ -170,11 +170,11 @@ jobs:
     if: needs.changes.outputs.docker == 'true' || contains(github.event.head_commit.message, 'docker') || contains(github.event.head_commit.message, 'compose')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Validate Docker Compose
         run: docker compose config --quiet
       - name: Trivy IaC Scan
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@a5d89fb95eefea266a01dd22ebcfbbcf326071ef # v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -187,13 +187,13 @@ jobs:
     if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@f943832d735fb2565cc5fa44b360df92b9514742 # v5.3.0
         with:
           enable-cache: true
       - run: uv sync --extra dev
       - name: Cache Open Source AI Model Weights (Up to 2GB)
-        uses: actions/cache@v4
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.2.2
         with:
           path: |
             ~/.cache/huggingface/hub

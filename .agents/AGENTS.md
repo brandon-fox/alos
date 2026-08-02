@@ -18,9 +18,10 @@ This file contains repository-scoped behavioral rules and directives for AI agen
 - **Test-Driven Development**: Always follow Red-Green-Refactor. Write failing tests in `tests/test_sdd_bdd_features.py` before writing implementation code.
 - **BDD Scenarios**: Gherkin acceptance feature files live in `tests/features/`.
 
-### 4. Git Atomic Commit & Push Workflow
+### 4. Git Atomic Commit, Push & Worktree Lifecycle Workflow
 - **Commit Cadence**: "More is better". Commit early and often for every tested incremental change, decision, or spec milestone.
-- **Skill Usage**: Refer to `.agents/skills/git-commit-and-push/SKILL.md` for explicit commit signing, staging isolation (never `git add .`), hygiene verification, conventional commit formatting, and pushing.
+- **Mandatory PR & Worktree Lifecycle**: Every worktree or feature branch task MUST conclude with creating a Pull Request (`gh pr create` or `create_pull_request`). Agents MUST monitor the PR state until merged, and clean up the worktree (`git worktree remove`) and branch (`git branch -d`) after merge confirmation.
+- **Skill Usage**: Refer to `.agents/skills/git-commit-and-push/SKILL.md` for explicit commit signing, staging isolation (never `git add .`), hygiene verification, PR creation, status monitoring, and worktree cleanup.
 
 ### 5. Git Tree History & Context Investigation
 - **Git Tree as Primary Rationale Source**: The Git tree is a source of truth, history, and context. Use it to understand why code was written, evaluate legacy design choices, or analyze historical trends before making refactoring decisions or assumptions.
@@ -36,6 +37,7 @@ This file contains repository-scoped behavioral rules and directives for AI agen
 - **Risk-Adaptive Workspaces**:
   - `Workspace: inherit` (Shared Workspace): Use for low-risk, non-destructive, or read-only subtasks (e.g. running test suites, querying git history, reading documentation, auditing code quality).
   - `Workspace: branch` (Isolated Workspace): Use for high-risk or structural refactoring, major architectural changes, and experimental feature branches.
+- **Worktree Teardown**: Upon task completion, subagents in branched workspaces MUST ensure changes are pushed, a Pull Request is opened, monitored until merged, and the branched worktree directory is safely unmounted and deleted.
 - **Skill Usage**: Refer to `.agents/skills/agentic-autonomy/SKILL.md` for guidance on subagent composition and background task orchestration.
 
 ### 8. Tooling Autonomy, Proactive Permissions & Non-Blocking Execution

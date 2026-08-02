@@ -27,8 +27,8 @@ jobs:
     name: build-python-wheel
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@f943832d735fb2565cc5fa44b360df92b9514742 # v5.3.0
         with:
           enable-cache: true
       - name: Build Python Package Artifacts
@@ -38,7 +38,7 @@ jobs:
           uv sync --extra dev
           uv run twine check dist/*
       - name: Upload Python Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b4b15b13689678382660e0eea9a505c6a0c650c3 # v4.6.0
         with:
           name: python-dist
           path: dist/
@@ -48,17 +48,17 @@ jobs:
     name: build-rust-binary
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@a27d2c4314c449339e7616c68a48b50259b15239 # stable
       - name: Cache Rust Build Artifacts
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@f0deed1e0edfc6a9beeee541004cd3f707f3e8f7 # v2.7.7
         with:
           workspaces: crates/alos_native
       - name: Build Release Binary
         run: cargo build --manifest-path crates/alos_native/Cargo.toml --release
       - name: Upload Rust Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b4b15b13689678382660e0eea9a505c6a0c650c3 # v4.6.0
         with:
           name: rust-native-release
           path: crates/alos_native/target/release/
@@ -68,11 +68,11 @@ jobs:
     name: docker-build-publish-dryrun
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@c47758b77c9736f4b4ef4073d4d5183156012697 # v3.10.0
       - name: Build Docker Container Image (Dry Run)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c53b6d655a # v6.15.0
         with:
           context: .
           file: Dockerfile
@@ -81,7 +81,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Generate CycloneDX SBOM
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@f325610c36087b27ed3158c381f21568297b864a # v0.18.0
         with:
           path: .
           format: cyclonedx-json
@@ -94,11 +94,11 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
       - name: Generate Release Notes Draft
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@c95fe0f22566c81ce4e67b036f851eb11b6a6c6e # v2.2.1
         with:
           generate_release_notes: true
           draft: true
