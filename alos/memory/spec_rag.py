@@ -1,3 +1,5 @@
+"""Spec-driven RAG indexer and chunk search engine."""
+
 import logging
 import os
 import re
@@ -15,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 
 class SpecChunk(BaseModel):
+    """Chunk of specification or markdown document with header and metadata."""
+
     file_path: str
     file_name: str
     header: str
@@ -103,6 +107,7 @@ class SpecRAGIndexer(MemoryStoreProtocol):
     def search(
         self, query: str, top_k: int = 5, source_filter: str | None = None
     ) -> list[dict[str, Any]]:
+        """Search indexed specification chunks using BM25 and optional source type filtering."""
         filtered_chunks = [
             c for c in self.chunks if not source_filter or c.source_type == source_filter
         ]

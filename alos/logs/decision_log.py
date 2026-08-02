@@ -1,3 +1,5 @@
+"""Architectural Decision Record (ADR) decision log writer for ALOS."""
+
 import json
 import os
 from datetime import datetime

@@ -1,3 +1,5 @@
+"""PostgreSQL database ORM models for audit, decisions, execution, and profiles."""
+
 from datetime import datetime
 from typing import Any
 

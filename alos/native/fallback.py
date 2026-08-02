@@ -99,6 +99,7 @@ class FallbackBM25Indexer:
     def add_chunk(
         self, header: str, file_name: str, file_path: str, source_type: str, content: str
     ) -> None:
+        """Add text chunk to memory index."""
         self.chunks.append(
             {
                 "header": header,
@@ -110,11 +111,13 @@ class FallbackBM25Indexer:
         )
 
     def clear(self) -> None:
+        """Clear all indexed chunks."""
         self.chunks.clear()
 
     def search(
         self, query: str, top_k: int = 5, source_filter: str | None = None
     ) -> list[dict[str, Any]]:
+        """Search fallback index for query term matches."""
         results = []
         query_lower = query.lower()
         for chunk in self.chunks:

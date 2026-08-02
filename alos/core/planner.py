@@ -1,3 +1,5 @@
+"""Planner node and action draft builders for ALOS dual-loop reasoning."""
+
 from alos.core.context_assembler import ContextPayload
 from alos.schemas.actions import BaseAction, GoogleCalendarEvent, TodoistTaskCreate, WebSearchQuery
 
@@ -9,6 +11,7 @@ class ActionDraftBuilder:
     def build_meeting_action(
         query_lower: str, critique_feedback: str | None = None
     ) -> GoogleCalendarEvent:
+        """Formulate GoogleCalendarEvent draft taking critique feedback into account."""
         if critique_feedback and "5:00 PM" in critique_feedback:
             return GoogleCalendarEvent(
                 title="Team Sync",
@@ -29,12 +32,14 @@ class ActionDraftBuilder:
 
     @staticmethod
     def build_task_action() -> TodoistTaskCreate:
+        """Formulate TodoistTaskCreate draft action."""
         return TodoistTaskCreate(
             title="Schedule quarterly review", due_date="2026-08-05", priority=1
         )
 
     @staticmethod
     def build_search_action(user_query: str) -> WebSearchQuery:
+        """Formulate WebSearchQuery draft action."""
         return WebSearchQuery(query=user_query)
 
 
@@ -47,6 +52,7 @@ class PlannerNode:
     def generate_draft_action(
         self, user_query: str, critique_feedback: str | None = None
     ) -> BaseAction:
+        """Generate draft action for user query incorporating any critique feedback."""
         query_lower = user_query.lower()
 
         if "meeting" in query_lower or "schedule" in query_lower:

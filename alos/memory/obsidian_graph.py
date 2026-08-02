@@ -23,6 +23,8 @@ except ImportError:
 
 
 class GraphNeighborhood(BaseModel):
+    """Container for graph neighborhood nodes surrounding a center note."""
+
     center_note: str
     nodes: set[str] = Field(default_factory=set)
 
@@ -37,6 +39,7 @@ class ObsidianGraphEngine:
         self.parser = ObsidianVaultParser(vault_dir=vault_dir)
 
     def get_neighborhood(self, center_note: str, depth: int = 2) -> GraphNeighborhood:
+        """Traverse wikilink graph to find all notes within depth distance from center note."""
         notes = self.parser.parse_all()
 
         if HAS_RUST_NATIVE_GRAPH and FastGraphEngine:
