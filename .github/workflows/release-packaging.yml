@@ -1,0 +1,107 @@
+name: Release & Packaging Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'alos/**'
+      - 'crates/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'Dockerfile*'
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-python-wheel:
+    name: build-python-wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Build Python Package Artifacts
+        run: uv build
+      - name: Verify Package Metadata
+        run: |
+          uv sync --extra dev
+          uv run python -m pip install twine
+          uv run twine check dist/*
+      - name: Upload Python Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: dist/
+          retention-days: 7
+
+  build-rust-binary:
+    name: build-rust-binary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Rust Build Artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/alos_native
+      - name: Build Release Binary
+        run: cargo build --manifest-path crates/alos_native/Cargo.toml --release
+      - name: Upload Rust Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-native-release
+          path: crates/alos_native/target/release/
+          retention-days: 7
+
+  docker-build-publish-dryrun:
+    name: docker-build-publish-dryrun
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build Docker Container Image (Dry Run)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          tags: alos:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: sbom.cyclonedx.json
+        continue-on-error: true
+
+  auto-release-notes:
+    name: auto-release-notes
+    needs: [build-python-wheel, build-rust-binary]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generate Release Notes Draft
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

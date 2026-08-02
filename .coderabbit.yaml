@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/coderabbit-overrides.v2.json
+version: "2"
+language: "en-US"
+tone_instructions: "Be extremely concise, direct, and token-efficient. Focus strictly on critical code bugs, security flaws, and Fix-First policy violations."
+early_access: false
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+  auto_title_placeholder: "@coderabbitai title"
+  sequence_diagrams: false
+  poem: false
+  collapse_walkthrough: true
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "main"
+      - "upstream/main"
+  path_filters:
+    # --- Ignore non-code & high-volume files to prevent rate limits ---
+    - "!**/*.md"
+    - "!specs/**"
+    - "!docs/**"
+    - "!.github/**"
+    - "!uv.lock"
+    - "!Cargo.lock"
+    - "!**/__pycache__/**"
+    - "!.mypy_cache/**"
+    - "!.pytest_cache/**"
+    - "!.ruff_cache/**"
+    - "!alos.egg-info/**"
+    - "!.coverage"
+    - "!logs/**"
+    - "!alembic/versions/**"
+    - "!*.json"
+    - "!*.yaml"
+    - "!*.yml"
+  path_instructions:
+    - path: "alos/**/*.py"
+      instructions: |
+        - Strict Typing & Quality: Verify type annotations (mypy compatibility).
+        - Fix-First Policy: Any `# type: ignore` or `# noqa` must include explicit error codes AND a technical justification comment.
+        - Error Handling: Prevent swallowed exceptions or missing root cause logging.
+    - path: "crates/**/*.rs"
+      instructions: |
+        - Rust Standards: Enforce memory safety, explicit `Result`/`Option` error handling, and zero unnecessary `unsafe` blocks.
+    - path: "tests/**/*.py"
+      instructions: |
+        - Test Quality: Verify assertions and ensure tests do not mock out core logic without validation.
+  instructions: |
+    - Core Repository Directives:
+      1. Fix-First Mindset: Always prefer fixing bugs and lints over ignoring/suppressing them.
+      2. Security Audit: Check for OWASP vulnerabilities, hardcoded secrets, and injection flaws.
+  tools:
+    ruff:
+      enabled: true
+    mypy:
+      enabled: true
+    bandit:
+      enabled: true
+    actionlint:
+      enabled: false
+    markdownlint:
+      enabled: false
+    ast-grep:
+      enabled: false
+chat:
+  auto_reply: true
