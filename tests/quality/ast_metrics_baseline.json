@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "created_at": "2026-08-02T15:52:00Z",
+  "overall_maintainability_index": 85.0,
+  "max_cyclomatic_complexity": 7,
+  "min_maintainability_index": 80.0,
+  "thresholds": {
+    "max_allowed_cyclomatic_complexity": 7,
+    "min_allowed_maintainability_index": 80.0
+  }
+}
