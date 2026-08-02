@@ -1,3 +1,5 @@
+"""Local document vector store using BM25 indexing."""
+
 import glob
 import os
 from typing import Any
@@ -15,6 +17,7 @@ class LocalVectorStore(MemoryStoreProtocol):
         self.vault_dir = vault_dir
 
     def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
+        """Search local vault markdown files using BM25 relevance scoring."""
         results: list[dict[str, Any]] = []
         if not os.path.exists(self.vault_dir):
             return results

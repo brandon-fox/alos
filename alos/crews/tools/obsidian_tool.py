@@ -1,3 +1,5 @@
+"""Obsidian vault reader tool integration for CrewAI agent tasks."""
+
 import os
 
 from pydantic import BaseModel, Field
@@ -30,6 +32,7 @@ class ObsidianVaultTool:
         self.parser = ObsidianVaultParser(self.vault_dir)
 
     def run(self, file_name: str, vault_dir: str = "vault") -> str:
+        """Read and parse markdown note from Obsidian vault."""
         target_dir = os.path.abspath(vault_dir) if vault_dir else self.vault_dir
         target_path = os.path.join(target_dir, file_name)
 

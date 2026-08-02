@@ -1,3 +1,5 @@
+"""Model Context Protocol (MCP) gateway and tool execution handlers."""
+
 import uuid
 from typing import Any
 
@@ -10,6 +12,7 @@ class TodoistTaskHandler:
     """Handler for Todoist task creation (SOLID: SRP)."""
 
     def execute(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Execute Todoist task creation with provided payload."""
         task_id = str(uuid.uuid4())[:8]
         return {
             "status": "SUCCESS",
@@ -24,6 +27,7 @@ class GoogleCalendarListHandler:
     """Handler for listing Google Calendar events (SOLID: SRP)."""
 
     def execute(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Execute Google Calendar event listing for specified date."""
         return {
             "status": "SUCCESS",
             "tool": "google_calendar_list_events",
@@ -39,6 +43,7 @@ class GoogleCalendarCreateHandler:
     """Handler for Google Calendar event creation (SOLID: SRP)."""
 
     def execute(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Execute Google Calendar event creation with start and end times."""
         return {
             "status": "SUCCESS",
             "tool": "google_calendar_create_event",
@@ -53,6 +58,7 @@ class EmailDraftHandler:
     """Handler for draft email creation (SOLID: SRP)."""
 
     def execute(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Execute draft email creation with recipient and subject."""
         return {
             "status": "SUCCESS",
             "tool": "email_create_draft",
@@ -66,6 +72,7 @@ class WebSearchHandler:
     """Handler for web search queries (SOLID: SRP)."""
 
     def execute(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Execute web search query and return formatted search results."""
         return {
             "status": "SUCCESS",
             "tool": "web_search",

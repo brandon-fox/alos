@@ -1,3 +1,5 @@
+"""n8n workflow trigger tool integration for CrewAI agent tasks."""
+
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -6,6 +8,8 @@ from alos.integrations.n8n_client import N8nClient
 
 
 class N8nWorkflowInput(BaseModel):
+    """Input payload schema for triggering n8n automation workflows."""
+
     workflow_id: str = Field(
         ..., description="Target n8n workflow or webhook ID (e.g. wf-vault-knowledge-ingestion)"
     )
@@ -25,6 +29,7 @@ class N8nWorkflowTool:
         self.client = N8nClient(mock_mode=mock_mode)
 
     def run(self, workflow_id: str, payload: dict[str, Any] | None = None) -> str:
+        """Trigger local n8n workflow with payload and return response status."""
         params = payload or {}
         res = self.client.trigger_workflow(workflow_id, params)
         if res.error:

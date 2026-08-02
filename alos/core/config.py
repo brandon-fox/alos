@@ -1,3 +1,5 @@
+"""Configuration management and settings models for ALOS runtime."""
+
 import os
 from typing import Any
 
@@ -27,4 +29,5 @@ class ALOSConfig(BaseModel):
     )
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert configuration model to dictionary representation."""
         return self.model_dump()

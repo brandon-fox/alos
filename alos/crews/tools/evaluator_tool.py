@@ -1,3 +1,5 @@
+"""Safety matrix evaluator tool integration for CrewAI workflows."""
+
 from pydantic import BaseModel, Field
 
 from alos.core.evaluator import EvaluatorNode
@@ -5,6 +7,8 @@ from alos.schemas.actions import BaseAction
 
 
 class ActionEvaluationInput(BaseModel):
+    """Input payload model for action safety evaluation."""
+
     action_type: str = Field(
         ..., description="The type identifier of the action (e.g., email_send, vault_update_note)"
     )
@@ -22,6 +26,7 @@ class SafetyEvaluatorTool:
         self.evaluator = EvaluatorNode()
 
     def run(self, action_type: str, description: str) -> str:
+        """Run safety matrix evaluation for the given action type and description."""
         action = BaseAction(action_type=action_type, description=description)
         result = self.evaluator.evaluate_action(action)
 

@@ -67,6 +67,7 @@ class ALOSStateGraph:
         )
 
     def run(self, user_query: str) -> dict[str, Any]:
+        """Execute dual-loop reasoning state graph for the given user query."""
         # --- Layer 2: Context Synthesis ---
         context = self.context_assembler.assemble_context(user_query)
         self.audit_logger.log_event(

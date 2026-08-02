@@ -1,3 +1,5 @@
+"""Command Line Interface (CLI) entry point for the ALOS runtime."""
+
 import argparse
 import json
 import os
@@ -11,6 +13,7 @@ from alos.crews.crews.speckit_architect_crew import SpecKitArchitectCrew
 
 
 def main():
+    """Main CLI entry point for executing ALOS queries and CrewAI commands."""
     config = ALOSConfig()
     parser = argparse.ArgumentParser(description="ALOS - Personal Life Autonomous Runtime CLI")
     subparsers = parser.add_subparsers(dest="subcommand")

@@ -1,3 +1,5 @@
+"""Database ORM models, session management, and migrations package."""
+
 from alos.db.base import Base
 from alos.db.models import (
     AuditLogModel,
