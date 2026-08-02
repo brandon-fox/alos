@@ -1,6 +1,6 @@
 # Architecture & Implementation Plan: Enforce Fixed Action Hashes
 
-**Feature Branch**: `027-enforce-fixed-action-hashes`
+**Feature Branch**: `028-enforce-fixed-action-hashes`
 **Status**: Approved
 
 ---
