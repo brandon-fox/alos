@@ -26,27 +26,26 @@ pub struct PyObsidianNote {
 #[pymethods]
 impl PyObsidianNote {
     #[getter]
-    fn frontmatter<'py>(&self, py: Python<'py>) -> PyResult<&'py PyDict> {
+    fn frontmatter<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let dict = PyDict::new(py);
         if let Ok(val) = serde_yaml::from_str::<serde_yaml::Value>(&self.frontmatter_yaml) {
             if let serde_yaml::Value::Mapping(map) = val {
                 for (k, v) in map {
                     if let Some(k_str) = k.as_str() {
-                        let py_val = match v {
-                            serde_yaml::Value::String(s) => s.into_py(py),
+                        match v {
+                            serde_yaml::Value::String(s) => { let _ = dict.set_item(k_str, s); },
                             serde_yaml::Value::Number(n) => {
                                 if let Some(i) = n.as_i64() {
-                                    i.into_py(py)
+                                    let _ = dict.set_item(k_str, i);
                                 } else if let Some(f) = n.as_f64() {
-                                    f.into_py(py)
+                                    let _ = dict.set_item(k_str, f);
                                 } else {
-                                    n.to_string().into_py(py)
+                                    let _ = dict.set_item(k_str, n.to_string());
                                 }
                             }
-                            serde_yaml::Value::Bool(b) => b.into_py(py),
-                            _ => v.to_string().into_py(py),
+                            serde_yaml::Value::Bool(b) => { let _ = dict.set_item(k_str, b); },
+                            _ => { let _ = dict.set_item(k_str, v.to_string()); },
                         };
-                        let _ = dict.set_item(k_str, py_val);
                     }
                 }
             }

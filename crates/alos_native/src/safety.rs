@@ -48,7 +48,7 @@ impl FastSafetyEvaluator {
         action_type: &str,
         start_time: &str,
         preferences: Vec<String>,
-    ) -> PyResult<&'py PyDict> {
+    ) -> PyResult<Bound<'py, PyDict>> {
         let result = PyDict::new(py);
         let mut preferences_checked = Vec::new();
 
@@ -83,7 +83,7 @@ impl FastSafetyEvaluator {
         py: Python<'py>,
         query: &str,
         corrections: Vec<String>,
-    ) -> PyResult<&'py PyDict> {
+    ) -> PyResult<Bound<'py, PyDict>> {
         let result = PyDict::new(py);
         let mut corrections_checked = Vec::new();
         let query_lower = query.to_lowercase();
