@@ -121,4 +121,4 @@ Amendments require: documented rationale, explicit user approval, and updated `L
 
 All PRs and agent runs must verify compliance with this Constitution before execution.
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-01 | **Last Amended**: 2026-08-01
+**Version**: 1.1.0 | **Ratified**: 2026-08-01 | **Last Amended**: 2026-08-02
