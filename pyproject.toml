@@ -14,8 +14,8 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.0.0",
-    "sqlalchemy>=2.0.0",
-    "alembic>=1.19.0",
+    "sqlalchemy>=2.0.52",
+    "alembic>=1.19.1",
     "asyncpg>=0.29.0",
     "psycopg[binary]>=3.1.0",
     "python-frontmatter>=1.0.0",
@@ -23,18 +23,18 @@ dependencies = [
     "rank-bm25>=0.2.2",
     "mcp>=1.0.0",
     "apscheduler>=3.10.0",
-    "langgraph>=0.2.0",
-    "langchain-core>=0.3.0",
+    "langgraph>=1.2.11",
+    "langchain-core>=1.5.5",
     "crewai>=0.80.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pre-commit>=3.5.0",
+    "pre-commit>=4.6.2",
     "pyadr>=0.16.2",
-    "specify-cli>=0.16.1",
+    "specify-cli>=0.16.4",
     "maturin>=1.5.0",
-    "ruff>=0.16.2",
+    "ruff>=0.16.3",
     "mypy>=1.6.0",
     "bandit>=1.7.5",
     "pytest>=7.4.0",
