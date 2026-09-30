@@ -70,9 +70,9 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@c47758b77c9736f4b4ef4073d4d5183156012697 # a2983b8bed1923f44751c5c43237f479442827b3.10.0
+        uses: docker/setup-buildx-action@c815250426c116c4fa04a37651a5c6ee18593a15 # v3.10.0
       - name: Build Docker Container Image (Dry Run)
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c53b6d655a # v6.15.0
+        uses: docker/build-push-action@ca052bb54ab0790a636c9a5f226505a06fc8b61a # v6.15.0
         with:
           context: .
           file: Dockerfile
@@ -81,7 +81,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Generate CycloneDX SBOM
-        uses: anchore/sbom-action@f325610c36087b27ed3158c381f21568297b864a # v0.18.0
+        uses: anchore/sbom-action@55ca8d93fac1b350087799b90c76313685324d32 # v0.18.0
         with:
           path: .
           format: cyclonedx-json

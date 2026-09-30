@@ -65,7 +65,7 @@ impl FastBM25Indexer {
         query: String,
         top_k: usize,
         source_filter: Option<String>,
-    ) -> PyResult<Vec<&'py PyDict>> {
+    ) -> PyResult<Vec<Bound<'py, PyDict>>> {
         let filtered_indices: Vec<usize> = self
             .chunks
             .iter()
