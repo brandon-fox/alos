@@ -9,6 +9,8 @@ include = ["alos*"]
 [project]
 name = "alos"
 version = "0.1.0"
+authors = [{ name = "Brandon Fox", email = "bfoxtrotfarm@gmail.com" }]
+license = { text = "MIT" }
 description = "Local Autonomous Life Operating System (ALOS)"
 readme = "README.md"
 requires-python = ">=3.11"
