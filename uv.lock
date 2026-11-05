@@ -4485,22 +4485,23 @@ wheels = [
 
 [[package]]
 name = "specify-cli"
-version = "0.16.4"
+version = "1.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "json5" },
+    { name = "mcp" },
     { name = "packaging" },
     { name = "pathspec" },
-    { name = "platformdirs" },
+    { name = "pydantic" },
     { name = "pyyaml" },
     { name = "readchar" },
     { name = "rich" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/66/21/7612c6d6e524598610ac04cf8c4200decf1504eeff517fd7bdbf90e29ffb/specify_cli-0.16.4.tar.gz", hash = "sha256:1b7118132869dce8d91163226cc809006253bf1cc3b81acd9be6bfcb411785e4", size = 4021933, upload-time = "2026-08-14T15:50:57.082Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fd/6c/45746a3d4714da841370fae4fcea9d72577c03c92486b959d8503346c25d/specify_cli-1.2.1.tar.gz", hash = "sha256:fac8093fcf66db7d1ede1c3562e92d2db1be173d502a8592f958a69983190f4e", size = 5039329, upload-time = "2026-10-16T20:42:25.358Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d3/40/ead93fb57e28ffcea5ca012de22fd2313dba65d6562ebbd74c93ab1da6d3/specify_cli-0.16.4-py3-none-any.whl", hash = "sha256:000d9732faf9eefa78782edb0805395a52c5f070914ce31c47193ead3116763c", size = 836880, upload-time = "2026-08-14T15:50:55.344Z" },
+    { url = "https://files.pythonhosted.org/packages/4f/bd/69120fd5c0129acee3f51c3cf73b7b1b7ea85534a4a0000722a315e17471/specify_cli-1.2.1-py3-none-any.whl", hash = "sha256:b6264dc72c2fc405dfc2ddf80508e9cc54cb7486d2f8d248fbf3fc9fcf07ff96", size = 1153878, upload-time = "2026-10-16T20:42:23.818Z" },
 ]
 
 [[package]]
