@@ -17,6 +17,7 @@ jobs:
   sonarcloud:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
@@ -45,6 +46,7 @@ jobs:
   generate-changelog:
     name: Generate Post-Merge Changelog
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
@@ -92,6 +94,7 @@ jobs:
   complexity-scan:
     name: Complexity Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
@@ -126,6 +129,7 @@ jobs:
   coverage-gap:
     name: Coverage Gap Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
@@ -158,6 +162,7 @@ jobs:
   audit-docstrings:
     name: Docstring Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
@@ -221,6 +226,7 @@ jobs:
   spec-gap:
     name: Spec Gap Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
@@ -247,6 +253,7 @@ jobs:
   harvest-todos:
     name: Tech Debt & TODO Harvester
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
@@ -284,6 +291,7 @@ jobs:
   type-coverage:
     name: Type Coverage Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
