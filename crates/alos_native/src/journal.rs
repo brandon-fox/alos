@@ -31,7 +31,7 @@ impl FastAuditJournalWriter {
             .open(&self.file_path)
             .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
 
-        writeln!(file, "{}", record_json)
+        writeln!(file, "{record_json}")
             .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
 
         Ok(true)

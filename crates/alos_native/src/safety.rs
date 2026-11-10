@@ -48,7 +48,7 @@ impl FastSafetyEvaluator {
         action_type: &str,
         start_time: &str,
         preferences: Vec<String>,
-    ) -> PyResult<&'py PyDict> {
+    ) -> PyResult<Bound<'py, PyDict>> {
         let result = PyDict::new(py);
         let mut preferences_checked = Vec::new();
 
@@ -83,7 +83,7 @@ impl FastSafetyEvaluator {
         py: Python<'py>,
         query: &str,
         corrections: Vec<String>,
-    ) -> PyResult<&'py PyDict> {
+    ) -> PyResult<Bound<'py, PyDict>> {
         let result = PyDict::new(py);
         let mut corrections_checked = Vec::new();
         let query_lower = query.to_lowercase();
@@ -97,7 +97,7 @@ impl FastSafetyEvaluator {
                 result.set_item("valid", false)?;
                 result.set_item(
                     "critique",
-                    format!("Violates historical correction: {}", corr),
+                    format!("Violates historical correction: {corr}"),
                 )?;
                 result.set_item("corrections_checked", corrections_checked)?;
                 return Ok(result);
@@ -108,5 +108,11 @@ impl FastSafetyEvaluator {
         result.set_item("critique", "VALID")?;
         result.set_item("corrections_checked", corrections_checked)?;
         Ok(result)
+    }
+}
+
+impl Default for FastSafetyEvaluator {
+    fn default() -> Self {
+        Self::new()
     }
 }
