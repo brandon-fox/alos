@@ -51,4 +51,4 @@ jobs:
         run: cargo clippy --manifest-path crates/alos_native/Cargo.toml -- -D warnings
 
       - name: Run Native Unit Tests
-        run: cargo test --manifest-path crates/alos_native/Cargo.toml
+        run: cargo test --manifest-path crates/alos_native/Cargo.toml --no-default-features
