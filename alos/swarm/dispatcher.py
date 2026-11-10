@@ -152,20 +152,30 @@ def schema_errors(value: Any, schema: dict[str, Any], path: str = "$") -> Iterat
     if expected is not None and (not isinstance(value, expected) or bool_as_number):
         yield f"{path}: expected {kind}"
         return
+    yield from _scalar_errors(value, schema, path)
+    if isinstance(value, dict):
+        yield from _object_errors(value, schema, path)
+    if isinstance(value, list) and "items" in schema:
+        for i, item in enumerate(value):
+            yield from schema_errors(item, schema["items"], f"{path}[{i}]")
+
+
+def _scalar_errors(value: Any, schema: dict[str, Any], path: str) -> Iterator[str]:
+    """enum and maxLength."""
     if "enum" in schema and value not in schema["enum"]:
         yield f"{path}: must be one of {schema['enum']}"
     if isinstance(value, str) and len(value) > schema.get("maxLength", len(value)):
         yield f"{path}: longer than {schema['maxLength']} characters"
-    if isinstance(value, dict):
-        for key in schema.get("required", []):
-            if key not in value:
-                yield f"{path}: missing required key '{key}'"
-        for key, sub in schema.get("properties", {}).items():
-            if key in value:
-                yield from schema_errors(value[key], sub, f"{path}.{key}")
-    if isinstance(value, list) and "items" in schema:
-        for i, item in enumerate(value):
-            yield from schema_errors(item, schema["items"], f"{path}[{i}]")
+
+
+def _object_errors(value: dict[str, Any], schema: dict[str, Any], path: str) -> Iterator[str]:
+    """required and properties."""
+    for key in schema.get("required", []):
+        if key not in value:
+            yield f"{path}: missing required key '{key}'"
+    for key, sub in schema.get("properties", {}).items():
+        if key in value:
+            yield from schema_errors(value[key], sub, f"{path}.{key}")
 
 
 def judge(resp: dict[str, Any], schema: dict[str, Any] | None) -> tuple[Any, str | None]:
