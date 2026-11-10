@@ -59,6 +59,7 @@ impl FastBM25Indexer {
         self.chunks.clear();
     }
 
+    #[pyo3(signature = (query, top_k, source_filter=None))]
     pub fn search<'py>(
         &self,
         py: Python<'py>,
