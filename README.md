@@ -16,6 +16,7 @@ It is built spec-first: every feature traces to a `spec.md`, `plan.md` and `task
 | [Spec-driven development](docs/specs_setup.md) | SpecKit layout, `pyadr` ADR management, TDD/BDD workflow. |
 | [Agents vs Gemini customization](docs/agents_vs_gemini_guide.md) | `.agents/` workspace rules compared with `.gemini/` global skills. |
 | [CodeRabbit integration](docs/CODERABBIT_GUIDE.md) | Review directives and slash commands used in pull requests. |
+| [Local swarm dispatcher](docs/swarm.md) | Fanning independent jobs across local Ollama models: usage, roster, measurements, limits. |
 
 ## Quick start
 
