@@ -1607,6 +1607,15 @@ wheels = [
 ]
 
 [[package]]
+name = "lark"
+version = "1.3.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/34/28fff3ab31ccff1fd4f6c7c7b0ceb2b6968d8ea4950663eadcb5720591a0/lark-1.3.1.tar.gz", hash = "sha256:b426a7a6d6d53189d318f2b6236ab5d6429eaf09259f1ca33eb716eed10d2905", size = 382732, upload-time = "2025-10-27T18:25:56.653Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/82/3d/14ce75ef66813643812f3093ab17e46d3a206942ce7376d31ec2d36229e7/lark-1.3.1-py3-none-any.whl", hash = "sha256:c629b661023a014c37da873b4ff58a817398d12635d3bbb2c5a03be7fe5d1e12", size = 113151, upload-time = "2025-10-27T18:25:54.882Z" },
+]
+
+[[package]]
 name = "librt"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3570,22 +3579,24 @@ wheels = [
 
 [[package]]
 name = "specify-cli"
-version = "0.16.4"
+version = "1.3.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "json5" },
+    { name = "lark" },
+    { name = "mcp" },
     { name = "packaging" },
     { name = "pathspec" },
-    { name = "platformdirs" },
+    { name = "pydantic" },
     { name = "pyyaml" },
     { name = "readchar" },
     { name = "rich" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/66/21/7612c6d6e524598610ac04cf8c4200decf1504eeff517fd7bdbf90e29ffb/specify_cli-0.16.4.tar.gz", hash = "sha256:1b7118132869dce8d91163226cc809006253bf1cc3b81acd9be6bfcb411785e4", size = 4021933, upload-time = "2026-08-14T15:50:57.082Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/75/1b/61f62a95291d6fcc838f20e3ef67d89c70dafef6bbb335bc8ec588d0020d/specify_cli-1.3.2.tar.gz", hash = "sha256:10ef32381059196893e75caed773624ceee2459b87edf648b802a34593bcff75", size = 5258119, upload-time = "2026-11-06T17:25:33.534Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d3/40/ead93fb57e28ffcea5ca012de22fd2313dba65d6562ebbd74c93ab1da6d3/specify_cli-0.16.4-py3-none-any.whl", hash = "sha256:000d9732faf9eefa78782edb0805395a52c5f070914ce31c47193ead3116763c", size = 836880, upload-time = "2026-08-14T15:50:55.344Z" },
+    { url = "https://files.pythonhosted.org/packages/20/16/1c3ad8a9cc4e4536175ac79de468294c52e06a289664aabee9efb87c9451/specify_cli-1.3.2-py3-none-any.whl", hash = "sha256:66ea3a8460aefef6cae78a646c0374ed6ab94631e7db2e270e4737fb13902163", size = 1205920, upload-time = "2026-11-06T17:25:31.194Z" },
 ]
 
 [[package]]
