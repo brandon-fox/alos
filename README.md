@@ -1,25 +1,24 @@
-# ALOS — Local Autonomous Life Operating System
+# alos
 
-> **ALOS** is a local-first, privacy-focused autonomous AI Life Operating System built with Python 3.10+, Pydantic v2, LangGraph, SQLAlchemy 2.0, and local Spec-Driven RAG architecture.
+> **Status:** active, pre-release (0.1.0), single maintainer. Core engine, safety matrix, vault memory and migrations run; the n8n and MCP integrations are scaffolds. Not yet packaged for anyone but its author.
 
----
+ALOS (Local Autonomous Life Operating System) is a local-first autonomous agent runtime. It plans and evaluates actions in two loops, scores every proposed action against a deterministic safety matrix before anything executes, and keeps its memory in a plain-Markdown Obsidian vault on your machine. Python 3.11+, Pydantic v2, LangGraph, SQLAlchemy 2.0, PostgreSQL + pgvector, with a Rust native crate for the hot paths.
 
-## 📚 Human Documentation Index
+It is built spec-first: every feature traces to a `spec.md`, `plan.md` and `tasks.md` under [`specs/`](specs/), architecture decisions are recorded with `pyadr` under [`docs/adr/`](docs/adr/), and acceptance scenarios are Gherkin feature files under [`tests/features/`](tests/features/). The current trace table, including the gaps, is [`docs/traceability.md`](docs/traceability.md).
 
-Explore our comprehensive, human-readable documentation suite:
+## Documentation
 
-| Document | Topic & Focus |
+| Document | Covers |
 | :--- | :--- |
-| 💡 [**The Core Idea & Philosophy**](file:///c:/Users/bfoxt/n8nSetup/docs/idea.md) | Vision, data sovereignty, Dual-Loop reasoning, Safety Matrix, and local Obsidian vault memory. |
-| 🚀 [**Getting Started Guide**](file:///c:/Users/bfoxt/n8nSetup/docs/getting_started.md) | Prerequisites, `uv` installation, PowerShell setup scripts, Docker PostgreSQL, and CLI usage. |
-| 🏗️ [**Architecture Deep Dive**](file:///c:/Users/bfoxt/n8nSetup/docs/architecture.md) | Technical blueprint, LangGraph state machine, Evaluator safety gate, Obsidian brain, and MCP gateways. |
-| 📋 [**Spec-Driven Development (SpecKit)**](file:///c:/Users/bfoxt/n8nSetup/docs/specs_setup.md) | SpecKit structure (`spec.md`, `plan.md`, `tasks.md`), `pyadr` ADR management, and TDD/BDD workflow. |
-| 🤖 [**Agents vs Gemini Customization Guide**](file:///c:/Users/bfoxt/n8nSetup/docs/agents_vs_gemini_guide.md) | Architectural comparison between `.agents/` workspace rules and `.gemini/` global skills. |
-| 🐰 [**CodeRabbit AI Integration Guide**](file:///c:/Users/bfoxt/n8nSetup/docs/CODERABBIT_GUIDE.md) | How to use CodeRabbit AI reviews, custom repository directives, and slash commands in PRs. |
+| [The core idea](docs/idea.md) | Data sovereignty, dual-loop reasoning, the safety matrix, vault memory. |
+| [Getting started](docs/getting_started.md) | Prerequisites, `uv`, PowerShell setup scripts, Docker PostgreSQL, CLI usage. |
+| [Architecture](docs/architecture.md) | LangGraph state machine, the evaluator gate, the Obsidian brain, MCP gateways. |
+| [Spec-driven development](docs/specs_setup.md) | SpecKit layout, `pyadr` ADR management, TDD/BDD workflow. |
+| [Agents vs Gemini customization](docs/agents_vs_gemini_guide.md) | `.agents/` workspace rules compared with `.gemini/` global skills. |
+| [CodeRabbit integration](docs/CODERABBIT_GUIDE.md) | Review directives and slash commands used in pull requests. |
+| [Local swarm dispatcher](docs/swarm.md) | Fanning independent jobs across local Ollama models: usage, roster, measurements, limits. |
 
----
-
-## ⚡ Quick Start
+## Quick start
 
 ```powershell
 # 1. Install dependencies with uv
@@ -32,15 +31,13 @@ uv sync --extra dev
 # 3. Spin up PostgreSQL + pgvector
 docker compose up -d
 
-# 4. Run full test suite & quality gates
+# 4. Run the test suite and quality gates
 uv run pytest
 uv run ruff check alos tests
 uv run mypy alos tests
 ```
 
----
-
-## 🔑 Key Features & Architecture
+## What it does
 
 ```
 +-----------------------------------------------------------------------------------+
@@ -52,59 +49,52 @@ uv run mypy alos tests
 |                                                                                   |
 |  4. OBSIDIAN VAULT MEMORY     5. LANGGRAPH STATE         6. MCP & N8N INTEGRATION |
 |  USER_PROFILE, PREFERENCES,   Self-reflection loops      Anthropic MCP gateways   |
-|  CORRECTION_LEDGER            deterministic transitions  n8n automation client    |
+|  CORRECTION_LEDGER            deterministic transitions  n8n automation client   |
 +-----------------------------------------------------------------------------------+
 ```
 
-- **Local-First Privacy**: Your notes, calendar events, and preferences never leave your machine.
-- **Dual-Loop Reason-Before-Act Engine**: Proposed actions undergo deterministic evaluation before execution.
-- **Deterministic Safety Matrix**: Actions are assigned fail-safe risk levels; high-risk mutations require human consent.
-- **Obsidian Vault Memory**: System memory is stored in plain Markdown files (`vault/`) that you can read and edit anytime.
-- **Spec-Driven Governance**: 100% of features trace back to canonical specifications in `specs/`.
+- **Local-first.** Notes, calendar events and preferences never leave the machine.
+- **Reason before act.** A proposed action passes the evaluator loop before it executes.
+- **Deterministic safety matrix.** Every action gets a risk level; high-risk mutations wait for human consent.
+- **Vault memory.** System memory is Markdown under `vault/` that you can read and edit at any time.
+- **Spec-driven governance.** Features trace to specifications; see the trace table for what does and does not yet.
 
----
+## Open source, dual-repo layout
 
-## 🌐 Open Source & Dual-Repo Architecture
-
-ALOS uses a **Dual-Repository Architecture** to separate the open-source core framework from your private user setup:
+The public core (this repository) is separated from a private workspace so nothing personal ships:
 
 ```
 +-------------------------------------------------------+
-|  PUBLIC GITHUB REPO (alos)                            |
-|  - alos/ (LangGraph engine, Evaluator, SCHEMAS)       |
-|  - vault.example/ (Sample template profiles)          |
-|  - workflows.example/ (Sample n8n JSON templates)     |
-|  - .github/workflows/ci.yml (Free GitHub Actions)    |
-|  - LICENSE (MIT License) & .env.example               |
+|  PUBLIC REPOSITORY (alos)                              |
+|  - alos/ (LangGraph engine, evaluator, schemas)        |
+|  - crates/alos_native (Rust acceleration via PyO3)     |
+|  - vault.example/ (template profiles)                  |
+|  - workflows.example/ (template n8n JSON)              |
+|  - .github/workflows/ (quality gate, release, security)|
 +-------------------------------------------------------+
-                           ▲
-                           │ (Import / Dependency / Volume Mount)
-                           ▼
+                           ^
+                           | import / dependency / volume mount
+                           v
 +-------------------------------------------------------+
-|  PRIVATE GITHUB REPO (my-alos-workspace)              |
-|  - .env (Private secrets, API keys, tunnel tokens)    |
-|  - my-vault/ (Your real Obsidian notes & daily logs)  |
-|  - my-workflows/ (Your real n8n JSON exports)        |
-|  - docker-compose.override.yml (Volume mounts)        |
+|  PRIVATE REPOSITORY (my-alos-workspace)                |
+|  - .env (secrets, API keys, tunnel tokens)             |
+|  - my-vault/ (real Obsidian notes and daily logs)      |
+|  - my-workflows/ (real n8n exports)                    |
+|  - docker-compose.override.yml (volume mounts)         |
 +-------------------------------------------------------+
 ```
 
-* **Public Core Repo (`alos`)**: Contains the core Python package, LangGraph state graph, baseline n8n JSON templates (`workflows.example/`), and Obsidian vault templates (`vault.example/`).
-* **Private Workspace Repo (`my-alos-workspace`)**: Keep your actual `.env` secrets, production n8n workflows, and personal Obsidian vault notes in a private VCS repository.
+## Governance
 
----
+- **Constitution.** The system law lives at [`.specify/memory/constitution.md`](.specify/memory/constitution.md); every agent action and state transition must comply with it. ADR-0011 records the dual-repository decision.
+- **Quality gate.** [`quality-gate.yml`](.github/workflows/quality-gate.yml) runs uv lock check, ruff, mypy, bandit, pytest, ADR governance, dependency review, Docker validation and CrewAI validation on every push and pull request. [`rust-ci.yml`](.github/workflows/rust-ci.yml) builds the native crate.
+- **Axioms.** The First-ADE axioms (license holder, independence, honest status, signed commits, conflict markers, workflow integrity) run via [`ade-axioms.yml`](.github/workflows/ade-axioms.yml).
+- **ADRs and specs.** [`docs/adr/`](docs/adr/) via `pyadr`; [`specs/`](specs/) via SpecKit; [`docs/traceability.md`](docs/traceability.md) maps one to the other.
 
-## 🧪 Testing & Governance
+## License and author
 
-- **Continuous Integration**: GitHub Actions CI workflow ([`.github/workflows/ci.yml`](file:///c:/Users/bfoxt/n8nSetup/.github/workflows/ci.yml)) runs test suites and quality gates on every push/PR.
-- **Constitution**: The immutable system law lives at [`.specify/memory/constitution.md`](file:///c:/Users/bfoxt/n8nSetup/.specify/memory/constitution.md).
-- **ADRs**: Architectural Decision Records are stored in [`docs/adr/`](file:///c:/Users/bfoxt/n8nSetup/docs/adr/) and managed strictly via the `pyadr` CLI (ADR-0011 covers Dual-Repo Architecture).
-- **TDD / BDD**: Acceptance feature files live in [`tests/features/`](file:///c:/Users/bfoxt/n8nSetup/tests/features/).
+MIT License, copyright Brandon Fox. See [`LICENSE`](LICENSE). To cite, see [`CITATION.cff`](CITATION.cff).
 
----
+## Independence
 
-## 📄 License & Maintainers
-
-Distributed under the **MIT License**. See [`LICENSE`](file:///c:/Users/bfoxt/n8nSetup/LICENSE) for details.
-
-Built with ❤️ by the ALOS Engineering Team. Built for local privacy, autonomy, and developer joy.
+This is a personal project by Brandon Fox, built on my own time and equipment. It is not affiliated with, endorsed by, or derived from the work of any employer, current or former, and does not represent their views, products or practices. Licensed under the MIT License; principles at [First-ADE/PRINCIPLES.md](https://github.com/First-ADE/.github/blob/main/PRINCIPLES.md).

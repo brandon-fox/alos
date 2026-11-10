@@ -44,4 +44,8 @@ updates:
       - "automated"
     commit-message:
       prefix: "chore(docker)"
+    ignore:
+      # The base image follows requires-python (<3.14); do not propose untested minors.
+      - dependency-name: "python"
+        versions: [">=3.14"]
     open-pull-requests-limit: 2
