@@ -1,11 +1,9 @@
 name: Rust CI Pipeline
 
 on:
+  # No path filter on pull requests: this is a required check, and a required check that
+  # never reports blocks the merge.
   pull_request:
-    paths:
-      - 'crates/**'
-      - 'Cargo.lock'
-      - '.github/workflows/rust-ci.yml'
   push:
     branches: [main]
     paths:
