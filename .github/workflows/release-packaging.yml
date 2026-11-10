@@ -4,14 +4,10 @@ on:
   push:
     tags:
       - 'v*'
+  # No path filter on pull requests: the build jobs are required checks, and a required
+  # check that never reports blocks the merge.
   pull_request:
     branches: [main]
-    paths:
-      - 'alos/**'
-      - 'crates/**'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - 'Dockerfile*'
   workflow_dispatch:
 
 concurrency:
