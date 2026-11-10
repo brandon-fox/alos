@@ -26,33 +26,39 @@ pub struct PyObsidianNote {
 #[pymethods]
 impl PyObsidianNote {
     #[getter]
-    fn frontmatter<'py>(&self, py: Python<'py>) -> PyResult<&'py PyDict> {
+    fn frontmatter<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let dict = PyDict::new(py);
-        if let Ok(val) = serde_yaml::from_str::<serde_yaml::Value>(&self.frontmatter_yaml) {
-            if let serde_yaml::Value::Mapping(map) = val {
-                for (k, v) in map {
-                    if let Some(k_str) = k.as_str() {
-                        let py_val = match v {
-                            serde_yaml::Value::String(s) => s.into_py(py),
-                            serde_yaml::Value::Number(n) => {
-                                if let Some(i) = n.as_i64() {
-                                    i.into_py(py)
-                                } else if let Some(f) = n.as_f64() {
-                                    f.into_py(py)
-                                } else {
-                                    n.to_string().into_py(py)
-                                }
+        if let Ok(serde_yaml::Value::Mapping(map)) =
+            serde_yaml::from_str::<serde_yaml::Value>(&self.frontmatter_yaml)
+        {
+            for (k, v) in map {
+                if let Some(key) = k.as_str() {
+                    match v {
+                        serde_yaml::Value::String(s) => dict.set_item(key, s)?,
+                        serde_yaml::Value::Bool(b) => dict.set_item(key, b)?,
+                        serde_yaml::Value::Number(n) => {
+                            if let Some(i) = n.as_i64() {
+                                dict.set_item(key, i)?;
+                            } else if let Some(f) = n.as_f64() {
+                                dict.set_item(key, f)?;
+                            } else {
+                                dict.set_item(key, n.to_string())?;
                             }
-                            serde_yaml::Value::Bool(b) => b.into_py(py),
-                            _ => v.to_string().into_py(py),
-                        };
-                        let _ = dict.set_item(k_str, py_val);
+                        }
+                        other => dict.set_item(key, yaml_text(&other))?,
                     }
                 }
             }
         }
         Ok(dict)
     }
+}
+
+/// Lists, mappings and nulls are handed to Python as their YAML text.
+fn yaml_text(value: &serde_yaml::Value) -> String {
+    serde_yaml::to_string(value)
+        .map(|text| text.trim().to_string())
+        .unwrap_or_default()
 }
 
 #[pyclass]
@@ -139,10 +145,10 @@ fn parse_single_file(path: &Path) -> Option<PyObsidianNote> {
 
 fn extract_frontmatter(raw_text: &str) -> (String, String, Vec<String>) {
     let mut tags = Vec::new();
-    if raw_text.starts_with("---") {
-        if let Some(end_idx) = raw_text[3..].find("\n---") {
-            let yaml_str = &raw_text[3..3 + end_idx];
-            let body = &raw_text[3 + end_idx + 4..];
+    if let Some(rest) = raw_text.strip_prefix("---") {
+        if let Some(end_idx) = rest.find("\n---") {
+            let yaml_str = &rest[..end_idx];
+            let body = &rest[end_idx + 4..];
 
             if let Ok(val) = serde_yaml::from_str::<serde_yaml::Value>(yaml_str) {
                 if let Some(t_val) = val.get("tags") {
@@ -165,4 +171,25 @@ fn extract_frontmatter(raw_text: &str) -> (String, String, Vec<String>) {
         }
     }
     (String::new(), raw_text.to_string(), tags)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extract_frontmatter;
+
+    #[test]
+    fn frontmatter_tags_and_body_are_split() {
+        let (yaml, body, tags) = extract_frontmatter("---\ntags: [a, b]\n---\nBody text");
+        assert_eq!(yaml.trim(), "tags: [a, b]");
+        assert_eq!(body, "Body text");
+        assert_eq!(tags, vec!["a".to_string(), "b".to_string()]);
+    }
+
+    #[test]
+    fn text_without_frontmatter_is_all_body() {
+        let (yaml, body, tags) = extract_frontmatter("Just a note");
+        assert!(yaml.is_empty());
+        assert_eq!(body, "Just a note");
+        assert!(tags.is_empty());
+    }
 }

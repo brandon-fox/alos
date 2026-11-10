@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "alos: Local Autonomous Life Operating System"
+authors:
+  - family-names: Fox
+    given-names: Brandon
+    email: 32090240+brandon-fox@users.noreply.github.com
+repository-code: "https://github.com/brandon-fox/alos"
+license: MIT
+version: 0.1.0
+date-released: "2026-11-05"
+abstract: "A local-first autonomous agent runtime with dual-loop reasoning, a deterministic safety matrix and Obsidian-vault memory, built spec-first."

@@ -39,7 +39,7 @@ impl FastBM25Indexer {
         source_type: String,
         content: String,
     ) {
-        let text_to_tokenize = format!("{} {} {} {}", header, header, header, content);
+        let text_to_tokenize = format!("{header} {header} {header} {content}");
         let tokens: Vec<String> = text_to_tokenize
             .split_whitespace()
             .map(|s| s.to_lowercase())
@@ -59,13 +59,14 @@ impl FastBM25Indexer {
         self.chunks.clear();
     }
 
+    #[pyo3(signature = (query, top_k, source_filter=None))]
     pub fn search<'py>(
         &self,
         py: Python<'py>,
         query: String,
         top_k: usize,
         source_filter: Option<String>,
-    ) -> PyResult<Vec<&'py PyDict>> {
+    ) -> PyResult<Vec<Bound<'py, PyDict>>> {
         let filtered_indices: Vec<usize> = self
             .chunks
             .iter()
