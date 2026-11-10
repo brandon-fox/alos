@@ -1,6 +1,6 @@
 # Traceability
 
-> Generated 2026-11-09 by `scripts/traceability.ps1` from `specs/`, `tests/features/` and `docs/adr/`. Regenerate rather than edit. A feature with no acceptance file is a gap, listed as `none`; 19 of 29 specs have no matched feature file today.
+> Generated 2026-11-10 by `scripts/traceability.ps1` from `specs/`, `tests/features/` and `docs/adr/`. Regenerate rather than edit. A feature with no acceptance file is a gap, listed as `none`; 20 of 30 specs have no matched feature file today.
 
 Matching is by shared slug words (two words, or one word of seven or more letters); a row marked `none` may have coverage under a different name. The honest reading is the gap count, not the match count.
 
@@ -35,3 +35,4 @@ Matching is by shared slug words (two words, or one word of seven or more letter
 | [027-speckit-lifecycle-archiving](../specs/027-speckit-lifecycle-archiving/) | yes | yes | yes | [speckit_lifecycle_archiving.feature](../tests/features/speckit_lifecycle_archiving.feature) | none |
 | [028-enforce-fixed-action-hashes](../specs/028-enforce-fixed-action-hashes/) | yes | yes | yes | none | none |
 | [029-local-swarm-dispatcher](../specs/029-local-swarm-dispatcher/) | yes | yes | yes | none | none |
+| [030-swarm-test-sandbox](../specs/030-swarm-test-sandbox/) | yes | yes | yes | none | none |

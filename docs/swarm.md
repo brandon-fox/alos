@@ -86,6 +86,22 @@ the 7B model and keeps the 3B model for `classify` and `tag`, which are not yet 
 process alive holding 9.5 GB of GPU memory. The dispatcher kills the process tree, and the
 contention gate caught the orphan on the next run (`busy`), which is how it was found.
 
+## Running draft tests safely
+
+Tests drafted by a local model are run only inside the sandbox
+([spec 030](../specs/030-swarm-test-sandbox/spec.md)): a container with the repository mounted
+read-only, no network, a read-only root and an unprivileged user. A draft that passes is then
+run against small deliberate breakages of the code; it is promoted only if one of them makes it
+fail.
+
+```bash
+docker build -f Dockerfile.sandbox -t alos-sandbox:latest .
+python -m alos.swarm.sandbox plan.json --workers 4   # writes sandbox-results.json
+```
+
+The plan and result formats are in the spec. The isolation claims are tested against a real
+container runtime in the `sandbox-isolation` CI job, not with mocks.
+
 ## Limits
 
 - Flat fan-out only. A job cannot read another job's output; plan a second run instead.
