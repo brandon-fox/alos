@@ -1,8 +1,8 @@
 # Traceability
 
-> Generated 2026-11-09 by `scripts/traceability.ps1` from `specs/`, `tests/features/` and `docs/adr/`. Regenerate rather than edit. A feature with no acceptance file is a gap, listed as `none`; 19 of 29 specs have no matched feature file today.
+> Generated 2026-11-11 by `scripts/traceability.ps1` from `specs/`, `tests/features/` and `docs/adr/`. Regenerate rather than edit. A feature with no acceptance file is a gap, listed as `none`; 18 of 29 specs have no matched feature file today.
 
-Matching is by shared slug words (two words, or one word of seven or more letters); a row marked `none` may have coverage under a different name. The honest reading is the gap count, not the match count.
+A feature file that opens with a comment of the form `# spec: NNN-slug` is matched to that spec outright. Otherwise matching is by shared slug words (two words, or one word of seven or more letters); a row marked `none` may have coverage under a different name. The honest reading is the gap count, not the match count.
 
 | Spec | spec.md | plan.md | tasks.md | Acceptance feature | ADR |
 | --- | --- | --- | --- | --- | --- |
@@ -15,7 +15,7 @@ Matching is by shared slug words (two words, or one word of seven or more letter
 | [007-dual-loop-reasoning](../specs/007-dual-loop-reasoning/) | yes | yes | yes | [02_dual_loop_reasoning.feature](../tests/features/02_dual_loop_reasoning.feature) | [0004-implement-dual-loop-reasoning-core-](adr/0004-implement-dual-loop-reasoning-core-with-safety-matrix-gate.md) |
 | [008-safety-matrix](../specs/008-safety-matrix/) | yes | yes | yes | [03_safety_matrix.feature](../tests/features/03_safety_matrix.feature) | [0004-implement-dual-loop-reasoning-core-](adr/0004-implement-dual-loop-reasoning-core-with-safety-matrix-gate.md) |
 | [009-mcp-integrations](../specs/009-mcp-integrations/) | yes | yes | yes | [04_mcp_integrations.feature](../tests/features/04_mcp_integrations.feature) | none |
-| [010-audit-and-decision-log](../specs/010-audit-and-decision-log/) | yes | yes | yes | none | none |
+| [010-audit-and-decision-log](../specs/010-audit-and-decision-log/) | yes | yes | yes | [05_audit_logging.feature](../tests/features/05_audit_logging.feature) | none |
 | [011-rag-and-knowledge-base](../specs/011-rag-and-knowledge-base/) | yes | yes | yes | [06_rag_knowledge_base.feature](../tests/features/06_rag_knowledge_base.feature) | none |
 | [012-postgres-orm-migrations](../specs/012-postgres-orm-migrations/) | yes | yes | yes | [07_postgres_orm_migrations.feature](../tests/features/07_postgres_orm_migrations.feature) | [0007-adopt-sqlalchemy-orm-and-alembic-fo](adr/0007-adopt-sqlalchemy-orm-and-alembic-for-postgresql-data-models-and-migrations.md) |
 | [013-obsidian-vault-brain-integration](../specs/013-obsidian-vault-brain-integration/) | yes | yes | yes | [08_obsidian_vault_brain.feature](../tests/features/08_obsidian_vault_brain.feature) | [0003-adopt-local-obsidian-vault-and-vect](adr/0003-adopt-local-obsidian-vault-and-vector-store-for-memory-rag.md) |

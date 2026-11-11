@@ -1,3 +1,4 @@
+# spec: 010-audit-and-decision-log
 Feature: Immutable System Audit Logging
   As Alex (User Persona)
   I want all state transitions, tool calls, and self-correction loops written to an append-only JSONL log
