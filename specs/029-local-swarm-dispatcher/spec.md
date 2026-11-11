@@ -2,7 +2,7 @@
 
 **Feature Branch**: `feat/swarm-dispatcher`
 **Created**: 2026-11-09
-**Status**: Draft (stage 1 implemented and run; stage 2 specified, not built)
+**Status**: Draft (stage 1 implemented and run; stage 2 specified, prototype run; stage 3 specified, prototype running)
 
 ---
 
@@ -234,6 +234,136 @@ Feature: Capacity ledger
 The ledger measures the machine. Nothing alerts; it is read when the answer is wanted.
 Stage 1 already appends one ledger line per run.
 
+## Stage 3: feeders and the vault bus (prototype running, not yet in this repository)
+
+Stage 2's prototype loop drained its queue in one night and then logged "starved": the limit
+was never the machine, it was defined work. Stage 3 defines that work as five standing
+feeders, and adds one folder through which the local machine, a cloud planner and a
+web-capable cloud lane exchange requests and results without calling each other.
+
+A feeder is a script, not a model. It walks its inputs and queues one job for each input whose
+content changed since that input last finished "ok". Feeding costs no planner tokens, so the
+planner budget of stage 1 holds: the planner reads one digest and the escalations.
+
+| # | Group | The feeder queues | Class | What comes out |
+| --- | --- | --- | --- | --- |
+| 1 | Brain | each changed note in the vault | `prose` | an index note: summary, tags, related notes by embedding similarity |
+| 2 | Research | each piece of a web answer the cloud lane fetched | `prose` | claims, each with the source URL the answer gave |
+| 3 | Task candidates | each changed note | `prose` | suggested actions with a done-when line, in one file |
+| 4 | Code | each changed repository file: index, specification audit, review | `extract`, `hard` | an index store; high-risk claims and untestable specifications in the digest |
+| 5 | Digest | each piece of a large local input that a request names | `prose` | a brief: summary, facts, anomalies |
+
+**Routing rule, local first.** Work goes local when inputs are large, outputs are small, the
+jobs are independent and a schema can check each result. Work that needs the web goes to the
+cloud lane. Work that needs judgment across jobs, or a write to a system other people or other
+tools read (a task manager, a pull request, a shared document), stays with the planner.
+
+**Bus contract.** One folder in the vault, `Bus/`:
+
+| Path | Written by | Holds |
+| --- | --- | --- |
+| `Requests/` | a person, the planner, the cloud lane | one note per request: frontmatter `lane` (`gemini` or `local`), `status`, and for `local` an `input` path; the body is the question |
+| `Results/` | the nightly loop | one note per answered request, and one digest note per night that ran any job |
+| `Candidates.md` | the nightly loop | task candidates, newest night first |
+| `Index/` | the nightly loop | the vault index |
+
+`status` moves `queued` to `fetched` or `running`, then to `done` or `failed: <reason>`.
+
+```gherkin
+Feature: Feeders
+  Scenario: Only changed inputs are queued
+    Given an input whose content hash equals the hash stored when it last finished "ok"
+    When a feeder builds the night's queue
+    Then no job is queued for that input
+
+  Scenario: Nothing changed
+    Given no feeder queued a job
+    When the night ends
+    Then no digest note is written
+
+  Scenario: Feeders generate no drafts
+    Given the code feeder
+    When it builds the queue
+    Then it queues index, specification audit and review jobs only
+    And no test or code drafts are generated until existing drafts have been run
+
+Feature: Vault bus
+  Scenario: A web request
+    Given a request note with lane "gemini" and status "queued"
+    When the nightly loop starts
+    Then the cloud lane's CLI answers it headless, in a read-only mode, with web search
+    And the answer is cut into pieces that local workers distill into claims with sources
+    And the result note keeps the raw answer below the claims
+
+  Scenario: Cloud lane cap
+    Given more than 5 queued web requests
+    When the nightly loop starts
+    Then 5 are fetched and the rest stay "queued" for the next night
+
+  Scenario: Cloud lane is out of quota
+    Given the cloud lane's CLI answers that its quota is reached
+    When the nightly loop is fetching
+    Then that request and the ones after it stay "queued"
+    And the local groups run as usual
+
+  Scenario: A local brief
+    Given a request note with lane "local" and an input path
+    When the path is inside the allowed roots and holds readable text
+    Then each piece is briefed by a local worker and one brief note is written
+    But a path outside the allowed roots sets status "failed" and queues nothing
+
+  Scenario: Write boundary
+    Given any local worker output
+    When the loop writes it into the vault
+    Then it writes under "Bus/" only
+    And every note it writes says it is unreviewed local-model output
+
+Feature: Task candidates
+  Scenario: A candidate must quote its note
+    Given a candidate whose quote is not found in the note it came from
+    When the night is collected
+    Then the candidate is dropped
+
+  Scenario: Candidates are not tasks
+    Given accepted candidates
+    When the night is collected
+    Then at most 15 new lines are added to "Candidates.md"
+    And nothing is created in any task manager
+
+Feature: Nightly loop
+  Scenario: One night
+    Given a scheduled start and a stop time
+    When the loop starts
+    Then it builds the queue, drains it through the stage 1 dispatcher, and collects
+    And the gate, budgets and early abort are the dispatcher's, unchanged
+
+  Scenario: A model left loaded in the stock server
+    Given the stock Ollama server holds a model in GPU memory
+    When the loop is about to drain
+    Then it asks the stock server to unload it, so it does not read as foreign memory
+```
+
+**Measured on 2026-11-11.**
+
+| Check | Result |
+| --- | --- |
+| Classify accuracy on 826 files, truth from path | `llama3.2` 49%, `qwen2.5-coder:7b` 84%: `classify` and `tag` moved to the 7B |
+| Eval-facts, 150 jobs, all four fields correct | `llama3.2` 14%, `qwen2.5-coder:7b` 75% (31 s), `qwen3-coder:30b` 91% (97 s), `gemma4:12b` 96% (60 s, 4 slots): `gemma4:12b` takes the new `prose` class |
+| Cloud lane headless (open item below) | Gemini CLI refuses personal Google accounts (`UNSUPPORTED_CLIENT`); Antigravity CLI `agy -p --mode plan --output-format json` answered a web question in 88 s with a parseable result |
+| Trial night, 26 jobs across groups 1, 3, 4 and 5 | all "ok" in 88 s; index, candidates, brief and digest notes written. The group 2 fetch returned no answer, and a repeat call returned "Individual quota reached": group 2 is unproven |
+
+The prototype is `feeders.py` and `nightly.py` beside the stage 2 prototype in the swarm home.
+It moves into `alos/swarm/` once it has survived a week of nights.
+
+### Stage 3 kill criteria
+
+Judged by the maintainer at the weekly review after two weeks of nights; nothing monitors these.
+
+- A group whose output was not opened or acted on in those two weeks is removed.
+- Task candidates: fewer than 1 in 5 survive intake.
+- Code: no pull request that started from swarm output has merged in 14 days.
+- Research: the cloud lane's quota or headless mode cannot carry 5 requests a night.
+
 ## Out of scope
 
 Workers with tools, worker-to-worker conversation, dependent jobs (a second manifest planned
@@ -246,7 +376,9 @@ one host.
 | --- | --- |
 | Quality floor per class | 20 or more golden jobs with known answers per class; under 90% moves the class up one model |
 | Detached run outlives the session that started it | Start a run detached, end the session, check that summary.json appears |
-| A cloud lane can be driven headless | Run the lane's CLI with a fixed prompt from a script; capture exit code and output |
+| A cloud lane can be driven headless | Closed 2026-11-11: see the stage 3 measurements |
+| Whether `gemma4:12b` should also take `extract` and `hard` | It out-scored both current models on eval-facts; repeat on a prose golden set and on a review set before moving them |
+| Cloud lane quota | A web request about the lane's own limits, answered through the bus; then 5 requests on one night |
 
 ## Kill criteria
 

@@ -20,3 +20,12 @@
 - [ ] **Task 13**: Merge cap for work that opens pull requests
 - [ ] **Task 14**: First-ADE compliance check as the acceptance gate for code changes
 - [ ] **Task 15**: Cloud overflow lane, once one is shown to run headless
+
+## Stage 3: feeders and the vault bus
+
+- [x] **Task 16**: Draft the stage 3 section of `spec.md`
+- [x] **Task 17**: Show a cloud lane runs headless (Antigravity CLI print mode)
+- [x] **Task 18**: Prototype the five feeders, the bus collector and the nightly loop outside the repository
+- [x] **Task 19**: Score the `prose` class on the eval-facts set
+- [ ] **Task 20**: Run the test drafts from the 2026-11-09 night in the spec 030 sandbox before any new drafts are generated
+- [ ] **Task 21**: Move the feeders into `alos/swarm/` with unit tests, after a week of nights
