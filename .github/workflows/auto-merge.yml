@@ -19,6 +19,7 @@ jobs:
   automerge:
     name: Auto Merge Human PRs
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Skip bots — they have their own job below
     if: |
       github.actor != 'dependabot[bot]' &&
@@ -97,6 +98,7 @@ jobs:
   dependabot-automerge:
     name: Auto Merge Dependabot PRs
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.actor == 'dependabot[bot]' && github.event_name == 'pull_request'
     permissions:
       contents: write

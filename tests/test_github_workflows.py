@@ -141,3 +141,25 @@ def test_all_github_actions_use_fixed_hashes() -> None:
         f"Found {len(unpinned)} unpinned GitHub Actions (must use 40-char commit SHA):\n"
         + "\n".join(unpinned)
     )
+
+
+@pytest.mark.meta
+def test_every_job_has_a_timeout() -> None:
+    """A hung job otherwise runs for six hours. Reusable-workflow jobs cannot set one."""
+    missing: list[str] = []
+    for wf_path in sorted(WORKFLOWS_DIR.glob("*.yml")):
+        jobs = yaml.safe_load(wf_path.read_text(encoding="utf-8")).get("jobs", {})
+        for name, job in jobs.items():
+            if "uses" in job:
+                continue
+            minutes = job.get("timeout-minutes")
+            if not isinstance(minutes, int) or not 1 <= minutes <= 60:
+                missing.append(f"{wf_path.name}:{name}")
+    assert not missing, f"Jobs without a timeout-minutes between 1 and 60: {missing}"
+
+
+@pytest.mark.meta
+def test_coverage_floor_is_enforced() -> None:
+    """The test job must fail when coverage drops below the floor."""
+    content = (WORKFLOWS_DIR / "quality-gate.yml").read_text(encoding="utf-8")
+    assert "--cov-fail-under=" in content, "pytest-suite must enforce a coverage floor"
