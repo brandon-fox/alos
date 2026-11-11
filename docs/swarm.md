@@ -1,7 +1,9 @@
 # Local swarm dispatcher
 
 > **Status:** stage 1 (one run at a time) works and has been run on real inputs. Stage 2 (a
-> standing loop and an hourly capacity ledger) is specified and not built. Spec:
+> standing loop and an hourly capacity ledger) is specified and not built. Stage 3 (five feeders
+> and a vault folder that local models, a planner and a cloud lane share) is specified, with a
+> prototype running outside this repository. Spec:
 > [`specs/029-local-swarm-dispatcher/spec.md`](../specs/029-local-swarm-dispatcher/spec.md).
 
 The dispatcher fans independent jobs out across local [Ollama](https://ollama.com) models. A
