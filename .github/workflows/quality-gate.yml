@@ -22,6 +22,7 @@ jobs:
   changes:
     name: Detect Changed Components
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       python: ${{ steps.filter.outputs.python }}
       rust: ${{ steps.filter.outputs.rust }}
@@ -52,6 +53,7 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
@@ -65,6 +67,7 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
@@ -81,6 +84,7 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
@@ -95,6 +99,7 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
@@ -111,6 +116,7 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
@@ -127,7 +133,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-model-weights-
       - name: Run Tests with Coverage
-        run: uv run pytest --cov=alos --cov-report=xml:coverage.xml --cov-report=term-missing
+        # The floor sits two points under the 87% measured on main on 2026-11-10. Raise it as
+        # coverage rises; never lower it to make a pull request pass.
+        run: uv run pytest --cov=alos --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=85
       - name: Upload Coverage Artifact
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
@@ -141,6 +149,7 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
@@ -155,6 +164,7 @@ jobs:
     needs: [changes]
     if: github.event_name == 'pull_request' && (needs.changes.outputs.python == 'true' || needs.changes.outputs.rust == 'true')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
       - name: Dependency Review
@@ -167,6 +177,7 @@ jobs:
   action-pins-exist:
     name: action-pins-exist
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
       - name: Every pinned action commit must exist upstream
@@ -194,6 +205,7 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.docker == 'true' || contains(github.event.head_commit.message, 'docker') || contains(github.event.head_commit.message, 'compose')
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
       - name: Validate Docker Compose
@@ -211,6 +223,7 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
