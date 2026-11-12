@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ade-axioms-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -18,4 +22,4 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
         with:
           fetch-depth: 0
-      - uses: First-ADE/.github/.github/actions/ade-axioms@a69064ab297a7be00c1b42dc13e2b89c78921888 # brand/E3-S1-principles-axioms, PR #32
+      - uses: First-ADE/.github/.github/actions/ade-axioms@827bf315869e11ff2052fe5596c1fc6da5c006ea # main

@@ -2,8 +2,12 @@ name: Scheduled Stale Cleanup
 
 on:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '37 6 * * *'
   workflow_dispatch:
+
+concurrency:
+  group: scheduled-stale-cleanup-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   issues: write
