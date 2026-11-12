@@ -16,6 +16,10 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # pytest 9.2.0 removed FixtureManager._arg2fixturedefs, breaking pytest-bdd 8.1.0
+      - dependency-name: "pytest"
+        versions: [">=9.2.0"]
     open-pull-requests-limit: 5
 
   # GitHub Actions versions
