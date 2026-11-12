@@ -1,0 +1,22 @@
+# Image for alos.swarm.sandbox: runs model-written draft tests, never the application.
+# Spec: specs/030-swarm-test-sandbox/spec.md
+#
+#   docker build -f Dockerfile.sandbox --target base -t alos-sandbox:latest .   # pytest only
+#   docker build -f Dockerfile.sandbox -t alos-sandbox:latest .                 # plus ALOS dependencies
+#
+# The repository is mounted read-only at run time, so no source is copied in.
+
+FROM python:3.12-slim AS base
+RUN pip install --no-cache-dir "pytest>=8,<10" "hypothesis>=6,<7"
+USER 65534:65534
+WORKDIR /tmp
+
+FROM base AS full
+USER root
+COPY pyproject.toml README.md /src/
+# Install the project's dependencies without the project: drafts import it from the mount.
+RUN mkdir /src/alos && touch /src/alos/__init__.py \
+    && pip install --no-cache-dir /src \
+    && pip uninstall --yes alos \
+    && rm -rf /src
+USER 65534:65534
