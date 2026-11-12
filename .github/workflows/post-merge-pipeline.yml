@@ -31,12 +31,14 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --extra dev
 
       - name: Run pytest with coverage XML
         run: uv run pytest --cov=alos --cov-report=xml:coverage.xml -q || true
 
       - name: SonarCloud Scan
+        # Advisory until SONAR_TOKEN / organization key is renewed (tracked under Needs Brandon in #104).
+        continue-on-error: true
         uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -105,26 +107,28 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install Radon
-        run: uv pip install --system radon
-
       - name: Run Complexity Scanner
         id: scan
         run: |
-          python .github/scripts/complexity_scanner.py > complexity_report.txt || true
+          uv run --no-project --with radon python .github/scripts/complexity_scanner.py > complexity_report.txt || true
           COUNT=$(wc -l < complexity_report.txt || echo 0)
           echo "count=$COUNT" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Issue
+      - name: Create or Update GitHub Issue
         if: steps.scan.outputs.count > 0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           DATE=$(date +'%Y-%m-%d')
           COUNT=${{ steps.scan.outputs.count }}
-          TITLE="🧮 Complexity Report: $COUNT hotspots ($DATE)"
+          TITLE="🧮 Complexity Report: $COUNT lines ($DATE)"
 
-          gh issue create --title "$TITLE" --body-file complexity_report.txt --label "refactoring,automated,code-health"
+          EXISTING_ISSUE=$(gh issue list --label "automated" --search "Complexity Report: in:title" --state open --limit 1 --json number --jq '.[0].number')
+          if [ -n "$EXISTING_ISSUE" ]; then
+            gh issue comment "$EXISTING_ISSUE" --body-file complexity_report.txt
+          else
+            gh issue create --title "$TITLE" --body-file complexity_report.txt --label "automated"
+          fi
 
   coverage-gap:
     name: Coverage Gap Analysis
@@ -141,7 +145,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --extra dev
 
       - name: Run pytest with JSON coverage
         run: uv run pytest --cov=alos --cov-report=json:coverage.json --cov-report=term-missing -q || true
@@ -155,7 +159,7 @@ jobs:
           commit-message: "chore(tests): add coverage gap test stubs"
           title: "chore(tests): automated coverage gap test stubs"
           branch: "chore/bot-coverage-gap"
-          labels: "testing,automated,coverage-gap"
+          labels: "automated"
           delete-branch: true
           body: "Auto-generated coverage gap analysis and test stubs."
 
@@ -239,16 +243,21 @@ jobs:
           COUNT=$(wc -l < spec_report.txt || echo 0)
           echo "count=$COUNT" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Issue
+      - name: Create or Update GitHub Issue
         if: steps.analyze.outputs.count > 0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           DATE=$(date +'%Y-%m-%d')
           COUNT=${{ steps.analyze.outputs.count }}
-          TITLE="📐 Spec Gap Analysis: $COUNT gaps found ($DATE)"
+          TITLE="📐 Spec Gap Analysis: $COUNT lines ($DATE)"
 
-          gh issue create --title "$TITLE" --body-file spec_report.txt --label "specs,automated,governance"
+          EXISTING_ISSUE=$(gh issue list --label "automated" --search "Spec Gap Analysis: in:title" --state open --limit 1 --json number --jq '.[0].number')
+          if [ -n "$EXISTING_ISSUE" ]; then
+            gh issue comment "$EXISTING_ISSUE" --body-file spec_report.txt
+          else
+            gh issue create --title "$TITLE" --body-file spec_report.txt --label "documentation,automated"
+          fi
 
   harvest-todos:
     name: Tech Debt & TODO Harvester
@@ -280,12 +289,12 @@ jobs:
           cat todo_report.txt >> issue_body.txt
           echo '```' >> issue_body.txt
 
-          EXISTING_ISSUE=$(gh issue list --label "tech-debt" --state open --limit 1 --json number --jq '.[0].number')
+          EXISTING_ISSUE=$(gh issue list --label "automated" --search "Tech Debt Scan: in:title" --state open --limit 1 --json number --jq '.[0].number')
 
           if [ -n "$EXISTING_ISSUE" ]; then
             gh issue comment "$EXISTING_ISSUE" --body-file issue_body.txt
           else
-            gh issue create --title "$TITLE" --body-file issue_body.txt --label "tech-debt,automated"
+            gh issue create --title "$TITLE" --body-file issue_body.txt --label "automated"
           fi
 
   type-coverage:
@@ -303,7 +312,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --extra dev
 
       - name: Run mypy analysis
         run: uv run mypy alos --txt-report mypy_report || true
@@ -320,7 +329,7 @@ jobs:
           fi
           echo "count=$COUNT" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Issue
+      - name: Create or Update GitHub Issue
         if: steps.parse.outputs.count > 0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -334,4 +343,9 @@ jobs:
           cat low_coverage.txt >> issue_body.txt
           echo '```' >> issue_body.txt
 
-          gh issue create --title "$TITLE" --body-file issue_body.txt --label "typing,automated"
+          EXISTING_ISSUE=$(gh issue list --label "automated" --search "Type Coverage Report: in:title" --state open --limit 1 --json number --jq '.[0].number')
+          if [ -n "$EXISTING_ISSUE" ]; then
+            gh issue comment "$EXISTING_ISSUE" --body-file issue_body.txt
+          else
+            gh issue create --title "$TITLE" --body-file issue_body.txt --label "automated"
+          fi
