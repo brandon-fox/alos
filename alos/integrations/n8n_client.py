@@ -69,9 +69,12 @@ class N8nClient:
                 return "Missing required parameter 'title'."
             if "content" not in payload:
                 return "Missing required parameter 'content'."
-        elif workflow_id == "wf-health-poll-self-correct":
-            if payload.get("force_db_fail") and not payload.get("api_key"):
-                return "Missing required parameter 'api_key'."
+        elif (
+            workflow_id == "wf-health-poll-self-correct"
+            and payload.get("force_db_fail")
+            and not payload.get("api_key")
+        ):
+            return "Missing required parameter 'api_key'."
         return None
 
     def _mock_approval_gate(
