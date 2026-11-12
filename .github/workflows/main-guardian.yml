@@ -1,0 +1,90 @@
+name: Main Guardian
+
+on:
+  schedule:
+    - cron: '43 7 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: main-guardian-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+jobs:
+  guardian:
+    name: Verify Main Branch Workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check latest run per workflow on main
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.0.1
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const workflows = await github.paginate(github.rest.actions.listRepoWorkflows, {
+              owner,
+              repo,
+              per_page: 100,
+            });
+            const disabled = workflows.filter(w => w.state === 'disabled_inactivity');
+            const runsResp = await github.rest.actions.listWorkflowRunsForRepo({
+              owner,
+              repo,
+              branch: 'main',
+              per_page: 100,
+            });
+            const seen = new Set();
+            const failing = [];
+            for (const run of runsResp.data.workflow_runs) {
+              if (!run.name || run.name === 'Main Guardian' || seen.has(run.name)) continue;
+              seen.add(run.name);
+              const status = run.conclusion || run.status;
+              if (!['success', 'skipped', 'neutral'].includes(status)) {
+                failing.push(`- **${run.name}**: \`${status}\` ([run ${run.id}](${run.html_url}))`);
+              }
+            }
+            const disabledLines = disabled.map(w => `- **${w.name}** (\`${w.path}\`): \`${w.state}\``);
+            if (failing.length === 0 && disabledLines.length === 0) {
+              core.info('All latest workflow runs on main are green and no workflows are disabled by inactivity.');
+              return;
+            }
+            const date = new Date().toISOString().split('T')[0];
+            const sections = ['### Main Guardian Report', ''];
+            if (failing.length > 0) {
+              sections.push('#### Failing or Stuck Workflows on `main`', ...failing, '');
+            }
+            if (disabledLines.length > 0) {
+              sections.push('#### Workflows Disabled by Inactivity', ...disabledLines, '');
+            }
+            const body = sections.join('\\n');
+            const title = `🛡️ Main Guardian: ${failing.length} failing, ${disabledLines.length} disabled (${date})`;
+            const openIssues = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              labels: 'automated',
+              per_page: 100,
+            });
+            const existing = openIssues.data.find(i => i.title.startsWith('🛡️ Main Guardian:'));
+            if (existing) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: existing.number,
+                title,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body,
+                labels: ['automated'],
+              });
+            }
+            core.setFailed(`Main Guardian detected ${failing.length} failing and ${disabledLines.length} disabled workflow(s).`);
