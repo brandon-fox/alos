@@ -144,6 +144,32 @@ def test_all_github_actions_use_fixed_hashes() -> None:
 
 
 @pytest.mark.meta
+def test_pinned_actions_carry_a_version_comment() -> None:
+    """A bare SHA says nothing about what it is; the comment is how a reader and
+    Dependabot know which release it was taken from (spec 028, FR-002)."""
+    import re
+
+    uses_regex = re.compile(r"uses:\s*([^\s@]+)@([^\s#]+)\s*(#\s*(\S.*))?$")
+
+    uncommented: list[str] = []
+    yaml_files = list(WORKFLOWS_DIR.glob("*.yml")) + list(WORKFLOWS_DIR.glob("*.yaml"))
+
+    for wf_path in yaml_files:
+        lines = wf_path.read_text(encoding="utf-8").splitlines()
+        for idx, line in enumerate(lines, 1):
+            match = uses_regex.search(line)
+            if not match or match.group(1).startswith("./"):
+                continue
+            if not match.group(4):
+                uncommented.append(f"{wf_path.name}:{idx} -> {match.group(1)}@{match.group(2)}")
+
+    assert not uncommented, (
+        f"Found {len(uncommented)} pinned GitHub Actions without a version comment:\n"
+        + "\n".join(uncommented)
+    )
+
+
+@pytest.mark.meta
 def test_every_job_has_a_timeout() -> None:
     """A hung job otherwise runs for six hours. Reusable-workflow jobs cannot set one."""
     missing: list[str] = []
