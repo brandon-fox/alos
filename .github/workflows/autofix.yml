@@ -1,0 +1,27 @@
+name: CI Auto-Fix
+
+on:
+  workflow_run:
+    workflows: ["Quality Gate", "Rust CI Pipeline"]
+    types: [completed]
+
+concurrency:
+  group: autofix-${{ github.event.workflow_run.head_branch || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  autofix:
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'pull_request'
+    uses: brandon-fox/.github/.github/workflows/ci-autofix.yml@6ef3dadd882c27eaa04459b9644a56af6dcbc297 # main
+    with:
+      mode: sub-pr
+      python-paths: 'alos tests'
+      rust-manifest: 'crates/alos_native/Cargo.toml'
+    secrets:
+      token: ${{ secrets.PR_QUEUE_TOKEN }}
