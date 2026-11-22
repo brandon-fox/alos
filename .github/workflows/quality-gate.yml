@@ -19,6 +19,10 @@ permissions:
   pull-requests: write
 
 jobs:
+  pr-size:
+    if: github.event_name == 'pull_request'
+    uses: brandon-fox/.github/.github/workflows/pr-size-guard.yml@093fbcf217975354790f21e30f7ce4e4061d35c2 # main
+
   changes:
     name: Detect Changed Components
     runs-on: ubuntu-latest
