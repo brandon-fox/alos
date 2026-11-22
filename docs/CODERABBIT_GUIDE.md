@@ -6,7 +6,7 @@ This guide details how to get maximum value from **CodeRabbit AI** in the ALOS r
 
 ## 1. Overview & Architecture
 
-CodeRabbit is configured via [`.coderabbit.yaml`](file:///c:/Users/bfoxt/n8nSetup/.coderabbit.yaml) in the repository root. It enforces project rules, SpecKit compliance, type safety, and security audits automatically on every PR targeting `main` or `upstream/main`.
+CodeRabbit is configured via [`.coderabbit.yaml`](../.coderabbit.yaml) in the repository root. It enforces project rules, SpecKit compliance, type safety, and security audits automatically on every PR targeting `main` or `upstream/main`.
 
 ### Integrated Quality Stack:
 ```

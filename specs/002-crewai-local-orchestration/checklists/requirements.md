@@ -9,4 +9,4 @@
 - [x] **FR-002-07**: System MUST provide `N8nWorkflowTool` to trigger local n8n workflows via `alos.integrations.n8n_client`.
 - [x] **FR-002-08**: System MUST provide a CLI entry point (`alos crew run --name <name>`) to invoke crews from terminal.
 - [x] **FR-002-09**: System MUST include a unit and integration test suite (`tests/test_crewai_local.py`) supporting offline mock LLM execution.
-- [x] **FR-002-10**: System MUST integrate `crewai-validation` into GitHub Actions Quality Gate ([`.github/workflows/quality-gate.yml`](file:///c:/Users/bfoxt/n8nSetup/.github/workflows/quality-gate.yml)).
+- [x] **FR-002-10**: System MUST integrate `crewai-validation` into GitHub Actions Quality Gate ([`.github/workflows/quality-gate.yml`](../../../.github/workflows/quality-gate.yml)).
