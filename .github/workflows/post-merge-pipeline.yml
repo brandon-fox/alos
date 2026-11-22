@@ -21,17 +21,12 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - name: Setup uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
-        with:
-          enable-cache: true
-
-      - name: Install dependencies
-        run: uv sync --extra dev
+      - name: Setup uv (cached)
+        uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
 
       - name: Run pytest with coverage XML
         run: uv run pytest --cov=alos --cov-report=xml:coverage.xml -q || true
@@ -52,7 +47,7 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -100,12 +95,12 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
+      - name: Setup uv (cached)
+        uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
         with:
-          enable-cache: true
+          sync: 'false'
 
       - name: Run Complexity Scanner
         id: scan
@@ -137,15 +132,10 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
-        with:
-          enable-cache: true
-
-      - name: Install dependencies
-        run: uv sync --extra dev
+      - name: Setup uv (cached)
+        uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
 
       - name: Run pytest with JSON coverage
         run: uv run pytest --cov=alos --cov-report=json:coverage.json --cov-report=term-missing -q || true
@@ -170,7 +160,7 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Run AST Docstring Audit
         id: audit
@@ -234,7 +224,7 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Run Spec Gap Analyzer
         id: analyze
@@ -266,7 +256,7 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Scan for Tech Debt Markers
         id: scan
@@ -304,15 +294,10 @@ jobs:
     if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
-        with:
-          enable-cache: true
-
-      - name: Install dependencies
-        run: uv sync --extra dev
+      - name: Setup uv (cached)
+        uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
 
       - name: Run mypy analysis
         run: uv run mypy alos --txt-report mypy_report || true
