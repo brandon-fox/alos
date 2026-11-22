@@ -134,4 +134,5 @@ class FallbackBM25Indexer:
                     "score": score,
                 }
             )
+        results.sort(key=lambda r: float(r["score"]), reverse=True)
         return results[:top_k]

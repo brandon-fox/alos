@@ -282,7 +282,7 @@ def test_the_ci_job_cannot_pass_by_skipping() -> None:
     workflow = Path(".github/workflows/sandbox-ci.yml").read_text(encoding="utf-8")
     assert 'ALOS_SANDBOX_REQUIRED: "1"' in workflow
     assert "ALOS_SANDBOX_IMAGE: alos-sandbox:ci" in workflow
-    assert "--tag alos-sandbox:ci" in workflow
+    assert "--tag alos-sandbox:ci" in workflow or "tags: alos-sandbox:ci" in workflow
     assert "-m docker" in workflow
 
 

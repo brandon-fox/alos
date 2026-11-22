@@ -28,8 +28,8 @@ jobs:
       rust: ${{ steps.filter.outputs.rust }}
       docker: ${{ steps.filter.outputs.docker }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
-      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # a2983b8bed1923f44751c5c43237f479442827b3.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.2
         id: filter
         with:
           filters: |
@@ -55,10 +55,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
         with:
-          enable-cache: true
+          sync: 'false'
       - name: Verify uv.lock Sync
         run: uv lock --check
 
@@ -69,11 +69,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
-        with:
-          enable-cache: true
-      - run: uv sync --extra dev
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
       - name: Ruff Lint
         run: uv run ruff check alos tests
       - name: Ruff Format Check
@@ -86,11 +83,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
-        with:
-          enable-cache: true
-      - run: uv sync --extra dev
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
       - name: MyPy Static Analysis
         run: uv run mypy alos
 
@@ -101,11 +95,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
-        with:
-          enable-cache: true
-      - run: uv sync --extra dev
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
       - name: Bandit Security Scan
         run: uv run bandit -r alos -s B101 -f json -o bandit-report.json || true
       - name: Bandit Human Report
@@ -118,20 +109,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
-        with:
-          enable-cache: true
-      - run: uv sync --extra dev
-      - name: Cache Open Source AI Model Weights (Up to 2GB)
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v4.2.2
-        with:
-          path: |
-            ~/.cache/huggingface/hub
-            ~/.cache/torch/hub
-          key: ${{ runner.os }}-model-weights-${{ hashFiles('pyproject.toml', 'uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-model-weights-
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
+      - uses: brandon-fox/.github/.github/actions/cache-ml-weights@595a8111464a72b0d27e3e7391dcc713f002a73a # main
       - name: Run Tests with Coverage
         # The floor sits two points under the 87% measured on main on 2026-11-10. Raise it as
         # coverage rises; never lower it to make a pull request pass.
@@ -151,11 +131,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
-        with:
-          enable-cache: true
-      - run: uv sync --extra dev
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
       - name: Verify ADR Repository
         run: uv run pyadr check-adr-repo
 
@@ -166,7 +143,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Dependency Review
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         continue-on-error: true
@@ -179,7 +156,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Every pinned action commit must exist upstream
         env:
           GH_TOKEN: ${{ github.token }}
@@ -207,7 +184,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Validate Docker Compose
         run: docker compose config --quiet
       - name: Trivy IaC Scan
@@ -226,19 +203,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.3.0
-        with:
-          enable-cache: true
-      - run: uv sync --extra dev
-      - name: Cache Open Source AI Model Weights (Up to 2GB)
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v4.2.2
-        with:
-          path: |
-            ~/.cache/huggingface/hub
-            ~/.cache/torch/hub
-          key: ${{ runner.os }}-model-weights-${{ hashFiles('pyproject.toml', 'uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-model-weights-
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
+      - uses: brandon-fox/.github/.github/actions/cache-ml-weights@595a8111464a72b0d27e3e7391dcc713f002a73a # main
       - name: Validate CrewAI Local Setup
         run: uv run pytest tests/test_crewai_local.py
