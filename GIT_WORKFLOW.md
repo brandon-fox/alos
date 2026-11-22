@@ -83,10 +83,10 @@ To support concurrent AI agent operations and ensure atomic revision history:
   - `sonar-scanner`: Comprehensive Sonar code quality and bug / vulnerability gate audit
 
 - **Automated AI Code Review (CodeRabbit)** (`Pull Request`):
-  - Configured via [`.coderabbit.yaml`](file:///c:/Users/bfoxt/n8nSetup/.coderabbit.yaml).
+  - Configured via [`.coderabbit.yaml`](.coderabbit.yaml).
   - Performs automated line-by-line code review, architecture check, SpecKit SDD compliance, and security audits.
   - Generates high-level summaries and Mermaid sequence diagrams.
-  - Interactive Q&A and command triggers via `@coderabbitai` in PR comments. See [CodeRabbit Guide](file:///c:/Users/bfoxt/n8nSetup/docs/CODERABBIT_GUIDE.md).
+  - Interactive Q&A and command triggers via `@coderabbitai` in PR comments. See [CodeRabbit Guide](docs/CODERABBIT_GUIDE.md).
 
 
 ---

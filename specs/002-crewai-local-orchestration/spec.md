@@ -61,7 +61,7 @@ As a security-conscious user, I want CrewAI agent actions to be audited by the A
 - **FR-002-07**: System MUST provide `N8nWorkflowTool` to trigger local n8n workflows via `alos.integrations.n8n_client`.
 - **FR-002-08**: System MUST provide a CLI entry point (`alos crew run --name <name>`) to invoke crews from terminal.
 - **FR-002-09**: System MUST include a unit and integration test suite (`tests/test_crewai_local.py`) supporting offline mock LLM execution.
-- **FR-002-10**: System MUST integrate `crewai-validation` into GitHub Actions Quality Gate ([`.github/workflows/quality-gate.yml`](file:///c:/Users/bfoxt/n8nSetup/.github/workflows/quality-gate.yml)).
+- **FR-002-10**: System MUST integrate `crewai-validation` into GitHub Actions Quality Gate ([`.github/workflows/quality-gate.yml`](../../.github/workflows/quality-gate.yml)).
 
 ---
 
