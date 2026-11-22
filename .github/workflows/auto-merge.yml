@@ -3,6 +3,8 @@ name: Auto Merge
 # Trigger on every check_run completion so we re-evaluate after each quality gate
 # job finishes, and on PR events for label/draft state changes.
 on:
+  push:
+    branches: [main]
   pull_request:
     types:
       - labeled
@@ -124,3 +126,11 @@ jobs:
         run: |
           gh pr review --approve "$PR_URL"
           gh pr merge --auto --squash --delete-branch "$PR_URL"
+
+  rebase-next:
+    if: github.event_name == 'push'
+    uses: brandon-fox/.github/.github/workflows/pr-queue-rebase.yml@093fbcf217975354790f21e30f7ce4e4061d35c2 # main
+    with:
+      mode: rebase-next
+    secrets:
+      token: ${{ secrets.PR_QUEUE_TOKEN }}
