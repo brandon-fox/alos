@@ -21,6 +21,10 @@ concurrency:
   group: auto-merge-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   automerge:
     name: Auto Merge Human PRs
