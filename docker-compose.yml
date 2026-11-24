@@ -6,6 +6,7 @@ volumes:
   postgres_storage:
   redis_storage:
   n8n_storage:
+  alos_data:
 
 services:
   # 1. Persistence Layer: PostgreSQL
@@ -113,3 +114,30 @@ services:
     profiles: ["tunnel"] # Only starts when explicitly called
     networks:
       - n8n-network
+
+  # 6. Portable ALOS Production Daemon (Bridged to Host Ollama + Postgres)
+  alos-daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: alos:local
+    container_name: alos_daemon
+    restart: unless-stopped
+    profiles: ["alos"]
+    cpus: 6.0
+    mem_limit: 8g
+    security_opt:
+      - no-new-privileges:true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - ALOS_HOME=/data
+      - ALOS_SWARM_OLLAMA=${ALOS_SWARM_OLLAMA:-http://host.docker.internal:11434}
+      - ALOS_QUEUE_DB_URL=${ALOS_QUEUE_DB_URL:-postgresql+psycopg://${POSTGRES_USER:-alos}:${POSTGRES_PASSWORD:-alos}@postgres:5432/${POSTGRES_DB:-alos}}
+    volumes:
+      - alos_data:/data
+    networks:
+      - n8n-network
+    depends_on:
+      postgres:
+        condition: service_healthy
