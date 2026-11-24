@@ -3,35 +3,25 @@
 Spec: specs/013-obsidian-vault-brain-integration/spec.md
 """
 
+import importlib
 import logging
 import os
 import re
 from typing import Any
 
 import frontmatter
-from pydantic import BaseModel, Field
+
+from alos.domain.models.memory import ObsidianNote
 
 logger = logging.getLogger(__name__)
 
 # Try importing compiled Rust native extension module for 10x+ parsing acceleration
+FastVaultParser: Any = None
 try:
-    from alos_native import FastVaultParser  # type: ignore[import-not-found]
-
+    FastVaultParser = importlib.import_module("alos_native").FastVaultParser
     HAS_RUST_NATIVE = True
-except ImportError:
-    FastVaultParser = None
+except (ImportError, AttributeError):
     HAS_RUST_NATIVE = False
-
-
-class ObsidianNote(BaseModel):
-    """Structured representation of an Obsidian vault markdown note."""
-
-    file_name: str
-    file_path: str
-    content: str
-    frontmatter: dict[str, Any] = Field(default_factory=dict)
-    tags: list[str] = Field(default_factory=list)
-    wiki_links: list[str] = Field(default_factory=list)
 
 
 class ObsidianVaultParser:
@@ -39,13 +29,21 @@ class ObsidianVaultParser:
     tags, and [[WikiLink]] references. Uses Rust native extension when available.
     """
 
-    def __init__(self, vault_dir: str):
+    def __init__(
+        self,
+        vault_dir: str,
+        *,
+        use_native: bool | None = None,
+        native_parser_cls: Any = None,
+    ) -> None:
+        """Initialize vault parser bound to vault_dir with optional native backend."""
         self.vault_dir = os.path.abspath(vault_dir)
-        self._native_parser = (
-            FastVaultParser(self.vault_dir) if HAS_RUST_NATIVE and FastVaultParser else None
-        )
+        enabled = HAS_RUST_NATIVE if use_native is None else use_native
+        cls = FastVaultParser if native_parser_cls is None else native_parser_cls
+        self._native_parser = cls(self.vault_dir) if enabled and cls else None
 
     def _extract_frontmatter(self, raw_text: str) -> tuple[dict[str, Any], list[str], str]:
+        """Parse YAML frontmatter metadata and tags, logging malformed blocks."""
         tags: list[str] = []
         try:
             post = frontmatter.loads(raw_text)
@@ -59,7 +57,8 @@ class ObsidianVaultParser:
                 elif isinstance(val, str):
                     tags.append(val)
             return metadata, tags, body_text
-        except Exception:
+        except Exception as err:
+            logger.warning("Failed to parse markdown frontmatter: %s", err)
             return {}, [], raw_text
 
     def parse_file(self, file_path: str) -> ObsidianNote:
@@ -76,7 +75,7 @@ class ObsidianVaultParser:
                     wiki_links=native_note.wiki_links,
                 )
             except Exception as err:
-                logger.debug("Native FastVaultParser parse_file failed: %s", err)
+                logger.warning("Native FastVaultParser parse_file failed: %s", err)
 
         file_name = os.path.basename(file_path)
 
@@ -125,7 +124,7 @@ class ObsidianVaultParser:
                     for n in native_notes
                 ]
             except Exception as err:
-                logger.debug("Native FastVaultParser parse_all failed: %s", err)
+                logger.warning("Native FastVaultParser parse_all failed: %s", err)
 
         notes: list[ObsidianNote] = []
         if not os.path.exists(self.vault_dir):
@@ -137,6 +136,6 @@ class ObsidianVaultParser:
                     full_path = os.path.join(root, file)
                     try:
                         notes.append(self.parse_file(full_path))
-                    except (OSError, UnicodeDecodeError, ValueError):
-                        continue
+                    except (OSError, UnicodeDecodeError, ValueError) as err:
+                        logger.warning("Skipping unreadable vault note '%s': %s", full_path, err)
         return notes
