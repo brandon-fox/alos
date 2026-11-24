@@ -1,9 +1,12 @@
-"""Pydantic data schemas and action models package."""
+"""Strangler-Fig shim for legacy alos.schemas package imports (Spec 036 FR-3611, ADR-0024)."""
 
+# Strangler-Fig shim: re-export canonical Ring 1 action models via legacy path.
 from alos.schemas.actions import (
     ActionPlan,
+    ActionUnion,
     BaseAction,
     EmailDraft,
+    EmailSend,
     GoogleCalendarEvent,
     TodoistTaskCreate,
     VaultNoteUpdate,
@@ -12,8 +15,10 @@ from alos.schemas.actions import (
 
 __all__ = [
     "ActionPlan",
+    "ActionUnion",
     "BaseAction",
     "EmailDraft",
+    "EmailSend",
     "GoogleCalendarEvent",
     "TodoistTaskCreate",
     "VaultNoteUpdate",
