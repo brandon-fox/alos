@@ -176,14 +176,15 @@ def test_runtime_loop_preemption_and_cli_commands(tmp_path: Path) -> None:
     assert res2.outcome == "completed"
     assert seen_ckpt == ["ckpt-step-2"]
 
-    # Smoke CLI status and enqueue
+    # Smoke CLI status, enqueue, mocked tick, and bounded daemon
     cli_db = f"sqlite:///{tmp_path / 'cli.db'}"
-    assert main(["--db-url", cli_db, "status"]) == 0
+    assert main(["--db-url", cli_db, "--mock", "status"]) == 0
     assert (
         main(
             [
                 "--db-url",
                 cli_db,
+                "--mock",
                 "enqueue",
                 "--id",
                 "cli-1",
@@ -195,3 +196,35 @@ def test_runtime_loop_preemption_and_cli_commands(tmp_path: Path) -> None:
         )
         == 0
     )
+    assert main(["--db-url", cli_db, "--mock", "tick"]) == 0
+    daemon_db = f"sqlite:///{tmp_path / 'daemon.db'}"
+    assert (
+        main(["--db-url", daemon_db, "--mock", "daemon", "--max-ticks", "2", "--poll-s", "0.01"])
+        == 0
+    )
+
+
+def test_retry_budget_escalation_and_throttled_tier_filter(tmp_path: Path) -> None:
+    """Failing jobs retry up to max_attempts then escalate; THROTTLED skips cold tier swaps."""
+    q, _ = _make_queue(tmp_path)
+    q.enqueue("flaky", "alos", "fix", "fast_coder", max_attempts=2)
+
+    first = q.lease_next(active_tier="fast_coder")
+    assert first is not None and first.attempts == 1
+    assert q.fail_job("flaky", "err-1").state == "queued"
+
+    second = q.lease_next(active_tier="fast_coder")
+    assert second is not None and second.attempts == 2
+    assert q.fail_job("flaky", "err-2").state == "escalated"
+    assert q.lease_next(active_tier="fast_coder") is None
+
+    # THROTTLED allows warm tier ("reasoner") while holding back cold tier ("fast_coder")
+    q.enqueue("cold-job", "alos", "fix", "fast_coder")
+    sensor = ScriptedSensor()
+    sensor.update(user_idle_seconds=5.0)
+    spinner = MagicMock(spec=ModelSpinner)
+    spinner.active_tier = "reasoner"
+    gov = HostGovernor(sensor=sensor, spinner=spinner, state=GovernorState.WARM_ACTIVE)
+    loop = ComputeRuntimeLoop(governor=gov, queue=q)
+    tick = loop.run_once(lambda _j, _c, _e: {"ok": True})
+    assert tick.outcome == "throttled_wait"

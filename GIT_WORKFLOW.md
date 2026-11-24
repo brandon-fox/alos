@@ -72,14 +72,15 @@ To support concurrent AI agent operations and ensure atomic revision history:
   - YAML/JSON/TOML syntax checks
   - Private key & secret leak detection
   - `ruff` linting and formatting (`ruff check --fix`, `ruff format`)
-  - Exception documentation validator (`check_exception_docs.py`)
+  - `pytest-light-unit`: Fast unit, meta, AST, and SpecKit tests (`pytest -m "not docker" --ignore=tests/benchmarks`) on every commit
   - Sonar code quality scan verification
 
-- **Pre-Push Hooks** (`git push` - Strict Gate):
+- **Pre-Push & Pre-Handback Validation Gates** (`git push` & `.\scripts\run-validation-suite.ps1`):
   - `bandit`: AST security vulnerability scan
-  - `mypy`: Strict type check verification across codebase
-  - `pytest`: All unit & integration tests must pass with coverage enforcement
-  - `check-exception-docs`: Automated check ensuring zero undocumented `# noqa` or `# type: ignore` suppressions
+  - `mypy`: Strict type check verification across `alos`, `tests`, and `features`
+  - `pytest`: Full unit & integration test suite with `>= 85%` coverage enforcement
+  - `behave`: Full BDD user scenario suite running **both `@mocked` and `@live` hardware/model integration calls** before any hand-back or manual stage
+  - `pyadr check-adr-repo`: ADR repository sanity verification
   - `sonar-scanner`: Comprehensive Sonar code quality and bug / vulnerability gate audit
 
 - **Automated AI Code Review (CodeRabbit)** (`Pull Request`):

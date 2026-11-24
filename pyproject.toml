@@ -43,6 +43,7 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-bdd>=7.0.0",
     "twine>=5.0.0",
+    "behave>=1.2.6",
 ]
 
 [dependency-groups]
@@ -91,6 +92,14 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "S105", "S106", "PLC0415"]
+"features/**" = ["S101", "PLC0415"]
+
+[tool.behave]
+paths = ["features"]
+stdout_capture = false
+stderr_capture = false
+log_capture = false
+show_timings = true
 
 [tool.mypy]
 python_version = "3.12"
@@ -102,6 +111,10 @@ strict_optional = true
 enable_error_code = ["ignore-without-code"]
 disallow_untyped_defs = false
 check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["behave"]
+ignore_missing_imports = true
 
 [tool.bandit]
 targets = ["alos"]
