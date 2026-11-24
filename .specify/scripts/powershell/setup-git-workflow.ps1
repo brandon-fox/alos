@@ -23,18 +23,25 @@ if (-not $gpgFormat) {
 }
 
 if (-not $signingKey) {
-    $sshKeyPath = "$HOME\.ssh\id_ed25519.pub"
-    if (Test-Path $sshKeyPath) {
+    $candidateKeys = @(
+        "$HOME\.ssh\id_ed25519_vindicta.pub",
+        "$HOME\.ssh\id_ed25519.pub"
+    )
+    $sshKeyPath = $candidateKeys | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($sshKeyPath) {
         Write-Host "Setting user.signingkey=$sshKeyPath..." -ForegroundColor Yellow
         git config --local user.signingkey $sshKeyPath
-        git config --local commit.gpgsign true
-        Write-Host "Git commit signing configured with $sshKeyPath" -ForegroundColor Green
+        Write-Host "Git signing key configured with $sshKeyPath" -ForegroundColor Green
     } else {
-        Write-Host "Warning: No default SSH public key found at $sshKeyPath. Please configure 'git config user.signingkey <path-to-pubkey>'." -ForegroundColor Yellow
+        Write-Host "Warning: No SSH public key found under $HOME\.ssh. Please configure 'git config user.signingkey <path-to-pubkey>'." -ForegroundColor Yellow
     }
 } else {
     Write-Host "Git signing key already configured: $signingKey" -ForegroundColor Green
 }
+
+git config --local commit.gpgsign true
+git config --local tag.gpgsign true
+Write-Host "Enforced commit.gpgsign=true and tag.gpgsign=true (signs commits, merges, and rebases)." -ForegroundColor Green
 
 Write-Host "[3/3] Checking Git hygiene and cache rules..." -ForegroundColor Cyan
 $cacheFiles = git ls-files | Select-String -Pattern "__pycache__|\.pyc$"

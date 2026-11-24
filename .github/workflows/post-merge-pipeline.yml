@@ -79,9 +79,13 @@ jobs:
           echo '### 🔧 Chores' >> CHANGELOG.md
           git log $RANGE --oneline --grep='^chore' --format='- %s (%h)' >> CHANGELOG.md || true
 
+      - uses: ./.github/actions/setup-git-signing
+        with:
+          signing-key: ${{ secrets.COMMIT_SIGNING_KEY }}
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.7
         with:
+          token: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
           commit-message: "docs(changelog): auto-update changelog"
           title: "docs(changelog): auto-update changelog"
           branch: "chore/bot-changelog"
@@ -143,9 +147,13 @@ jobs:
       - name: Run Coverage Gap Analyzer
         run: python .github/scripts/coverage_gap_analyzer.py || true
 
+      - uses: ./.github/actions/setup-git-signing
+        with:
+          signing-key: ${{ secrets.COMMIT_SIGNING_KEY }}
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.7
         with:
+          token: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
           commit-message: "chore(tests): add coverage gap test stubs"
           title: "chore(tests): automated coverage gap test stubs"
           branch: "chore/bot-coverage-gap"
