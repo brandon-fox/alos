@@ -10,6 +10,7 @@ import os
 from datetime import datetime
 from typing import Any
 
+from alos.logs.telemetry import get_active_span_context
 from alos.native import get_journal_writer
 
 
@@ -34,12 +35,15 @@ class SystemAuditLogger:
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Log structured audit event entry to append-only journal file."""
+        active_span = get_active_span_context()
         record = {
             "timestamp": datetime.now().isoformat(),
             "step": step,
             "status": status,
             "reason": reason,
             "metadata": metadata or {},
+            "trace_id": active_span.trace_id if active_span else None,
+            "span_id": active_span.span_id if active_span else None,
         }
         self._writer.append_record(json.dumps(record))
         return record

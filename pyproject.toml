@@ -59,6 +59,8 @@ markers = [
     "meta: Meta-testing suite for repository structure, SpecKit adherence, ADR compliance, and AST quality metrics",
     "source: Source code testing suite targeting ALOS runtime packages",
     "docker: Starts real containers; runs only when ALOS_SANDBOX_IMAGE names a local image",
+    "mocked: Deterministic mocked BDD and integration scenarios",
+    "live: Live local runtime, socket, and HTTP endpoint BDD scenarios",
 ]
 
 [tool.ruff]

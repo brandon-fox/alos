@@ -5,7 +5,9 @@ from typing import Any, Literal, TypedDict, cast
 
 from langgraph.graph import END, START, StateGraph
 
+from alos.core.protocols import TelemetryProtocol
 from alos.integrations.n8n_client import N8nClient, N8nExecutionResponse
+from alos.logs.telemetry import global_tracer
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +30,8 @@ class N8nTaskState(TypedDict):
 class N8nSelfReflectionGraph:
     """LangGraph autonomous self-reflection state graph for running and refining n8n workflows."""
 
-    def __init__(self, mock_mode: bool = True) -> None:
+    def __init__(self, mock_mode: bool = True, tracer: TelemetryProtocol | None = None) -> None:
+        self.tracer: TelemetryProtocol = tracer if tracer is not None else global_tracer
         self.client = N8nClient(mock_mode=mock_mode)
         self.graph = self._build_graph()
 
@@ -38,8 +41,19 @@ class N8nSelfReflectionGraph:
         audit_logs = list(state.get("audit_logs", []))
         audit_logs.append(f"Attempt {attempts}: Triggering workflow '{state['workflow_id']}'")
 
-        response: N8nExecutionResponse = self.client.trigger_workflow(
-            workflow_id=state["workflow_id"], payload=state["payload"]
+        with self.tracer.span(
+            "n8n.workflow.trigger",
+            tags={"workflow_id": state["workflow_id"], "attempt": attempts},
+        ):
+            response: N8nExecutionResponse = self.client.trigger_workflow(
+                workflow_id=state["workflow_id"], payload=state["payload"]
+            )
+        self.tracer.inc_counter(
+            "alos_n8n_workflow_attempts_total",
+            labels={
+                "workflow_id": state["workflow_id"],
+                "status": str(response.status_code),
+            },
         )
 
         output: dict[str, Any] = {
@@ -154,5 +168,12 @@ class N8nSelfReflectionGraph:
 
     def run(self, initial_state: N8nTaskState) -> N8nTaskState:
         """Execute the LangGraph autonomous self-reflection loop with initial state."""
-        res: N8nTaskState = cast(N8nTaskState, self.graph.invoke(initial_state))
+        with self.tracer.span(
+            "n8n.self_reflection.run",
+            tags={
+                "task_id": initial_state.get("task_id", ""),
+                "workflow_id": initial_state.get("workflow_id", ""),
+            },
+        ):
+            res: N8nTaskState = cast(N8nTaskState, self.graph.invoke(initial_state))
         return res

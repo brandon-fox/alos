@@ -17,6 +17,7 @@
 * [0011 - Adopt Dual-Repo Open Source Architecture and Public CI CD Pipeline](0011-adopt-dual-repo-open-source-architecture-and-public-ci-cd-pipeline.md)
 * [0012 - Use PyO3 and Maturin for Rust native performance extensions](0012-use-pyo3-and-maturin-for-rust-native-performance-extensions.md)
 * [0013 - Adopt Rust Native Core Engine and Pre-Refactor Test Fortification Architecture](0013-adopt-rust-native-core-engine-and-pre-refactor-test-fortification-architecture.md)
+* [0014 - Adopt Local First Runtime Observability Metrics Tracing And Monitoring](0014-adopt-local-first-runtime-observability-metrics-tracing-and-monitoring.md)
 
 ## Rejected Records
 

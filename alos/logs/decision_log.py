@@ -1,12 +1,17 @@
 """Architectural Decision Record (ADR) decision log writer for ALOS."""
 
+from __future__ import annotations
+
 import json
 import os
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from alos.core.evaluator import RiskLevel
-from alos.schemas.actions import BaseAction
+from alos.logs.telemetry import get_active_span_context
+
+if TYPE_CHECKING:
+    from alos.core.evaluator import RiskLevel
+    from alos.schemas.actions import BaseAction
 
 
 class DecisionLogger:
@@ -55,6 +60,7 @@ class DecisionLogger:
     ) -> dict[str, Any]:
         """Append one structured ADR Decision Log entry."""
         self._counter += 1
+        active_span = get_active_span_context()
         record: dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "decision_id": f"D-{self._counter:03d}",
@@ -68,6 +74,8 @@ class DecisionLogger:
             "corrections_checked": corrections_checked,
             "alternatives_considered": alternatives_considered,
             "self_correction_rounds": self_correction_rounds,
+            "trace_id": active_span.trace_id if active_span else None,
+            "span_id": active_span.span_id if active_span else None,
         }
         with open(self.log_file_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")

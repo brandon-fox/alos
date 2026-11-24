@@ -16,7 +16,7 @@ from alos.schemas.actions import BaseAction, EmailDraft, GoogleCalendarEvent
 
 if TYPE_CHECKING:
     from alos.core.context_assembler import ContextPayload
-    from alos.core.protocols import DecisionLoggerProtocol
+    from alos.core.protocols import DecisionLoggerProtocol, TelemetryProtocol
 
 
 class RiskLevel(str, Enum):
@@ -121,12 +121,15 @@ class EvaluatorNode:
         context: ContextPayload | None = None,
         decision_logger: DecisionLoggerProtocol | None = None,
         trigger: str = "",
+        tracer: TelemetryProtocol | None = None,
     ):
         from alos.core.context_assembler import ContextPayload as CP
+        from alos.logs.telemetry import global_tracer
 
         self.context = context if context is not None else CP()
         self.decision_logger = decision_logger
         self.trigger = trigger
+        self.tracer: TelemetryProtocol = tracer if tracer is not None else global_tracer
         self.risk_classifier = RiskClassifier()
 
     def classify_risk(self, action: BaseAction) -> RiskLevel:
@@ -238,7 +241,15 @@ class EvaluatorNode:
         alternatives_considered: list[str],
         self_correction_rounds: int,
     ) -> None:
-        """Emit one ADR record via DecisionLoggerProtocol if configured."""
+        """Emit one ADR record via DecisionLoggerProtocol and record telemetry counter."""
+        self.tracer.inc_counter(
+            "alos_evaluator_decisions_total",
+            labels={
+                "decision": decision,
+                "risk_level": risk_level.value,
+                "action_type": action.action_type,
+            },
+        )
         if self.decision_logger is not None:
             self.decision_logger.log_decision(
                 trigger=self.trigger,

@@ -1,6 +1,41 @@
 """Abstract protocol interfaces for ALOS core components (SOLID: ISP & DIP)."""
 
+from contextlib import AbstractContextManager
 from typing import Any, Protocol, runtime_checkable
+
+
+@runtime_checkable
+class TelemetryProtocol(Protocol):
+    """Protocol for distributed tracing and runtime metrics collection (SOLID: ISP & DIP)."""
+
+    def span(
+        self,
+        name: str,
+        tags: dict[str, Any] | None = None,
+        traceparent: str | None = None,
+    ) -> AbstractContextManager[Any]:
+        """Trace an execution block with hierarchical span propagation."""
+        ...
+
+    def inc_counter(
+        self, name: str, amount: float = 1.0, labels: dict[str, str] | None = None
+    ) -> float:
+        """Increment a cumulative counter metric."""
+        ...
+
+    def set_gauge(self, name: str, value: float, labels: dict[str, str] | None = None) -> float:
+        """Set a point-in-time gauge metric."""
+        ...
+
+    def observe_histogram(
+        self,
+        name: str,
+        value: float,
+        labels: dict[str, str] | None = None,
+        buckets: tuple[float, ...] | None = None,
+    ) -> Any:
+        """Record an observation in a latency/value histogram."""
+        ...
 
 
 @runtime_checkable
