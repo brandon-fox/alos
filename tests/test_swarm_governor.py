@@ -6,12 +6,14 @@ T3 (Schmitt-trigger thermal hysteresis & anti-thrash), warm linger expiry, and l
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
+from alos.db.session import DatabaseManager
 from alos.swarm.dispatcher import Ollama
 from alos.swarm.governor import (
     ContainerPauser,
@@ -22,6 +24,7 @@ from alos.swarm.governor import (
     ModelSpinner,
     ModelTierSpec,
 )
+from alos.swarm.queue import ComputeRuntimeLoop, StickyEpochQueue, default_prompt_executor
 from alos.swarm.sensors import (
     FaultOverlaySensor,
     ScriptedSensor,
@@ -286,3 +289,60 @@ def test_blocked_process_preemption_and_container_unregister() -> None:
     tr = gov.evaluate(has_queued_work=True)
     assert tr.state == GovernorState.USER_PREEMPTED
     assert cmds == [["docker", "pause", "c-keep"]]
+
+
+@pytest.mark.skipif(
+    os.environ.get("ALOS_LIVE_GPU_TEST") != "1",
+    reason="Live GPU + Ollama spin-down verification runs only when ALOS_LIVE_GPU_TEST=1",
+)
+def test_live_rtx_spindown_and_warm_epoch_execution(tmp_path: Path) -> None:
+    """Live hardware proof: warm qwen2.5-coder:7b on RTX 5080, pull queue job, evict < 2.0s."""
+    spinner = ModelSpinner(port=11436)
+    live = WindowsNativeSensor(
+        ollama_hosts=(spinner.host,),
+        managed_pids_fn=spinner.managed_pids,
+    )
+    overlay = FaultOverlaySensor(live)
+    overlay.inject(user_idle_seconds=600.0, d3d_fullscreen=False)
+
+    db = DatabaseManager(db_url=f"sqlite:///{tmp_path / 'live_gpu.db'}")
+    db.create_all_tables()
+    queue = StickyEpochQueue(db=db)
+    gov = HostGovernor(sensor=overlay, spinner=spinner)
+    loop = ComputeRuntimeLoop(governor=gov, queue=queue)
+
+    try:
+        baseline = overlay.sample()
+        queue.enqueue(
+            job_id="live-rtx-01",
+            repo_slug="alos",
+            workflow_type="smoke",
+            model_tier="fast_coder",
+            payload={"prompt": "Reply with the single word READY.", "max_tokens": 12},
+        )
+        tick = loop.run_once(default_prompt_executor)
+        assert tick.outcome == "completed"
+        assert spinner.active_tier == "fast_coder"
+
+        hot = overlay.sample()
+        assert hot.managed_vram_mb >= 3000, f"Expected model in VRAM, got {hot}"
+
+        # Inject T1 Direct3D fullscreen game launch against live GPU + live Ollama runner!
+        overlay.inject(d3d_fullscreen=True, user_idle_seconds=0.0)
+        preempt = gov.evaluate(has_queued_work=True)
+        assert preempt.state == GovernorState.USER_PREEMPTED
+        assert preempt.eviction is not None
+        assert preempt.eviction.elapsed_s < 2.0, f"Spin-down exceeded 2s: {preempt.eviction}"
+        assert preempt.eviction.remaining_managed_vram_mb <= 128
+
+        cold = overlay.sample()
+        print(
+            f"\n[LIVE RTX PROOF] baseline_used={baseline.used_vram_mb}MiB "
+            f"hot_used={hot.used_vram_mb}MiB (managed={hot.managed_vram_mb}MiB) "
+            f"post_evict_used={cold.used_vram_mb}MiB (managed={cold.managed_vram_mb}MiB) "
+            f"gpu_temp={cold.gpu_temp_c}C evict_elapsed={preempt.eviction.elapsed_s}s"
+        )
+        assert spinner.server_pid is None
+        assert cold.managed_vram_mb == 0
+    finally:
+        spinner.evict_all()
