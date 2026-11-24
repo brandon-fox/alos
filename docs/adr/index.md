@@ -22,6 +22,8 @@
 * [0016 - Evaluate Local Model Gateway Routing Shim vs LiteLLM Proxy](0016-evaluate-local-model-gateway-routing-shim-vs-litellm-proxy.md)
 * [0017 - Adopt Signed CI PR Rebase and Universal Auto Merge](0017-adopt-signed-ci-pr-rebase-and-universal-auto-merge.md)
 * [0018 - Adopt Dual-Mode Portable Wheel and Hardened Container Production Runtime](0018-adopt-dual-mode-portable-wheel-and-hardened-container-production-runtime.md)
+* [0019 - Adopt Ephemeral Port Isolation Parallel Test Orchestration and SQLite Contention Hardening](0019-adopt-ephemeral-port-isolation-parallel-test-orchestration-and-sqlite-contention-hardening.md)
+* [0020 - Adopt Property Fuzzing Differential Native Verification Mutation Testing and Dual OS Coverage Matrix](0020-adopt-property-fuzzing-differential-native-verification-mutation-testing-and-dual-os-coverage-matrix.md)
 
 ## Rejected Records
 
