@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import http.client
 import json
-import urllib.request
 from pathlib import Path
 from typing import Any
 
+import pytest
 from pytest_bdd import given, scenarios, then, when
 
 from alos.core.config import ALOSConfig
@@ -117,7 +118,12 @@ def step_verify_quantiles(bdd_context: dict[str, Any]) -> None:
 
 
 @given("a live ObservabilityServer bound to an ephemeral loopback port")
-def step_start_live_server(bdd_context: dict[str, Any], tmp_vault: Path, tmp_path: Path) -> None:
+def step_start_live_server(
+    bdd_context: dict[str, Any],
+    tmp_vault: Path,
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+) -> None:
     config = ALOSConfig(latency_slo_ms=10.0, error_rate_threshold=0.2)
     tracer = TelemetryTracer()
     monitor = RuntimeMonitor(
@@ -128,9 +134,12 @@ def step_start_live_server(bdd_context: dict[str, Any], tmp_vault: Path, tmp_pat
     )
     server = ObservabilityServer(monitor=monitor, tracer=tracer, host="127.0.0.1", port=0)
     host, port = server.start()
+    assert server.start() == (host, port)
+    request.addfinalizer(server.stop)
     bdd_context["server"] = server
     bdd_context["tracer"] = tracer
-    bdd_context["base_url"] = f"http://{host}:{port}"
+    bdd_context["host"] = host
+    bdd_context["port"] = port
 
 
 @when("runtime spans breach the configured latency SLO threshold")
@@ -142,19 +151,21 @@ def step_breach_slo(bdd_context: dict[str, Any]) -> None:
 
 @then('live HTTP GET requests to "/healthz", "/readyz", "/metrics", and "/traces" succeed')
 def step_fetch_live_endpoints(bdd_context: dict[str, Any]) -> None:
-    base_url: str = bdd_context["base_url"]
-    server: ObservabilityServer = bdd_context["server"]
-    try:
-        with bdd_context["tracer"].span("live_probe_span"):
-            pass
-        responses: dict[str, str] = {}
-        for endpoint in ("/healthz", "/readyz", "/metrics", "/traces"):
-            with urllib.request.urlopen(f"{base_url}{endpoint}", timeout=5) as resp:  # noqa: S310
-                assert resp.status == 200
-                responses[endpoint] = resp.read().decode("utf-8")
-        bdd_context["http_responses"] = responses
-    finally:
-        server.stop()
+    host: str = bdd_context["host"]
+    port: int = bdd_context["port"]
+    with bdd_context["tracer"].span("live_probe_span"):
+        pass
+    responses: dict[str, str] = {}
+    for endpoint in ("/healthz", "/readyz", "/metrics", "/traces"):
+        conn = http.client.HTTPConnection(host, port, timeout=5)
+        try:
+            conn.request("GET", endpoint)
+            resp = conn.getresponse()
+            assert resp.status == 200
+            responses[endpoint] = resp.read().decode("utf-8")
+        finally:
+            conn.close()
+    bdd_context["http_responses"] = responses
 
 
 @then('the "/readyz" health report surfaces a latency SLO alert and runtime process telemetry')

@@ -253,11 +253,11 @@ class TelemetryTracer:
         self, span: SpanContext, status: str = "SUCCESS", error: str | None = None
     ) -> SpanContext:
         """End an active span, record duration histogram, and persist if configured."""
-        span.end_time = time.perf_counter()
-        span.duration_ms = round((span.end_time - span.start_time) * 1000.0, 3)
-        span.status = status
-        span.error = error
         with self._lock:
+            span.end_time = time.perf_counter()
+            span.duration_ms = round((span.end_time - span.start_time) * 1000.0, 3)
+            span.status = status
+            span.error = error
             self._active_count = max(0, self._active_count - 1)
             self._gauges[("alos_active_spans", ())] = float(self._active_count)
             self.observe_histogram(

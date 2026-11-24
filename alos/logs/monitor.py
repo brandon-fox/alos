@@ -244,6 +244,9 @@ class ObservabilityServer:
 
     def start(self) -> tuple[str, int]:
         """Start background HTTP server thread and return bound (host, port)."""
+        if self._httpd is not None:
+            addr = self._httpd.server_address
+            return str(addr[0]), int(addr[1])
         outer = self
 
         class _Handler(BaseHTTPRequestHandler):
