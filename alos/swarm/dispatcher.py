@@ -111,15 +111,29 @@ def gpu_stats() -> tuple[int, int, int] | None:
 
 
 def running_processes() -> str:
-    """Lower-cased process listing on Windows; empty where ``tasklist`` does not exist."""
-    cmd = ["tasklist", "/FO", "CSV", "/NH"]
+    """Lower-cased CSV-quoted process listing across Windows (tasklist) and POSIX (ps)."""
+    if os.name == "nt":
+        cmd = ["tasklist", "/FO", "CSV", "/NH"]
+        try:
+            out = subprocess.run(  # noqa: S603  # nosec B603
+                cmd, capture_output=True, text=True, timeout=15, check=False
+            )
+        except (OSError, subprocess.SubprocessError):
+            return ""
+        return out.stdout.lower()
     try:
-        out = subprocess.run(  # noqa: S603  # nosec B603
-            cmd, capture_output=True, text=True, timeout=15, check=False
+        out = subprocess.run(  # nosec B603 B607
+            ["ps", "-eo", "comm="],  # noqa: S607
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return ""
-    return out.stdout.lower()
+    return "\n".join(
+        f'"{line.strip().lower()}"' for line in out.stdout.splitlines() if line.strip()
+    )
 
 
 def gate(client: Ollama, processes: list[str], vram_mb: int) -> str | None:
@@ -347,6 +361,7 @@ def start_server(port: int, parallel: int) -> tuple[Ollama, subprocess.Popen[byt
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        start_new_session=(os.name != "nt"),
     )
     for _ in range(40):
         with contextlib.suppress(OSError, ValueError):
