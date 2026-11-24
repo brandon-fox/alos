@@ -62,3 +62,13 @@ def step_then_spec037_review(context: Any, expected_state: str) -> None:
     payload = json.loads(res.stdout.strip())
     assert payload["updated"] == 1
     assert payload["target_state"] == expected_state
+
+
+@then("the Spec 037 backlog stage report stages at least 25 jobs across 4 repositories")
+def step_then_spec037_backlog_staged(context: Any) -> None:
+    res: subprocess.CompletedProcess[str] = context.s37_res
+    assert res.returncode == 0, f"CLI failed: {res.stderr}"
+    payload = json.loads(res.stdout.strip())
+    assert payload["staged_new"] >= 25
+    assert len(payload["by_repo"]) == 4
+    assert payload["estimated_minutes"] >= 120.0

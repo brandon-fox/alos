@@ -1,6 +1,6 @@
 # Traceability
 
-> Generated 2026-11-24 by `scripts/traceability.py` from `specs/`, `tests/features/` and `docs/adr/`. Regenerate rather than edit. A feature with no acceptance file is a gap, listed as `none`; 18 of 37 specs have no matched feature file today.
+> Generated 2026-11-24 by `scripts/traceability.py` from `specs/`, `tests/features/` and `docs/adr/`. Regenerate rather than edit. A feature with no acceptance file is a gap, listed as `none`; 18 of 38 specs have no matched feature file today.
 
 A feature file that opens with a comment of the form `# spec: NNN-slug` is matched to that spec outright. Otherwise matching is by shared slug words (two words, or one word of seven or more letters); a row marked `none` may have coverage under a different name. The honest reading is the gap count, not the match count.
 
@@ -42,4 +42,5 @@ A feature file that opens with a comment of the form `# spec: NNN-slug` is match
 | [034-portable-production-runtime](../specs/034-portable-production-runtime/) | yes | yes | yes | [portable_runtime.feature](../features/portable_runtime.feature) | [0018-adopt-dual-mode-portable-wheel-and-](adr/0018-adopt-dual-mode-portable-wheel-and-hardened-container-production-runtime.md) |
 | [035-parallel-testing-and-qa-matrix](../specs/035-parallel-testing-and-qa-matrix/) | yes | yes | yes | [concurrency_and_parity.feature](../features/concurrency_and_parity.feature) | [0020-adopt-property-fuzzing-differential](adr/0020-adopt-property-fuzzing-differential-native-verification-mutation-testing-and-dual-os-coverage-matrix.md) |
 | [036-hexagonal-twelve-factor-refactor](../specs/036-hexagonal-twelve-factor-refactor/) | yes | yes | yes | [10_twelve_factor_config.feature](../tests/features/10_twelve_factor_config.feature) | [0013-adopt-rust-native-core-engine-and-p](adr/0013-adopt-rust-native-core-engine-and-pre-refactor-test-fortification-architecture.md) |
-| [037-backlog-staging-and-burn](../specs/037-backlog-staging-and-burn/) | yes | yes | yes | none | [0025-adopt-multi-repo-backlog-harvester-](adr/0025-adopt-multi-repo-backlog-harvester-active-use-hold-latch-and-artifact-burn-executor.md) |
+| [037-backlog-staging-and-burn](../specs/037-backlog-staging-and-burn/) | yes | yes | yes | [backlog_hold_and_burn.feature](../tests/features/backlog_hold_and_burn.feature) | [0025-adopt-multi-repo-backlog-harvester-](adr/0025-adopt-multi-repo-backlog-harvester-active-use-hold-latch-and-artifact-burn-executor.md) |
+| [038-enterprise-cicd-pipeline](../specs/038-enterprise-cicd-pipeline/) | yes | yes | yes | none | none |

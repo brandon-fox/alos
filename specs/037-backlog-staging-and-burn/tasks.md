@@ -23,10 +23,10 @@
 
 **Goal**: Harvest SpecKit/OpenSpec tasks, actionable GitHub issues, and failing PRs across `alos`, `nectR`, `first-ade`, and `vindicta-specs`, bundle a ~2.6-hour sticky-epoch snapshot, and expose `alos backlog {build,stage,summary}`.
 
-- [ ] T008 [P] [US1] Write failing unit and `@mocked` BDD scenarios for multi-repo SpecKit/OpenSpec/GitHub harvesting, bot-spam filtering, idempotent queue deduplication, and `backlog stage --hold` in `tests/test_multi_repo_backlog.py` and `features/backlog_hold_and_burn.feature`
-- [ ] T009 [US1] Author curated multi-repository backlog bundle (`alos/templates/backlog/personal_repos_backlog.json`) covering `brandon-fox/alos`, `brandon-fox/nectR`, `brandon-fox/first-ade`, and `brandon-fox/vindicta-specs` and register package-data in `pyproject.toml`
-- [ ] T010 [US1] Implement `alos/swarm/backlog.py` (`MultiRepoBacklogBuilder` for bundled + `--live-gh` harvesting, duration estimation, and idempotent hold-gated staging) and wire `alos backlog` CLI in `alos/swarm/queue.py` and `alos/cli.py`
+- [x] T008 [P] [US1] Write failing unit and `@mocked` BDD scenarios for multi-repo SpecKit/OpenSpec/GitHub harvesting, bot-spam filtering, idempotent queue deduplication, and `backlog stage --hold` in `tests/test_multi_repo_backlog.py` and `features/backlog_hold_and_burn.feature`
+- [x] T009 [US1] Author curated multi-repository backlog bundle (`alos/templates/backlog/personal_repos_backlog.json`) covering `brandon-fox/alos`, `brandon-fox/nectR`, `brandon-fox/first-ade`, and `brandon-fox/vindicta-specs` and register package-data in `pyproject.toml`
+- [x] T010 [US1] Implement `alos/swarm/backlog.py` (`MultiRepoBacklogBuilder` for bundled + `--live-gh` harvesting, duration estimation, and idempotent hold-gated staging) and wire `alos backlog` CLI in `alos/swarm/queue.py` and `alos/cli.py`
 
 ## Phase 4: Verification, Traceability & Polish
 
-- [ ] T011 Regenerate `docs/traceability.md` via `scripts/traceability.py`, mark `tasks.md` complete, and verify full `ruff`, `mypy`, `bandit`, `pytest >= 90%`, `behave @mocked`, fuzz, and AST mutation gates
+- [x] T011 Regenerate `docs/traceability.md` via `scripts/traceability.py`, mark `tasks.md` complete, and verify full `ruff`, `mypy`, `bandit`, `pytest >= 90%`, `behave @mocked`, fuzz, and AST mutation gates

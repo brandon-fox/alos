@@ -8,6 +8,7 @@ include = ["alos*"]
 
 [tool.setuptools.package-data]
 "alos.templates.vault" = ["*.md"]
+"alos.templates.backlog" = ["*.json"]
 
 [project]
 name = "alos"
