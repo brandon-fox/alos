@@ -92,3 +92,39 @@ def test_bootstrap_idempotency_doctor_and_heartbeat(tmp_path: Path) -> None:
     saved = json.loads((home / "run" / "health.json").read_text(encoding="utf-8"))
     assert saved["status"] == "running"
     assert saved["active_tier"] == "fast_coder"
+
+
+def test_commit_aware_candidate_selection_steps_down_under_tight_commit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify ModelSpinner skips oversized models when Windows OS commit headroom is tight."""
+    from alos.swarm import governor as gov_mod
+    from alos.swarm.governor import DEFAULT_MODEL_TIERS, ModelSpinner
+
+    spinner = ModelSpinner(port=11493)
+    spec = DEFAULT_MODEL_TIERS["fast_coder"]
+    sizes_mb = {
+        "qwen2.5-coder:7b-instruct": 4480,
+        "qwen2.5-coder:3b": 1840,
+        "qwen2.5-coder:1.5b": 940,
+        "qwen2.5-coder:0.5b": 378,
+    }
+
+    monkeypatch.setattr(gov_mod, "query_win32_free_commit_mb", lambda: 7000)
+    plenty = spinner._select_commit_fitting_candidate(
+        spec, ["qwen2.5-coder:3b", "qwen2.5-coder:1.5b", "qwen2.5-coder:0.5b"], sizes_mb
+    )
+    assert plenty.model == "qwen2.5-coder:7b-instruct"
+
+    monkeypatch.setattr(gov_mod, "query_win32_free_commit_mb", lambda: 2600)
+    medium_q = ["qwen2.5-coder:3b", "qwen2.5-coder:1.5b", "qwen2.5-coder:0.5b"]
+    medium = spinner._select_commit_fitting_candidate(spec, medium_q, sizes_mb)
+    assert medium.model == "qwen2.5-coder:1.5b"
+    assert medium_q == ["qwen2.5-coder:0.5b"]
+
+    monkeypatch.setattr(gov_mod, "query_win32_free_commit_mb", lambda: 900)
+    tight_q = ["qwen2.5-coder:3b", "qwen2.5-coder:1.5b", "qwen2.5-coder:0.5b"]
+    tight = spinner._select_commit_fitting_candidate(spec, tight_q, sizes_mb)
+    assert tight.model == "qwen2.5-coder:0.5b"
+    assert tight.slots == 1
+    assert tight.num_ctx == 2048
