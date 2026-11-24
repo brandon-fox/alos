@@ -1,11 +1,9 @@
 """CrewAI agent crew for synthesizing Obsidian vault notes and knowledge graphs."""
 
-import os
 from typing import Any
 
-import yaml
-
-from alos.crews.config import LocalLLMConfig
+from alos.application.use_cases.crews import CrewConfigLoader
+from alos.crews.config import LocalLLMConfig, build_crew_config_loader
 from alos.crews.tools.evaluator_tool import SafetyEvaluatorTool
 from alos.crews.tools.obsidian_tool import ObsidianVaultTool
 
@@ -14,11 +12,13 @@ class ObsidianGraphSynthesizerCrew:
     """Agents-as-Code crew for mining Obsidian daily notes and updating knowledge graph links."""
 
     def __init__(
-        self, config_dir: str | None = None, llm_config: LocalLLMConfig | None = None
+        self,
+        config_dir: str | None = None,
+        llm_config: LocalLLMConfig | None = None,
+        spec_loader: CrewConfigLoader | None = None,
     ) -> None:
-        self.config_dir = config_dir or os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "config"
-        )
+        self._spec_loader = spec_loader or build_crew_config_loader(config_dir)
+        self.config_dir = str(self._spec_loader.config_dir)
         self.llm_config = llm_config or LocalLLMConfig()
         self.agents_config = self._load_yaml("agents.yaml")
         self.tasks_config = self._load_yaml("tasks.yaml")
@@ -26,11 +26,7 @@ class ObsidianGraphSynthesizerCrew:
         self.safety_tool = SafetyEvaluatorTool()
 
     def _load_yaml(self, filename: str) -> dict[str, Any]:
-        filepath = os.path.join(self.config_dir, filename)
-        if os.path.exists(filepath):
-            with open(filepath, encoding="utf-8") as f:
-                return yaml.safe_load(f) or {}
-        return {}
+        return self._spec_loader.load(filename)
 
     def run(self, vault_dir: str = "vault") -> dict[str, Any]:
         """Execute ObsidianGraphSynthesizerCrew workflow."""
