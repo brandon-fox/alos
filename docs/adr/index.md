@@ -28,6 +28,7 @@
 * [0022 - Standardize Configuration on Pydantic Settings and Domain Data on Frozen Pydantic v2 Models](0022-standardize-configuration-on-pydantic-settings-and-domain-data-on-frozen-pydantic-v2-models.md)
 * [0023 - Enforce SOLID Principles via Composable Policy Registries and Segregated CQRS Ports](0023-enforce-solid-principles-via-composable-policy-registries-and-segregated-cqrs-ports.md)
 * [0024 - Adopt Hexagonal Ports and Adapters Architecture via Strangler-Fig Incremental PRs](0024-adopt-hexagonal-ports-and-adapters-architecture-via-strangler-fig-incremental-prs.md)
+* [0025 - Adopt Multi-Repo Backlog Harvester Active-Use Hold Latch and Artifact Burn Executor](0025-adopt-multi-repo-backlog-harvester-active-use-hold-latch-and-artifact-burn-executor.md)
 
 ## Rejected Records
 
