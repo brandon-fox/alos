@@ -9,7 +9,8 @@ import os
 class ObsidianBrainSynthesizer:
     """Synthesizes and creates daily notes and memory notes within the Obsidian vault."""
 
-    def __init__(self, vault_dir: str):
+    def __init__(self, vault_dir: str) -> None:
+        """Initialize brain synthesizer bound to vault_dir."""
         self.vault_dir = os.path.abspath(vault_dir)
 
     def append_daily_note(self, date_str: str, content: str, tags: list[str] | None = None) -> str:
