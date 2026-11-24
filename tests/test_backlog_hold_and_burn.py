@@ -148,7 +148,7 @@ def test_missing_primary_model_steps_down_and_env_hysteresis(
 def test_artifact_burn_and_worktree_creation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """FR-3705, FR-3706: Burn writes deliverables, optional worktree branches, and sandbox status."""
+    """FR-3705, FR-3706: Burn writes deliverables, optional worktrees, and sandbox status."""
     repo_dir = tmp_path / "sample_repo"
     repo_dir.mkdir()
     for cmd in (
