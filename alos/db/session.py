@@ -72,3 +72,7 @@ class DatabaseManager:
             raise
         finally:
             session.close()
+
+    def dispose(self) -> None:
+        """Dispose underlying SQLAlchemy engine pool and release open connections."""
+        self.engine.dispose()

@@ -21,7 +21,7 @@ from contextvars import ContextVar
 from typing import Any
 
 from opentelemetry import trace as otel_trace
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 TRACEPARENT_RE = re.compile(r"^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$")
 DEFAULT_BUCKETS: tuple[float, ...] = (
@@ -42,6 +42,8 @@ MetricKey = tuple[str, LabelTuple]
 
 class SpanContext(BaseModel):
     """Represents a hierarchical execution span with W3C Trace Context metadata."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     trace_id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     span_id: str
