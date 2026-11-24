@@ -1,4 +1,8 @@
-"""Architectural Decision Record (ADR) decision log writer for ALOS."""
+"""Architectural Decision Record (ADR) decision log writer for ALOS.
+
+Spec: specs/010-audit-and-decision-log/spec.md
+Spec: specs/035-parallel-testing-and-qa-matrix/spec.md (FR-001, FR-007)
+"""
 
 from __future__ import annotations
 
@@ -9,10 +13,21 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from alos.logs.telemetry import get_active_span_context
+from alos.native import get_journal_writer
 
 if TYPE_CHECKING:
     from alos.core.evaluator import RiskLevel
     from alos.schemas.actions import BaseAction
+
+
+def _resolve_default_decision_path() -> str:
+    env_override = os.environ.get("ALOS_DECISION_LOG_PATH")
+    if env_override:
+        return env_override
+    alos_home = os.environ.get("ALOS_HOME")
+    if alos_home:
+        return os.path.join(alos_home, "logs", "decision_log.jsonl")
+    return os.path.join(os.getcwd(), "logs", "decision_log.jsonl")
 
 
 class DecisionLogger:
@@ -38,14 +53,12 @@ class DecisionLogger:
     """
 
     def __init__(self, log_file_path: str | None = None):
-        if log_file_path:
-            self.log_file_path = log_file_path
-        else:
-            self.log_file_path = os.path.join(os.getcwd(), "logs", "decision_log.jsonl")
-
-        os.makedirs(os.path.dirname(self.log_file_path), exist_ok=True)
+        self.log_file_path = log_file_path or _resolve_default_decision_path()
+        parent = os.path.dirname(os.path.abspath(self.log_file_path))
+        os.makedirs(parent, exist_ok=True)
         self._counter = 0
         self._lock = threading.Lock()
+        self._writer = get_journal_writer(self.log_file_path)
 
     def log_decision(
         self,
@@ -80,6 +93,5 @@ class DecisionLogger:
                 "trace_id": active_span.trace_id if active_span else None,
                 "span_id": active_span.span_id if active_span else None,
             }
-            with open(self.log_file_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(record) + "\n")
+        self._writer.append_record(json.dumps(record))
         return record
