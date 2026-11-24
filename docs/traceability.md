@@ -1,6 +1,6 @@
 # Traceability
 
-> Generated 2026-11-24 by `scripts/traceability.ps1` from `specs/`, `tests/features/` and `docs/adr/`. Regenerate rather than edit. A feature with no acceptance file is a gap, listed as `none`; 17 of 34 specs have no matched feature file today.
+> Generated 2026-11-24 by `scripts/traceability.py` from `specs/`, `tests/features/` and `docs/adr/`. Regenerate rather than edit. A feature with no acceptance file is a gap, listed as `none`; 18 of 35 specs have no matched feature file today.
 
 A feature file that opens with a comment of the form `# spec: NNN-slug` is matched to that spec outright. Otherwise matching is by shared slug words (two words, or one word of seven or more letters); a row marked `none` may have coverage under a different name. The honest reading is the gap count, not the match count.
 
@@ -39,4 +39,5 @@ A feature file that opens with a comment of the form `# spec: NNN-slug` is match
 | [031-runtime-observability-monitoring](../specs/031-runtime-observability-monitoring/) | yes | yes | yes | [runtime_observability_monitoring.feature](../tests/features/runtime_observability_monitoring.feature) | [0014-adopt-local-first-runtime-observabi](adr/0014-adopt-local-first-runtime-observability-metrics-tracing-and-monitoring.md) |
 | [032-preemptible-compute-governor](../specs/032-preemptible-compute-governor/) | yes | yes | yes | [preemptible_compute_governor.feature](../tests/features/preemptible_compute_governor.feature) | [0015-adopt-preemptible-host-governor-and](adr/0015-adopt-preemptible-host-governor-and-sticky-model-epoch-queue.md) |
 | [033-automatic-signed-pr-rebase](../specs/033-automatic-signed-pr-rebase/) | yes | yes | yes | [automatic_signed_pr_rebase.feature](../tests/features/automatic_signed_pr_rebase.feature) | [0017-adopt-signed-ci-pr-rebase-and-unive](adr/0017-adopt-signed-ci-pr-rebase-and-universal-auto-merge.md) |
-| [034-portable-production-runtime](../specs/034-portable-production-runtime/) | yes | yes | yes | [runtime_observability_monitoring.feature](../tests/features/runtime_observability_monitoring.feature) | [0018-adopt-dual-mode-portable-wheel-and-](adr/0018-adopt-dual-mode-portable-wheel-and-hardened-container-production-runtime.md) |
+| [034-portable-production-runtime](../specs/034-portable-production-runtime/) | yes | yes | yes | [portable_runtime.feature](../features/portable_runtime.feature) | [0018-adopt-dual-mode-portable-wheel-and-](adr/0018-adopt-dual-mode-portable-wheel-and-hardened-container-production-runtime.md) |
+| [035-parallel-testing-and-qa-matrix](../specs/035-parallel-testing-and-qa-matrix/) | yes | yes | yes | none | [0020-adopt-property-fuzzing-differential](adr/0020-adopt-property-fuzzing-differential-native-verification-mutation-testing-and-dual-os-coverage-matrix.md) |
