@@ -467,3 +467,50 @@ def test_21_scheduler_n8n_and_cli_observability_instrumentation(tmp_path, capsys
     out = capsys.readouterr().out
     assert "HEALTHY" in out or "DEGRADED" in out
     assert "counters" in out
+
+
+def test_22_backlog_hold_gate_and_artifact_burn(tmp_path):
+    """Spec 037 (FR-3701..FR-3707): Hold latch blocks active-desk execution and burn writes artifacts."""
+    from alos.runtime import QueueHoldLatch, RuntimePaths, bootstrap_home, review_jobs
+    from alos.swarm.queue import main as queue_main
+
+    home = tmp_path / "alos_home"
+    boot = bootstrap_home(home=home)
+    paths = RuntimePaths.resolve(home)
+    latch = QueueHoldLatch(paths.hold_file)
+    latch.engage_idle_gate(min_idle_s=300.0, reason="active coding")
+    assert latch.evaluate(user_idle_seconds=15.0).held is True
+
+    assert (
+        queue_main(
+            [
+                "--home",
+                str(home),
+                "--mock",
+                "enqueue",
+                "--id",
+                "sdd-burn-1",
+                "--repo",
+                "brandon-fox/alos",
+                "--workflow",
+                "spec_audit",
+                "--tier",
+                "fast_coder",
+                "--requires-merge",
+                "--prompt",
+                "Audit Spec 037 acceptance invariants",
+            ]
+        )
+        == 0
+    )
+    # Clear latch via resume CLI and execute via burn CLI
+    assert queue_main(["--home", str(home), "--mock", "resume"]) == 0
+    assert queue_main(["--home", str(home), "--mock", "burn", "--max-jobs", "1"]) == 0
+
+    artifact = paths.results_dir / "brandon-fox__alos" / "sdd-burn-1.md"
+    assert artifact.exists()
+    assert (paths.results_dir / "burn_digest.md").exists()
+    rev = review_jobs(db_url=boot["db_url"], repo_slug="brandon-fox/alos", action="approve")
+    assert rev["updated"] == 1
+    assert rev["target_state"] == "succeeded"
+
