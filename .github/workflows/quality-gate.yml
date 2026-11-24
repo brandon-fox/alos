@@ -40,6 +40,7 @@ jobs:
             python:
               - 'alos/**'
               - 'tests/**'
+              - 'features/**'
               - 'pyproject.toml'
               - 'uv.lock'
               - 'alembic/**'
@@ -120,6 +121,8 @@ jobs:
         # The floor sits two points under the 87% measured on main on 2026-11-10. Raise it as
         # coverage rises; never lower it to make a pull request pass.
         run: uv run pytest --cov=alos --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=85
+      - name: Run Mocked Behave BDD Suite
+        run: uv run behave --tags="not @live"
       - name: Upload Coverage Artifact
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
