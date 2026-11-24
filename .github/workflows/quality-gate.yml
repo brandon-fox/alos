@@ -1,6 +1,7 @@
 # This workflow runs a comprehensive parallel quality gate for the ALOS project.
 # It includes path filtering to isolate Python checks from Rust-only changes,
-# optimized uv dependency caching, and open-source ML model weight caching (up to 2GB).
+# dual-OS (ubuntu-latest + windows-latest) execution with combined coverage,
+# and heavy compute fan-out (deep Hypothesis fuzzing + AST mutation testing).
 
 name: Quality Gate
 
@@ -40,6 +41,8 @@ jobs:
             python:
               - 'alos/**'
               - 'tests/**'
+              - 'features/**'
+              - 'scripts/**'
               - 'pyproject.toml'
               - 'uv.lock'
               - 'alembic/**'
@@ -76,9 +79,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
       - name: Ruff Lint
-        run: uv run ruff check alos tests
+        run: uv run ruff check alos tests features scripts
       - name: Ruff Format Check
-        run: uv run ruff format --check alos tests
+        run: uv run ruff format --check alos tests features scripts
 
   mypy-types:
     name: mypy-types
@@ -90,7 +93,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
       - name: MyPy Static Analysis
-        run: uv run mypy alos
+        run: uv run mypy alos tests features scripts
 
   bandit-security:
     name: bandit-security
@@ -116,18 +119,95 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
       - uses: brandon-fox/.github/.github/actions/cache-ml-weights@595a8111464a72b0d27e3e7391dcc713f002a73a # main
-      - name: Run Tests with Coverage
-        # The floor sits two points under the 87% measured on main on 2026-11-10. Raise it as
-        # coverage rises; never lower it to make a pull request pass.
-        run: uv run pytest --cov=alos --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=85
-      - name: Run Behave Mocked BDD Suite
-        run: uv run behave --tags=@mocked --no-capture
-      - name: Upload Coverage Artifact
+      - name: Run Parallel Tests with Branch Coverage (Linux)
+        # Floor raised to 90% from 85% (Spec 035). Never lower to make a PR pass.
+        run: uv run python scripts/run_pytest_clean.py --keep-coverage --cov=alos --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=90
+      - name: Run Parallel Mocked Behave BDD Suite (Linux)
+        run: uv run python scripts/run_behave_parallel.py --tags="@mocked" --junit-xml=reports/behave-linux.xml
+      - name: Upload Linux Coverage Shard
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        with:
+          name: coverage-shard-ubuntu
+          path: |
+            .coverage
+            coverage.xml
+          retention-days: 7
+
+  pytest-windows:
+    name: pytest-windows
+    needs: [changes]
+    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
+      - name: Run Parallel Tests with Branch Coverage (Windows)
+        run: uv run python scripts/run_pytest_clean.py --keep-coverage --cov=alos --cov-report=term-missing --cov-fail-under=90
+      - name: Run Parallel Mocked Behave BDD Suite (Windows)
+        run: uv run python scripts/run_behave_parallel.py --tags="@mocked" --junit-xml=reports/behave-windows.xml
+      - name: Upload Windows Coverage Shard
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        with:
+          name: coverage-shard-windows
+          path: .coverage
+          retention-days: 7
+
+  combined-coverage:
+    name: combined-coverage
+    needs: [pytest-suite, pytest-windows]
+    if: always() && needs.pytest-suite.result == 'success' && needs.pytest-windows.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
+      - name: Download Linux Coverage Shard
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: coverage-shard-ubuntu
+          path: coverage-shards/ubuntu
+      - name: Download Windows Coverage Shard
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: coverage-shard-windows
+          path: coverage-shards/windows
+      - name: Combine Dual-OS Coverage & Enforce >= 90%
+        run: |
+          uv run python -m coverage combine --keep coverage-shards/ubuntu/.coverage coverage-shards/windows/.coverage
+          uv run python -m coverage xml -o coverage-combined.xml
+          uv run python -m coverage report --fail-under=90
+      - name: Upload Combined Coverage Report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
         with:
           name: coverage-report
-          path: coverage.xml
+          path: coverage-combined.xml
+          retention-days: 7
+
+  qa-deep-fanout:
+    name: qa-deep-fanout
+    needs: [changes]
+    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HYPOTHESIS_PROFILE: deep
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
+      - name: Run Deep Hypothesis Fuzz Suites (Offloaded to CI)
+        run: uv run python scripts/run_pytest_clean.py -m fuzz -q
+      - name: Run Python AST Mutation Sweep (Offloaded to CI)
+        run: uv run python scripts/run_python_mutants.py --workers 4 --max-per-file 12 --min-kill-rate 85 --json-report reports/python-mutants.json
+      - name: Upload Mutation Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        with:
+          name: python-mutation-report
+          path: reports/python-mutants.json
           retention-days: 7
 
   adr-governance:
@@ -167,8 +247,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # A pin that is 40 hex characters but names no real commit passes a format check
-          # and fails only when the job runs. Ask GitHub whether each one exists.
           set -euo pipefail
           grep -rhoE 'us[e]s: +[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+@[0-9a-f]{40}' .github/workflows \
             | sed -E 's/^[a-z]+: +//' | sort -u > pins.txt
