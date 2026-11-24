@@ -7,8 +7,10 @@ ADR: docs/adr/0014-adopt-preemptible-host-governor-and-sticky-model-epoch-queue.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
+import signal
 import sys
 import threading
 import time
@@ -19,10 +21,21 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from alos.db.models import ComputeCapacityLedgerModel, ComputeQueueJobModel
 from alos.db.session import DatabaseManager
+from alos.runtime import (
+    DaemonAlreadyRunningError,
+    HealthHeartbeat,
+    RuntimePaths,
+    SingleInstanceLock,
+    bootstrap_home,
+    query_jobs,
+    query_ledger,
+    run_doctor,
+)
 from alos.swarm.dispatcher import Ollama
 from alos.swarm.governor import (
     EvictionReport,
@@ -30,6 +43,8 @@ from alos.swarm.governor import (
     GovernorTransition,
     HostGovernor,
     ModelSpinner,
+    is_embedding_model,
+    is_thermal_throttled,
 )
 from alos.swarm.sensors import (
     ScriptedSensor,
@@ -401,7 +416,9 @@ class ComputeRuntimeLoop:
     governor: HostGovernor
     queue: StickyEpochQueue
     worker_id: str = "alos-local-1"
+    throttled_swap_hold_s: float = 5.0
     _last_linger_refresh: float = field(default=0.0, init=False, repr=False)
+    _throttled_wait_since: float | None = field(default=None, init=False, repr=False)
 
     def _maybe_refresh_linger(self, state: GovernorState) -> None:
         if state != GovernorState.WARM_LINGER:
@@ -411,11 +428,24 @@ class ComputeRuntimeLoop:
             self.governor.spinner.refresh_keep_alive()
             self._last_linger_refresh = now
 
+    def _resolve_tier_filter(self, transition: GovernorTransition) -> str | None:
+        if transition.state != GovernorState.THROTTLED:
+            self._throttled_wait_since = None
+            return None
+        if is_thermal_throttled(transition.snapshot, self.governor.config):
+            return self.governor.spinner.active_tier
+        if (
+            self._throttled_wait_since is not None
+            and (time.monotonic() - self._throttled_wait_since) >= self.throttled_swap_hold_s
+        ):
+            return None
+        return self.governor.spinner.active_tier
+
     def _execute_leased_job(
         self, job: LeasedJob, executor: JobExecutor, pre_transition: GovernorTransition
     ) -> tuple[str, GovernorTransition]:
-        client = self.governor.spinner.ensure_tier(job.model_tier)
         try:
+            client = self.governor.spinner.ensure_tier(job.model_tier)
             result = executor(job, client, self.governor.cancel_event)
         except PreemptedExecutionError as exc:
             self.queue.release_preempted(job.job_id, checkpoint_ns=exc.checkpoint_ns)
@@ -441,17 +471,15 @@ class ComputeRuntimeLoop:
                 transition=transition,
                 active_tier=self.governor.spinner.active_tier,
             )
-        tier_filter = (
-            self.governor.spinner.active_tier
-            if transition.state == GovernorState.THROTTLED
-            else None
-        )
+        tier_filter = self._resolve_tier_filter(transition)
         job = self.queue.lease_next(
             worker_id=self.worker_id,
             active_tier=self.governor.spinner.active_tier,
             allowed_tier_only=tier_filter,
         )
         if job is None:
+            if transition.state == GovernorState.THROTTLED and self._throttled_wait_since is None:
+                self._throttled_wait_since = time.monotonic()
             self._maybe_refresh_linger(transition.state)
             outcome = "throttled_wait" if transition.state == GovernorState.THROTTLED else "starved"
             return LoopTickResult(
@@ -459,6 +487,7 @@ class ComputeRuntimeLoop:
                 transition=transition,
                 active_tier=self.governor.spinner.active_tier,
             )
+        self._throttled_wait_since = None
         outcome, final_transition = self._execute_leased_job(job, executor, transition)
         return LoopTickResult(
             outcome=outcome,
@@ -468,16 +497,49 @@ class ComputeRuntimeLoop:
         )
 
 
+def _execute_embed_prompt(
+    job: LeasedJob, client: Ollama, model: str, cancel_event: threading.Event
+) -> dict[str, Any]:
+    resp = client.call(
+        "/api/embed",
+        {
+            "model": model,
+            "input": str(job.payload.get("prompt", "")),
+            "keep_alive": "10m",
+        },
+        timeout=float(job.payload.get("timeout_s", 60.0)),
+    )
+    if cancel_event.is_set():
+        raise PreemptedExecutionError("cancelled during embedding", job.checkpoint_ns)
+    embeddings = resp.get("embeddings") or []
+    dim = len(embeddings[0]) if embeddings and isinstance(embeddings[0], list) else 0
+    return {
+        "response": f"embedded:{model}:dim={dim}",
+        "model": model,
+        "embedding_dim": dim,
+        "eval_count": resp.get("prompt_eval_count"),
+        "done_reason": "stop",
+    }
+
+
 def default_prompt_executor(
     job: LeasedJob, client: Ollama, cancel_event: threading.Event
 ) -> dict[str, Any]:
-    """Minimal built-in executor running a structured prompt on the warm model tier."""
+    """Minimal built-in executor running a structured prompt or embedding on the warm tier."""
     if cancel_event.is_set():
         raise PreemptedExecutionError("cancelled before generation", job.checkpoint_ns)
-    model = str(job.payload.get("model") or "")
-    if not model:
-        shown = client.call("/api/ps", timeout=5.0).get("models", [])
-        model = str(shown[0]["name"]) if shown else "qwen2.5-coder:7b-instruct"
+    shown = client.call("/api/ps", timeout=5.0).get("models", [])
+    active_entry = shown[0] if shown else {}
+    fallback_default = (
+        "nomic-embed-text:latest" if job.model_tier == "embed" else "qwen2.5-coder:7b-instruct"
+    )
+    model = str(job.payload.get("model") or active_entry.get("name") or fallback_default)
+    if is_embedding_model(model, job.model_tier):
+        return _execute_embed_prompt(job, client, model, cancel_event)
+    opts: dict[str, Any] = {"num_predict": int(job.payload.get("max_tokens", 512))}
+    ctx_len = int(active_entry.get("context_length", 0) or 0)
+    if ctx_len > 0:
+        opts["num_ctx"] = ctx_len
     resp = client.call(
         "/api/generate",
         {
@@ -485,13 +547,18 @@ def default_prompt_executor(
             "prompt": str(job.payload.get("prompt", "Summarize status.")),
             "stream": False,
             "keep_alive": "10m",
-            "options": {"num_predict": int(job.payload.get("max_tokens", 256))},
+            "options": opts,
         },
         timeout=float(job.payload.get("timeout_s", 60.0)),
     )
     if cancel_event.is_set():
         raise PreemptedExecutionError("cancelled during generation", job.checkpoint_ns)
-    return {"response": str(resp.get("response", "")).strip(), "eval_count": resp.get("eval_count")}
+    return {
+        "response": str(resp.get("response", "")).strip(),
+        "model": model,
+        "eval_count": resp.get("eval_count"),
+        "done_reason": resp.get("done_reason"),
+    }
 
 
 class _InMemoryMockSpinner(ModelSpinner):
@@ -531,10 +598,8 @@ def mock_prompt_executor(
     return {"response": f"MOCK_OK:{job.model_tier}:{prompt_text[:32]}", "eval_count": 8}
 
 
-def _default_db_url() -> str:
-    swarm_home = Path(os.environ.get("ALOS_SWARM_HOME", str(Path.home() / "swarm")))
-    swarm_home.mkdir(parents=True, exist_ok=True)
-    return f"sqlite:///{swarm_home / 'compute_queue.db'}"
+def _default_db_url(home: Path | str | None = None) -> str:
+    return RuntimePaths.resolve(home).resolve_db_url()
 
 
 def _build_sensor_from_env(mock_mode: bool, spinner: ModelSpinner) -> SensorProvider:
@@ -571,61 +636,107 @@ def _emit_daemon_event(payload: dict[str, Any]) -> None:
     print(json.dumps(payload), flush=True)
 
 
+@contextlib.contextmanager
+def _managed_stop_signals(stop_event: threading.Event) -> Any:
+    """Register SIGTERM/SIGINT/SIGBREAK handlers on the main thread and restore on exit."""
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    def _on_signal(_signum: int, _frame: Any) -> None:
+        stop_event.set()
+
+    tracked = [signal.SIGINT, signal.SIGTERM]
+    sigbreak = getattr(signal, "SIGBREAK", None)
+    if sigbreak is not None:
+        tracked.append(sigbreak)
+    previous = {sig: signal.getsignal(sig) for sig in tracked}
+    for sig in tracked:
+        signal.signal(sig, _on_signal)
+    try:
+        yield
+    finally:
+        for sig, prev_handler in previous.items():
+            signal.signal(sig, prev_handler)
+
+
+def _daemon_step(
+    loop: ComputeRuntimeLoop,
+    executor: JobExecutor,
+    heartbeat: HealthHeartbeat,
+    ticks: int,
+    last_state: GovernorState | None,
+    last_ledger: float,
+    ledger_interval_s: float,
+) -> tuple[GovernorState, float]:
+    tick = loop.run_once(executor)
+    cur_state = tick.transition.state
+    heartbeat.write("running", cur_state.value, tick.active_tier)
+    if tick.job_id is not None or cur_state != last_state:
+        _emit_daemon_event(
+            {
+                "event": "daemon_tick",
+                "tick": ticks,
+                "outcome": tick.outcome,
+                "state": cur_state.value,
+                "job_id": tick.job_id,
+                "active_tier": tick.active_tier,
+            }
+        )
+    now = time.monotonic()
+    if (now - last_ledger) >= ledger_interval_s or tick.outcome in ("completed", "preempted"):
+        loop.queue.record_ledger_entry(tick.transition, loop.governor.spinner.active_tier)
+        last_ledger = now
+    return cur_state, last_ledger
+
+
 def _run_daemon(
     loop: ComputeRuntimeLoop,
     executor: JobExecutor,
+    paths: RuntimePaths,
     poll_s: float,
     ledger_interval_s: float,
     max_ticks: int | None,
+    stop_event: threading.Event | None = None,
 ) -> int:
-    """Run the standing governor + queue pull loop until interrupted or ``max_ticks``."""
+    """Run the standing governor + queue pull loop with PID locking and SIGTERM safety."""
+    stopper = stop_event or threading.Event()
+    heartbeat = HealthHeartbeat(paths.health_file)
+    try:
+        lock = SingleInstanceLock(paths.lock_file)
+        lock.acquire()
+    except DaemonAlreadyRunningError as exc:
+        _emit_daemon_event({"event": "daemon_locked", "error": str(exc)})
+        return 3
+
     ticks = 0
     last_ledger = time.monotonic()
     initial = loop.governor.evaluate(has_queued_work=loop.queue.has_runnable_work())
     last_state: GovernorState | None = initial.state
+    heartbeat.write("running", initial.state.value, loop.governor.spinner.active_tier)
     _emit_daemon_event({"event": "daemon_started", "state": initial.state.value, "poll_s": poll_s})
     try:
-        while max_ticks is None or ticks < max_ticks:
-            tick = loop.run_once(executor)
-            ticks += 1
-            if tick.job_id is not None or tick.transition.state != last_state:
-                _emit_daemon_event(
-                    {
-                        "event": "daemon_tick",
-                        "tick": ticks,
-                        "outcome": tick.outcome,
-                        "state": tick.transition.state.value,
-                        "job_id": tick.job_id,
-                        "active_tier": tick.active_tier,
-                    }
+        with _managed_stop_signals(stopper):
+            while not stopper.is_set() and (max_ticks is None or ticks < max_ticks):
+                ticks += 1
+                last_state, last_ledger = _daemon_step(
+                    loop, executor, heartbeat, ticks, last_state, last_ledger, ledger_interval_s
                 )
-                last_state = tick.transition.state
-            now = time.monotonic()
-            if (now - last_ledger) >= ledger_interval_s or tick.outcome in (
-                "completed",
-                "preempted",
-            ):
-                loop.queue.record_ledger_entry(tick.transition, loop.governor.spinner.active_tier)
-                last_ledger = now
-            if max_ticks is not None and ticks >= max_ticks:
-                break
-            time.sleep(poll_s)
-    except KeyboardInterrupt:
-        pass
+                if max_ticks is not None and ticks >= max_ticks:
+                    break
+                stopper.wait(timeout=poll_s)
     finally:
         loop.governor.spinner.evict_all(loop.governor.sensor)
+        heartbeat.write("stopped", loop.governor.state.value, None)
+        lock.release()
         _emit_daemon_event({"event": "daemon_stopped", "ticks": ticks})
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
-    """CLI entry point: ``status``, ``enqueue``, ``tick``, or ``daemon``."""
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="ALOS Preemptible Local Compute Governor & Queue")
-    parser.add_argument(
-        "--db-url",
-        default=os.environ.get("ALOS_QUEUE_DB_URL") or _default_db_url(),
-        help="SQLAlchemy database URL (PostgreSQL or SQLite)",
-    )
+    parser.add_argument("--home", default=None, help="Portable ALOS_HOME root directory")
+    parser.add_argument("--db-url", default=None, help="SQLAlchemy database URL override")
     parser.add_argument(
         "--mock",
         action="store_true",
@@ -633,27 +744,121 @@ def main(argv: list[str] | None = None) -> int:
         help="Use deterministic mocked sensor and model spinner instead of live GPU/Ollama",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("bootstrap", help="Initialize ALOS_HOME, vault templates, and DB schema")
+    doc_p = sub.add_parser("doctor", help="Verify runtime, DB, GPU, Ollama, and Docker readiness")
+    doc_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    doc_p.add_argument("--require-ollama", action="store_true", help="Fail if Ollama is offline")
     sub.add_parser("status", help="Sample host sensors and print governor readiness JSON")
-    enq = sub.add_parser("enqueue", help="Enqueue one local compute job")
-    enq.add_argument("--id", required=True, dest="job_id")
-    enq.add_argument("--repo", default="alos")
-    enq.add_argument("--tier", default="fast_coder")
-    enq.add_argument("--prompt", required=True)
+    enq = sub.add_parser("enqueue", help="Enqueue one local compute job or a JSON backlog file")
+    enq.add_argument("--id", default=None, dest="job_id", help="Unique job identifier")
+    enq.add_argument("--repo", default="alos", help="Target repository slug")
+    enq.add_argument("--workflow", default="prompt", help="Workflow category label")
+    enq.add_argument("--tier", default="fast_coder", help="Model capability tier")
+    enq.add_argument("--priority", type=int, default=50, help="Base priority score")
+    enq.add_argument("--requires-merge", action="store_true", help="Count against 3-PR merge cap")
+    enq.add_argument("--allow-cloud-overflow", action="store_true", help="Allow overflow promotion")
+    enq.add_argument("--max-tokens", type=int, default=None, help="Generation token cap")
+    enq.add_argument("--prompt", default=None, help="Prompt or embedding input text")
+    enq.add_argument("--file", default=None, help="Path to JSON array of backlog items")
+    jobs_p = sub.add_parser("jobs", help="Inspect queue jobs filtered by state")
+    jobs_p.add_argument("--state", default=None, help="Optional state filter")
+    jobs_p.add_argument("--limit", type=int, default=25, help="Maximum rows to return")
     tick_p = sub.add_parser("tick", help="Run one governor + queue cycle and print result JSON")
-    tick_p.add_argument(
-        "--keep-warm",
-        action="store_true",
-        help="Keep spawned Ollama runner alive after single tick exits",
-    )
+    tick_p.add_argument("--keep-warm", action="store_true", help="Retain warm runner after tick")
     d_p = sub.add_parser("daemon", help="Run standing governor + queue loop with warm linger")
     d_p.add_argument("--poll-s", type=float, default=1.0)
     d_p.add_argument("--ledger-interval-s", type=float, default=300.0)
     d_p.add_argument("--max-ticks", type=int, default=None)
-    args = parser.parse_args(argv)
+    led_p = sub.add_parser("ledger", help="Inspect recent capacity and thermal ledger rows")
+    led_p.add_argument("--limit", type=int, default=10)
+    return parser
 
+
+def _dispatch_admin_cmd(
+    args: argparse.Namespace, paths: RuntimePaths, db_url: str, mock_mode: bool
+) -> int | None:
+    if args.cmd == "bootstrap":
+        print(json.dumps(bootstrap_home(home=paths.root, db_url=db_url)))
+        return 0
+    if args.cmd == "doctor":
+        report = run_doctor(
+            home=paths.root,
+            db_url=db_url,
+            require_ollama=bool(args.require_ollama),
+            mock=mock_mode,
+        )
+        print(json.dumps(report))
+        return 0 if report["healthy"] else 1
+    if args.cmd == "ledger":
+        print(json.dumps(query_ledger(db_url=db_url, limit=int(args.limit))))
+        return 0
+    if args.cmd == "jobs":
+        print(json.dumps(query_jobs(db_url=db_url, state=args.state, limit=int(args.limit))))
+        return 0
+    return None
+
+
+def _enqueue_batch_file(queue: StickyEpochQueue, file_path: str) -> int:
+    items = json.loads(Path(file_path).read_text(encoding="utf-8"))
+    created: list[str] = []
+    for item in items:
+        job = queue.enqueue(
+            job_id=str(item["job_id"]),
+            repo_slug=str(item.get("repo_slug", "alos")),
+            workflow_type=str(item.get("workflow_type", "prompt")),
+            model_tier=str(item.get("model_tier", "fast_coder")),
+            priority=int(item.get("priority", 50)),
+            requires_merge=bool(item.get("requires_merge", False)),
+            allow_cloud_overflow=bool(item.get("allow_cloud_overflow", False)),
+            payload=dict(item.get("payload") or {}),
+        )
+        created.append(job.job_id)
+    print(json.dumps({"enqueued": len(created), "job_ids": created}))
+    return 0
+
+
+def _run_enqueue_cmd(args: argparse.Namespace, queue: StickyEpochQueue) -> int:
+    try:
+        if args.file:
+            return _enqueue_batch_file(queue, str(args.file))
+        if not args.job_id or args.prompt is None:
+            print(
+                json.dumps({"error": "missing_arguments", "detail": "--id and --prompt required"})
+            )
+            return 2
+        payload: dict[str, Any] = {"prompt": str(args.prompt)}
+        if args.max_tokens is not None:
+            payload["max_tokens"] = int(args.max_tokens)
+        job = queue.enqueue(
+            job_id=str(args.job_id),
+            repo_slug=str(args.repo),
+            workflow_type=str(args.workflow),
+            model_tier=str(args.tier),
+            priority=int(args.priority),
+            requires_merge=bool(args.requires_merge),
+            allow_cloud_overflow=bool(args.allow_cloud_overflow),
+            payload=payload,
+        )
+        print(json.dumps(asdict(job)))
+        return 0
+    except IntegrityError:
+        print(json.dumps({"error": "duplicate_job_id", "job_id": args.job_id}))
+        return 2
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entry point for ALOS compute runtime, governor, queue, and ledger."""
+    args = _build_parser().parse_args(argv)
+    paths = RuntimePaths.resolve(args.home)
+    db_url = paths.resolve_db_url(args.db_url)
     mock_mode = bool(args.mock)
+
+    admin_rc = _dispatch_admin_cmd(args, paths, db_url, mock_mode)
+    if admin_rc is not None:
+        return admin_rc
+
     executor = mock_prompt_executor if mock_mode else default_prompt_executor
-    loop = _build_default_stack(str(args.db_url), mock_mode=mock_mode)
+    loop = _build_default_stack(db_url, mock_mode=mock_mode)
     if args.cmd == "status":
         tr = loop.governor.evaluate(has_queued_work=loop.queue.has_runnable_work())
         print(
@@ -663,19 +868,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     if args.cmd == "enqueue":
-        job = loop.queue.enqueue(
-            job_id=str(args.job_id),
-            repo_slug=str(args.repo),
-            workflow_type="prompt",
-            model_tier=str(args.tier),
-            payload={"prompt": str(args.prompt)},
-        )
-        print(json.dumps(asdict(job)))
-        return 0
+        return _run_enqueue_cmd(args, loop.queue)
     if args.cmd == "daemon":
         return _run_daemon(
             loop,
             executor=executor,
+            paths=paths,
             poll_s=float(args.poll_s),
             ledger_interval_s=float(args.ledger_interval_s),
             max_ticks=args.max_ticks,
