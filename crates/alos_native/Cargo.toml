@@ -17,6 +17,10 @@ regex = "1.10"
 petgraph = "0.6"
 walkdir = "2"
 
+[dev-dependencies]
+proptest = "1.5"
+tempfile = "3.10"
+
 [features]
 # The extension-module feature stops PyO3 from linking libpython, which is right for the
 # importable module and wrong for `cargo test`. Tests run with --no-default-features.

@@ -1,0 +1,15 @@
+# cargo-mutants configuration for crates/alos_native
+# Spec: specs/035-parallel-testing-and-qa-matrix/spec.md (FR-013, NFR-006)
+additional_cargo_args = ["--no-default-features"]
+test_tool = "nextest"
+
+# Thin PyO3 Python<'py> marshaling glue delegates directly to pure-Rust *_raw methods;
+# Python-vs-Rust differential tests exercise the PyO3 glue via maturin in CI.
+exclude_re = [
+    "impl FastBM25Indexer::search$",
+    "impl FastSafetyEvaluator::validate_calendar_preferences$",
+    "impl FastSafetyEvaluator::validate_corrections$",
+    "impl FastAuditJournalWriter::append_record$",
+    "impl PyObsidianNote::frontmatter$",
+    "pymodule",
+]
