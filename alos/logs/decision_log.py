@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -44,6 +45,7 @@ class DecisionLogger:
 
         os.makedirs(os.path.dirname(self.log_file_path), exist_ok=True)
         self._counter = 0
+        self._lock = threading.Lock()
 
     def log_decision(
         self,
@@ -59,24 +61,25 @@ class DecisionLogger:
         self_correction_rounds: int,
     ) -> dict[str, Any]:
         """Append one structured ADR Decision Log entry."""
-        self._counter += 1
         active_span = get_active_span_context()
-        record: dict[str, Any] = {
-            "timestamp": datetime.now().isoformat(),
-            "decision_id": f"D-{self._counter:03d}",
-            "trigger": trigger,
-            "action_type": action.action_type,
-            "risk_level": risk_level.value if hasattr(risk_level, "value") else str(risk_level),
-            "decision": decision,
-            "rationale": rationale,
-            "constitution_articles_checked": constitution_articles_checked,
-            "preferences_checked": preferences_checked,
-            "corrections_checked": corrections_checked,
-            "alternatives_considered": alternatives_considered,
-            "self_correction_rounds": self_correction_rounds,
-            "trace_id": active_span.trace_id if active_span else None,
-            "span_id": active_span.span_id if active_span else None,
-        }
-        with open(self.log_file_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record) + "\n")
+        with self._lock:
+            self._counter += 1
+            record: dict[str, Any] = {
+                "timestamp": datetime.now().isoformat(),
+                "decision_id": f"D-{self._counter:03d}",
+                "trigger": trigger,
+                "action_type": action.action_type,
+                "risk_level": risk_level.value if hasattr(risk_level, "value") else str(risk_level),
+                "decision": decision,
+                "rationale": rationale,
+                "constitution_articles_checked": constitution_articles_checked,
+                "preferences_checked": preferences_checked,
+                "corrections_checked": corrections_checked,
+                "alternatives_considered": alternatives_considered,
+                "self_correction_rounds": self_correction_rounds,
+                "trace_id": active_span.trace_id if active_span else None,
+                "span_id": active_span.span_id if active_span else None,
+            }
+            with open(self.log_file_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record) + "\n")
         return record
