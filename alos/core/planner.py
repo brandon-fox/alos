@@ -1,5 +1,6 @@
 """Planner node and action draft builders for ALOS dual-loop reasoning."""
 
+from alos.application.use_cases.plan_action import PlanActionUseCase
 from alos.core.context_assembler import ContextPayload
 from alos.schemas.actions import BaseAction, GoogleCalendarEvent, TodoistTaskCreate, WebSearchQuery
 
@@ -52,12 +53,5 @@ class PlannerNode:
     def generate_draft_action(
         self, user_query: str, critique_feedback: str | None = None
     ) -> BaseAction:
-        """Generate draft action for user query incorporating any critique feedback."""
-        query_lower = user_query.lower()
-
-        if "meeting" in query_lower or "schedule" in query_lower:
-            return ActionDraftBuilder.build_meeting_action(query_lower, critique_feedback)
-        elif "task" in query_lower or "todoist" in query_lower:
-            return ActionDraftBuilder.build_task_action()
-        else:
-            return ActionDraftBuilder.build_search_action(user_query)
+        """Generate draft action via Ring 2 PlanActionUseCase (Strangler-Fig shim)."""
+        return PlanActionUseCase().execute(user_query, critique_feedback=critique_feedback)

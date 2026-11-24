@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import BaseModel
 
-from alos.schemas.actions import BaseAction, EmailDraft, GoogleCalendarEvent
+from alos.schemas.actions import BaseAction, GoogleCalendarEvent
 
 if TYPE_CHECKING:
     from alos.core.context_assembler import ContextPayload
@@ -59,11 +59,10 @@ class RiskClassifier:
         self._native_evaluator = get_safety_evaluator()
 
     def classify(self, action: BaseAction) -> RiskLevel:
-        """Fail-safe risk classification logic utilizing native engine."""
-        if isinstance(action, EmailDraft):
-            return RiskLevel.HIGH
-        risk_str = self._native_evaluator.classify_risk(action.action_type)
-        return RiskLevel(risk_str)
+        """Delegate fail-safe risk classification to Ring 1 RiskClassificationPolicy."""
+        from alos.domain.services.safety_policy import RiskClassificationPolicy
+
+        return RiskLevel(RiskClassificationPolicy().classify(action).value)
 
 
 class RuleValidator:
@@ -150,40 +149,17 @@ class EvaluatorNode:
         requires_approval = risk_level == RiskLevel.HIGH
         constitution_articles_checked = ["I §1", "V"]
 
-        # Validate calendar preferences
-        valid_pref, pref_critique, pref_checked = RuleValidator.validate_calendar_preferences(
-            action, self.context.preferences
-        )
-        if not valid_pref:
-            result = EvaluationResult(
-                valid=False,
-                critique=pref_critique or "Preference violation",
-                risk_level=risk_level,
-                requires_approval=requires_approval,
-                preferences_checked=pref_checked,
-                corrections_checked=[],
-            )
-            self._emit_decision(
-                action=action,
-                risk_level=risk_level,
-                decision="REJECTED",
-                rationale=result.critique,
-                constitution_articles_checked=constitution_articles_checked,
-                preferences_checked=pref_checked,
-                corrections_checked=[],
-                alternatives_considered=alternatives_considered or [],
-                self_correction_rounds=self_correction_rounds,
-            )
-            return result
+        from alos.domain.models.context import ContextPayload as DomCtx
+        from alos.domain.services.safety_policy import PolicyRuleRegistry
 
-        # Validate corrections ledger
-        valid_corr, corr_critique, corr_checked = RuleValidator.validate_corrections_ledger(
-            action, self.context.corrections
-        )
-        if not valid_corr:
+        dom_ctx = DomCtx(**self.context.model_dump(exclude={"rag_docs"}))
+        res, arts = PolicyRuleRegistry.default().evaluate_detailed(action, dom_ctx)
+        constitution_articles_checked = arts
+        pref_checked, corr_checked = res.preferences_checked, res.corrections_checked
+        if not res.valid:
             result = EvaluationResult(
                 valid=False,
-                critique=corr_critique or "Correction ledger violation",
+                critique=res.critique,
                 risk_level=risk_level,
                 requires_approval=requires_approval,
                 preferences_checked=pref_checked,
@@ -194,7 +170,7 @@ class EvaluatorNode:
                 risk_level=risk_level,
                 decision="REJECTED",
                 rationale=result.critique,
-                constitution_articles_checked=[*constitution_articles_checked, "III §1"],
+                constitution_articles_checked=constitution_articles_checked,
                 preferences_checked=pref_checked,
                 corrections_checked=corr_checked,
                 alternatives_considered=alternatives_considered or [],
