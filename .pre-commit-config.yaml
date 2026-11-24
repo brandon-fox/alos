@@ -56,6 +56,14 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
 
+      - id: pytest-light-unit
+        name: Light Unit & Meta Tests (pre-commit)
+        entry: uv run python scripts/run_pytest_clean.py -m "not docker" --ignore=tests/benchmarks -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
       - id: bandit-check
         name: Security Vulnerability Scan (bandit)
         entry: uv run bandit -r alos -s B101
@@ -66,7 +74,7 @@ repos:
 
       - id: mypy-check
         name: Strict Type Check (mypy)
-        entry: uv run mypy alos
+        entry: uv run mypy alos tests features
         language: system
         types: [python]
         pass_filenames: false
@@ -74,10 +82,18 @@ repos:
 
       - id: pytest-check
         name: Unit Tests & Coverage Gate (pytest)
-        entry: uv run pytest --cov=alos --cov-report=term-missing
+        entry: uv run python scripts/run_pytest_clean.py --cov=alos --cov-report=term-missing
         language: system
         types: [python]
         pass_filenames: false
+        stages: [pre-push]
+
+      - id: behave-bdd-check
+        name: Behave BDD Suite - Mocked & Live (pre-push)
+        entry: uv run behave
+        language: system
+        pass_filenames: false
+        always_run: true
         stages: [pre-push]
 
       - id: sonar-scanner-push
