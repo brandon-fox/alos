@@ -17,7 +17,11 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 
 from alos.swarm.dispatcher import Ollama
-from alos.swarm.sensors import SensorProvider, TelemetrySnapshot
+from alos.swarm.sensors import (
+    SensorProvider,
+    TelemetrySnapshot,
+    query_win32_free_commit_mb,
+)
 
 
 class GovernorState(str, Enum):
@@ -53,6 +57,8 @@ class HysteresisConfig:
 
     foreign_vram_limit_mb: int = 4608
     foreign_vram_recover_mb: int = 3584
+    min_free_commit_mb: int = 512
+    recover_free_commit_mb: int = 896
     preempt_recover_idle_s: float = 300.0
 
     warm_linger_s: float = 600.0
@@ -67,21 +73,60 @@ class ModelTierSpec:
     tier: str
     model: str
     slots: int = 4
-    num_ctx: int = 16384
+    num_ctx: int = 8192
     kv_cache_type: str = "q8_0"
     keep_alive: str = "10m"
+    fallback_models: tuple[str, ...] = ()
 
 
 DEFAULT_MODEL_TIERS: dict[str, ModelTierSpec] = {
     "fast_coder": ModelTierSpec(
-        tier="fast_coder", model="qwen2.5-coder:7b-instruct", slots=4, num_ctx=8192
+        tier="fast_coder",
+        model="qwen2.5-coder:7b-instruct",
+        slots=4,
+        num_ctx=8192,
+        fallback_models=(
+            "qwen2.5-coder:3b",
+            "qwen2.5-coder:1.5b",
+            "qwen2.5-coder:0.5b",
+            "llama3.2:latest",
+        ),
     ),
-    "reasoner": ModelTierSpec(tier="reasoner", model="gemma4:12b", slots=4, num_ctx=8192),
-    "architect": ModelTierSpec(tier="architect", model="qwen3-coder:30b", slots=1, num_ctx=8192),
+    "reasoner": ModelTierSpec(
+        tier="reasoner",
+        model="gemma4:12b",
+        slots=4,
+        num_ctx=8192,
+        fallback_models=(
+            "qwen2.5-coder:7b-instruct",
+            "qwen2.5-coder:3b",
+            "qwen2.5-coder:1.5b",
+            "qwen2.5-coder:0.5b",
+            "llama3.2:latest",
+        ),
+    ),
+    "architect": ModelTierSpec(
+        tier="architect",
+        model="qwen3-coder:30b",
+        slots=1,
+        num_ctx=8192,
+        fallback_models=(
+            "gemma4:12b",
+            "qwen2.5-coder:7b-instruct",
+            "qwen2.5-coder:3b",
+            "qwen2.5-coder:1.5b",
+            "qwen2.5-coder:0.5b",
+        ),
+    ),
     "embed": ModelTierSpec(
         tier="embed", model="nomic-embed-text:latest", slots=4, num_ctx=8192, kv_cache_type="f16"
     ),
 }
+
+
+def is_embedding_model(model_name: str, tier_name: str | None = None) -> bool:
+    """Return True when the tier or Ollama model tag uses ``/api/embed`` instead of generate."""
+    return tier_name == "embed" or "embed" in model_name.lower()
 
 
 @dataclass(frozen=True)
@@ -116,22 +161,30 @@ class GovernorTransition:
 
 
 def is_usage_preempted(snap: TelemetrySnapshot, cfg: HysteresisConfig) -> str | None:
-    """Return preemption reason when gaming, blocked apps, or foreign VRAM cross trip limits."""
+    """Return preemption reason when gaming, blocked apps, VRAM, or OS commit cross limits."""
     if snap.d3d_fullscreen:
         return "Direct3D fullscreen / presentation activity detected"
     if snap.blocked_process:
         return f"blocked process active: {snap.blocked_process}"
     if snap.foreign_vram_mb > cfg.foreign_vram_limit_mb:
         return f"foreign GPU memory {snap.foreign_vram_mb} MiB > {cfg.foreign_vram_limit_mb} MiB"
+    if snap.free_commit_mb is not None:
+        non_managed_free = snap.free_commit_mb + snap.managed_vram_mb
+        if non_managed_free < cfg.min_free_commit_mb:
+            return f"OS commit memory low ({non_managed_free} MiB < {cfg.min_free_commit_mb} MiB)"
     return None
 
 
 def has_usage_recovered(snap: TelemetrySnapshot, cfg: HysteresisConfig) -> bool:
-    """True when gaming/foreign VRAM cleared and user has been idle past recovery window."""
+    """True when gaming/foreign VRAM/commit cleared and user has been idle past recovery window."""
     no_game = not snap.d3d_fullscreen and snap.blocked_process is None
     vram_ok = snap.foreign_vram_mb <= cfg.foreign_vram_recover_mb
+    commit_ok = (
+        snap.free_commit_mb is None
+        or (snap.free_commit_mb + snap.managed_vram_mb) >= cfg.recover_free_commit_mb
+    )
     idle_ok = snap.user_idle_seconds >= cfg.preempt_recover_idle_s
-    return no_game and vram_ok and idle_ok
+    return no_game and vram_ok and commit_ok and idle_ok
 
 
 def is_thermal_cutoff(snap: TelemetrySnapshot, cfg: HysteresisConfig) -> str | None:
@@ -151,6 +204,14 @@ def has_thermal_recovered(snap: TelemetrySnapshot, cfg: HysteresisConfig) -> boo
     vram_ok = snap.vram_temp_c is None or snap.vram_temp_c <= cfg.vram_recover_c
     cpu_ok = snap.cpu_temp_c is None or snap.cpu_temp_c <= cfg.cpu_recover_c
     return gpu_ok and vram_ok and cpu_ok
+
+
+def is_thermal_throttled(snap: TelemetrySnapshot, cfg: HysteresisConfig) -> bool:
+    """True when elevated GPU, VRAM, or CPU temperatures trigger thermal throttling."""
+    gpu_hot = snap.gpu_temp_c is not None and snap.gpu_temp_c >= cfg.gpu_throttle_c
+    vram_hot = snap.vram_temp_c is not None and snap.vram_temp_c >= cfg.vram_throttle_c
+    cpu_hot = snap.cpu_temp_c is not None and snap.cpu_temp_c >= cfg.cpu_throttle_c
+    return gpu_hot or vram_hot or cpu_hot
 
 
 def is_throttled(snap: TelemetrySnapshot, cfg: HysteresisConfig) -> str | None:
@@ -315,28 +376,90 @@ class ModelSpinner:
             or self._active_spec.kv_cache_type != spec.kv_cache_type
         )
 
+    @staticmethod
+    def _is_oom_failure(detail: str) -> bool:
+        low = detail.lower()
+        markers = ("out of memory", "cudamalloc", "mem_buffer", "0xc0000409", "failed to allocate")
+        return any(m in low for m in markers)
+
     def _warm_model(self, client: Ollama, spec: ModelTierSpec) -> str | None:
-        """Warm ``spec.model`` in VRAM; return OOM error text if CUDA allocation failed."""
+        """Warm ``spec.model`` and its prompt buffer in VRAM; return OOM detail on failure."""
         try:
+            if is_embedding_model(spec.model, spec.tier):
+                client.call(
+                    "/api/embed",
+                    {"model": spec.model, "input": "ok", "keep_alive": spec.keep_alive},
+                    timeout=60.0,
+                )
+                return None
             client.call(
                 "/api/generate",
                 {
                     "model": spec.model,
-                    "prompt": "",
+                    "prompt": "ok",
+                    "stream": False,
                     "keep_alive": spec.keep_alive,
-                    "options": {"num_ctx": spec.num_ctx},
+                    "options": {"num_ctx": spec.num_ctx, "num_predict": 1},
                 },
                 timeout=60.0,
             )
             return None
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
-            if "out of memory" in detail.lower() or "cudamalloc" in detail.lower():
+            if self._is_oom_failure(detail):
                 return detail
             raise RuntimeError(f"Ollama warm-load HTTP {exc.code}: {detail}") from exc
 
+    def _query_stock_model_sizes_mb(self) -> dict[str, int]:
+        with contextlib.suppress(OSError, ValueError):
+            tags = Ollama(self.stock_host).call("/api/tags", timeout=1.5).get("models", [])
+            return {
+                str(m.get("name", "")): int(m.get("size", 0)) // (1024 * 1024)
+                for m in tags
+                if m.get("name")
+            }
+        return {}
+
+    def _select_commit_fitting_candidate(
+        self,
+        spec: ModelTierSpec,
+        fallback_queue: list[str],
+        sizes_mb: Mapping[str, int],
+    ) -> ModelTierSpec:
+        free_mb = query_win32_free_commit_mb()
+        primary_mb = sizes_mb.get(spec.model)
+        if free_mb is None or primary_mb is None or primary_mb + 1800 <= free_mb:
+            return spec
+        chosen = spec.model
+        while fallback_queue:
+            chosen = fallback_queue.pop(0)
+            if sizes_mb.get(chosen, 0) + 1500 <= free_mb:
+                return replace(spec, model=chosen, slots=min(spec.slots, 2), num_ctx=4096)
+        return replace(spec, model=chosen, slots=1, num_ctx=2048)
+
+    def _prepare_candidates(self, spec: ModelTierSpec) -> tuple[ModelTierSpec, list[str]]:
+        if not spec.fallback_models:
+            return spec, []
+        sizes_mb = self._query_stock_model_sizes_mb()
+        fallback_queue = [m for m in spec.fallback_models if m in sizes_mb]
+        if not fallback_queue:
+            return spec, []
+        return self._select_commit_fitting_candidate(spec, fallback_queue, sizes_mb), fallback_queue
+
+    def _next_degraded_spec(
+        self, candidate: ModelTierSpec, fallback_queue: list[str]
+    ) -> ModelTierSpec | None:
+        if candidate.slots > 1:
+            return replace(candidate, slots=max(1, candidate.slots // 2))
+        if candidate.num_ctx > 2048:
+            return replace(candidate, num_ctx=max(2048, candidate.num_ctx // 2))
+        if fallback_queue:
+            next_model = fallback_queue.pop(0)
+            return replace(candidate, model=next_model, slots=2, num_ctx=4096)
+        return None
+
     def _start_and_warm(self, spec: ModelTierSpec, warm_load: bool) -> tuple[Ollama, ModelTierSpec]:
-        candidate = spec
+        candidate, fallback_queue = self._prepare_candidates(spec)
         while True:
             if self._needs_server_restart(candidate):
                 self._stop_process_tree()
@@ -348,21 +471,30 @@ class ModelSpinner:
             oom_detail = self._warm_model(client, candidate)
             if oom_detail is None:
                 return client, candidate
-            if candidate.slots <= 1:
-                self._stop_process_tree()
-                raise RuntimeError(f"Ollama CUDA OOM even at 1 slot: {oom_detail}")
-            candidate = replace(candidate, slots=max(1, candidate.slots // 2))
+            degraded = self._next_degraded_spec(candidate, fallback_queue)
             self._stop_process_tree()
+            if degraded is None:
+                raise RuntimeError(f"Ollama CUDA OOM even at 1 slot: {oom_detail}")
+            candidate = degraded
 
     def ensure_tier(self, tier_name: str, warm_load: bool = True) -> Ollama:
         """Ensure ``tier_name`` is serving on our managed port and pre-warmed in VRAM."""
         spec = self.tiers.get(tier_name)
         if spec is None:
             raise KeyError(f"unknown model tier {tier_name!r}")
+        if (
+            self._active_spec is not None
+            and self._active_spec.tier == tier_name
+            and self._proc is not None
+            and self._proc.poll() is None
+        ):
+            return Ollama(self.host)
         if self._active_spec is None:
             self._unload_stock_server()
-        elif self._active_spec.model != spec.model:
+        else:
             self._request_unload(Ollama(self.host), self._active_spec.model)
+            self._stop_process_tree()
+            self._active_spec = None
         client, effective_spec = self._start_and_warm(spec, warm_load)
         self._active_spec = effective_spec
         return client
@@ -371,19 +503,23 @@ class ModelSpinner:
         """Extend the loaded model's warm lease during ``WARM_LINGER``."""
         if self._active_spec is None:
             return False
+        endpoint = (
+            "/api/embed"
+            if is_embedding_model(self._active_spec.model, self._active_spec.tier)
+            else "/api/generate"
+        )
+        body: dict[str, str] = {"model": self._active_spec.model, "keep_alive": "10m"}
+        body["input" if endpoint == "/api/embed" else "prompt"] = ""
         with contextlib.suppress(OSError, ValueError):
-            Ollama(self.host).call(
-                "/api/generate",
-                {"model": self._active_spec.model, "prompt": "", "keep_alive": "10m"},
-                timeout=5.0,
-            )
+            Ollama(self.host).call(endpoint, body, timeout=5.0)
             return True
         return False
 
     def _request_unload(self, client: Ollama, model_name: str) -> bool:
+        endpoint = "/api/embed" if is_embedding_model(model_name) else "/api/generate"
         with contextlib.suppress(OSError, ValueError):
             client.call(
-                "/api/generate",
+                endpoint,
                 {"model": model_name, "keep_alive": 0},
                 timeout=self.evict_grace_s,
             )
