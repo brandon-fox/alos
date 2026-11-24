@@ -1,19 +1,9 @@
 """Integration client for n8n API workflows and webhook triggers."""
 
-from dataclasses import dataclass, field
 from typing import Any
 
 from alos.core.config import ALOSConfig
-
-
-@dataclass
-class N8nExecutionResponse:
-    """Response object returned by N8nClient execution or polling operations."""
-
-    status_code: int
-    data: dict[str, Any] = field(default_factory=dict)
-    execution_id: str | None = None
-    error: str | None = None
+from alos.domain.models.workflow import N8nExecutionResponse
 
 
 class N8nClient:
