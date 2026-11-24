@@ -49,7 +49,7 @@ def test_spec_directory_structure_and_adr_links() -> None:
             if not file_path.exists():
                 errors.append(f"Spec directory '{dir_name}' is missing required file '{req_file}'.")
 
-        # 3. ADR Link verification
+        # 3. ADR Link & FR-XXX requirement verification
         spec_md = d / "spec.md"
         if spec_md.exists():
             content = spec_md.read_text(encoding="utf-8")
@@ -63,3 +63,22 @@ def test_spec_directory_structure_and_adr_links() -> None:
                     )
 
     assert not errors, "SpecKit adherence validation failed:\n" + "\n".join(errors)
+
+
+@pytest.mark.meta
+def test_cross_platform_traceability_generator() -> None:
+    """FR-010: Verify cross-platform Python traceability generator scans specs & FR-XXX IDs."""
+    import importlib.util
+
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    script_path = repo_root / "scripts" / "traceability.py"
+    spec = importlib.util.spec_from_file_location("traceability_mod", script_path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    markdown, stats = mod.generate_traceability(repo_root)
+    assert stats["specs"] >= 35
+    assert stats["frs"] >= 50
+    assert "035-parallel-testing-and-qa-matrix" in markdown
+    assert "concurrency_and_parity.feature" in markdown
