@@ -53,6 +53,9 @@ dev = [
     "pytest-bdd>=7.0.0",
     "twine>=5.0.0",
     "behave>=1.2.6",
+    "pytest-xdist>=3.8.0",
+    "pytest-timeout>=2.4.0",
+    "hypothesis>=6.150.0",
 ]
 
 [dependency-groups]
@@ -71,6 +74,10 @@ markers = [
     "docker: Starts real containers; runs only when ALOS_SANDBOX_IMAGE names a local image",
     "mocked: Deterministic mocked BDD and integration scenarios",
     "live: Live local runtime, socket, and HTTP endpoint BDD scenarios",
+    "linux_only: Contract tests targeting Linux /proc and POSIX process groups",
+    "windows_only: Contract tests targeting Windows native Win32/NVML APIs",
+    "fuzz: Property-based and stateful Hypothesis fuzzing suite",
+    "contention: Multi-thread and multi-process concurrency contention stress suite",
 ]
 
 [tool.ruff]

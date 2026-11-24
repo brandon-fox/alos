@@ -9,6 +9,7 @@ from typing import Any
 from behave import given, then, when
 
 from alos.db.session import DatabaseManager
+from alos.runtime import allocate_free_port
 from alos.swarm.dispatcher import Ollama
 from alos.swarm.governor import (
     ContainerPauser,
@@ -36,7 +37,7 @@ class _StepClock:
 
 class _SpySpinner(ModelSpinner):
     def __init__(self, initial_tier: str | None = "fast_coder") -> None:
-        super().__init__(port=11496)
+        super().__init__(port=allocate_free_port())
         self.evict_calls = 0
         self._tier = initial_tier
 
@@ -61,7 +62,7 @@ class _OomBackoffSpinner(ModelSpinner):
 
     def __init__(self, initial_slots: int, max_working_slots: int) -> None:
         super().__init__(
-            port=11495,
+            port=allocate_free_port(),
             tiers={
                 "fast_coder": ModelTierSpec(
                     tier="fast_coder", model="qwen2.5-coder:7b-instruct", slots=initial_slots
@@ -216,8 +217,8 @@ def step_assert_evicted_once(context: Any) -> None:
     assert context.spinner.active_tier is None
 
 
-@given("a live dummy child process attached to a ModelSpinner on port {port:d}")
-def step_given_dummy_child(context: Any, port: int) -> None:
+@given("a live dummy child process attached to a ModelSpinner on an ephemeral port")
+def step_given_dummy_child(context: Any) -> None:
     proc = subprocess.Popen(
         [sys.executable, "-c", "import time; time.sleep(60)"],
         stdout=subprocess.DEVNULL,
@@ -225,10 +226,10 @@ def step_given_dummy_child(context: Any, port: int) -> None:
     )
     context.child_procs.append(proc)
     spinner = ModelSpinner(
-        port=port,
-        stock_host="http://127.0.0.1:11498",
+        port=allocate_free_port(),
+        stock_host=f"http://127.0.0.1:{allocate_free_port()}",
         tiers={"fast_coder": ModelTierSpec(tier="fast_coder", model="dummy:7b")},
-        evict_grace_s=0.3,
+        evict_grace_s=0.15,
     )
     spinner._proc = proc
     spinner._active_spec = spinner.tiers["fast_coder"]

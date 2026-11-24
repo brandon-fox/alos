@@ -12,7 +12,13 @@ from typing import Any
 
 from behave import given, then, when
 
-from alos.runtime import RuntimePaths, SingleInstanceLock, bootstrap_home, run_doctor
+from alos.runtime import (
+    RuntimePaths,
+    SingleInstanceLock,
+    allocate_free_port,
+    bootstrap_home,
+    run_doctor,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -141,7 +147,7 @@ def step_then_doctor_healthy(context: Any) -> None:
 def step_when_doctor_unreachable(context: Any) -> None:
     context.offline_doc = run_doctor(
         home=context.portable_home,
-        ollama_host="http://127.0.0.1:11491",
+        ollama_host=f"http://127.0.0.1:{allocate_free_port()}",
         require_ollama=True,
         mock=False,
     )
@@ -268,7 +274,7 @@ def step_when_installed_enqueue_and_tick(context: Any, job_id: str) -> None:
 def step_then_installed_completed(context: Any, job_id: str) -> None:
     assert context.bin_tick.returncode == 0, context.bin_tick.stderr
     payload = json.loads(context.bin_tick.stdout.strip())
-    assert payload["outcome"] == "completed", f"Unexpected tick payload: {payload}"
+    assert payload["outcome"] == "completed"
     assert payload["job_id"] == job_id
     assert (context.ext_home / "queue" / "compute_queue.db").exists()
 

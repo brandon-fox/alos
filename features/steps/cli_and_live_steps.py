@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 
 from alos.db.models import ComputeCapacityLedgerModel, ComputeQueueJobModel
 from alos.db.session import DatabaseManager
+from alos.runtime import allocate_free_port
 from alos.swarm.governor import GovernorState, HostGovernor, ModelSpinner
 from alos.swarm.queue import ComputeRuntimeLoop, StickyEpochQueue, default_prompt_executor
 from alos.swarm.sensors import FaultOverlaySensor, WindowsNativeSensor
@@ -158,9 +159,9 @@ def step_then_live_response_saved(context: Any, job_id: str) -> None:
         assert len(str(row.result_json.get("response", "")).strip()) > 0
 
 
-@given("a live HostGovernor and ComputeRuntimeLoop on port {port:d}")
-def step_given_live_governor_loop(context: Any, port: int) -> None:
-    spinner = ModelSpinner(port=port)
+@given("a live HostGovernor and ComputeRuntimeLoop on an ephemeral port")
+def step_given_live_governor_loop(context: Any) -> None:
+    spinner = ModelSpinner(port=allocate_free_port())
     context.live_spinners.append(spinner)
     live_sensor = WindowsNativeSensor(
         ollama_hosts=(spinner.host,),

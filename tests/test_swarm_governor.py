@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from alos.db.session import DatabaseManager
+from alos.runtime import allocate_free_port
 from alos.swarm.dispatcher import Ollama
 from alos.swarm.governor import (
     ContainerPauser,
@@ -52,7 +53,7 @@ class FakeSpinner(ModelSpinner):
     """Test spinner tracking evictions without launching an external binary."""
 
     def __init__(self) -> None:
-        super().__init__(port=11439)
+        super().__init__(port=allocate_free_port())
         self.evict_calls = 0
         self._fake_tier: str | None = "fast_coder"
 
@@ -125,10 +126,10 @@ def test_t2_hung_runner_process_tree_killed_on_eviction() -> None:
     )
     try:
         spinner = ModelSpinner(
-            port=11499,
-            stock_host="http://127.0.0.1:11498",
+            port=allocate_free_port(),
+            stock_host=f"http://127.0.0.1:{allocate_free_port()}",
             tiers={"fast_coder": ModelTierSpec(tier="fast_coder", model="dummy:7b")},
-            evict_grace_s=0.3,
+            evict_grace_s=0.15,
         )
         spinner._proc = dummy_proc
         spinner._active_spec = spinner.tiers["fast_coder"]
@@ -231,7 +232,7 @@ def test_fault_overlay_and_cpu_temp_bridge_and_live_nvml(tmp_path: Path) -> None
 class _StubBackoffSpinner(ModelSpinner):
     def __init__(self, initial_slots: int, max_ok_slots: int) -> None:
         super().__init__(
-            port=11494,
+            port=allocate_free_port(),
             tiers={"fast_coder": ModelTierSpec("fast_coder", "dummy:7b", slots=initial_slots)},
         )
         self.max_ok_slots = max_ok_slots
@@ -297,7 +298,7 @@ def test_blocked_process_preemption_and_container_unregister() -> None:
 )
 def test_live_rtx_spindown_and_warm_epoch_execution(tmp_path: Path) -> None:
     """Live hardware proof: warm qwen2.5-coder:7b on RTX 5080, pull queue job, evict < 2.0s."""
-    spinner = ModelSpinner(port=11436)
+    spinner = ModelSpinner(port=allocate_free_port())
     live = WindowsNativeSensor(
         ollama_hosts=(spinner.host,),
         managed_pids_fn=spinner.managed_pids,
