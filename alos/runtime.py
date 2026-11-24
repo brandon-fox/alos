@@ -546,29 +546,15 @@ class QueueHoldLatch:
         """Check whether execution must stay held or auto-arm after hands-off idle expiry."""
         data = self.read()
         if data is None:
-            return HoldStatus(held=False, outcome="open", mode=None, reason="")
-        mode = str(data.get("mode", "manual"))
-        reason = str(data.get("reason", "queue held"))
+            return HoldStatus(False, "open", None, "")
+        mode, reason = str(data.get("mode", "manual")), str(data.get("reason", "queue held"))
         min_idle = float(data.get("min_idle_s", 0.0))
         if mode == "manual":
-            return HoldStatus(held=True, outcome="held", mode="manual", reason=reason)
-        activity_clear = not d3d_fullscreen and blocked_process is None
-        if activity_clear and user_idle_seconds >= min_idle:
+            return HoldStatus(True, "held", "manual", reason)
+        if not d3d_fullscreen and blocked_process is None and user_idle_seconds >= min_idle:
             self.clear()
-            return HoldStatus(
-                held=False,
-                outcome="armed_from_idle",
-                mode=None,
-                reason="idle threshold satisfied",
-                min_idle_s=min_idle,
-            )
-        return HoldStatus(
-            held=True,
-            outcome="held_user_active",
-            mode="idle_gate",
-            reason=reason,
-            min_idle_s=min_idle,
-        )
+            return HoldStatus(False, "armed_from_idle", None, "idle threshold satisfied", min_idle)
+        return HoldStatus(True, "held_user_active", "idle_gate", reason, min_idle)
 
 
 def review_jobs(
