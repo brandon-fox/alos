@@ -6,6 +6,9 @@ build-backend = "setuptools.build_meta"
 where = ["."]
 include = ["alos*"]
 
+[tool.setuptools.package-data]
+"alos.templates.vault" = ["*.md"]
+
 [project]
 name = "alos"
 version = "0.1.0"
@@ -29,6 +32,12 @@ dependencies = [
     "langchain-core>=1.5.5",
     "crewai>=0.80.0",
 ]
+
+[project.scripts]
+alos = "alos.cli:main"
+alos-governor = "alos.swarm.queue:main"
+alos-dispatcher = "alos.swarm.dispatcher:main"
+alos-sandbox = "alos.swarm.sandbox:main"
 
 [project.optional-dependencies]
 dev = [

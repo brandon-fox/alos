@@ -1,6 +1,6 @@
 # Traceability
 
-> Generated 2026-11-18 by `scripts/traceability.ps1` from `specs/`, `tests/features/` and `docs/adr/`. Regenerate rather than edit. A feature with no acceptance file is a gap, listed as `none`; 18 of 30 specs have no matched feature file today.
+> Generated 2026-11-23 by `scripts/traceability.ps1` from `specs/`, `tests/features/` and `docs/adr/`. Regenerate rather than edit. A feature with no acceptance file is a gap, listed as `none`; 17 of 32 specs have no matched feature file today.
 
 A feature file that opens with a comment of the form `# spec: NNN-slug` is matched to that spec outright. Otherwise matching is by shared slug words (two words, or one word of seven or more letters); a row marked `none` may have coverage under a different name. The honest reading is the gap count, not the match count.
 
@@ -20,7 +20,7 @@ A feature file that opens with a comment of the form `# spec: NNN-slug` is match
 | [012-postgres-orm-migrations](../specs/012-postgres-orm-migrations/) | yes | yes | yes | [07_postgres_orm_migrations.feature](../tests/features/07_postgres_orm_migrations.feature) | [0007-adopt-sqlalchemy-orm-and-alembic-fo](adr/0007-adopt-sqlalchemy-orm-and-alembic-for-postgresql-data-models-and-migrations.md) |
 | [013-obsidian-vault-brain-integration](../specs/013-obsidian-vault-brain-integration/) | yes | yes | yes | [08_obsidian_vault_brain.feature](../tests/features/08_obsidian_vault_brain.feature) | [0003-adopt-local-obsidian-vault-and-vect](adr/0003-adopt-local-obsidian-vault-and-vector-store-for-memory-rag.md) |
 | [014-langgraph-n8n-self-reflection](../specs/014-langgraph-n8n-self-reflection/) | yes | yes | yes | [langgraph_n8n_loop.feature](../tests/features/langgraph_n8n_loop.feature) | [0010-adopt-langgraph-for-autonomous-self](adr/0010-adopt-langgraph-for-autonomous-self-reflection-loops-over-n8n-workflows.md) |
-| [015-core-frameworks-and-runtime](../specs/015-core-frameworks-and-runtime/) | yes | yes | yes | none | none |
+| [015-core-frameworks-and-runtime](../specs/015-core-frameworks-and-runtime/) | yes | yes | yes | [portable_runtime.feature](../features/portable_runtime.feature) | none |
 | [016-database-and-orm-evolution](../specs/016-database-and-orm-evolution/) | yes | yes | yes | none | none |
 | [017-vector-store-and-rag-pipeline](../specs/017-vector-store-and-rag-pipeline/) | yes | yes | yes | none | [0003-adopt-local-obsidian-vault-and-vect](adr/0003-adopt-local-obsidian-vault-and-vector-store-for-memory-rag.md) |
 | [018-agent-orchestration-and-state-graphs](../specs/018-agent-orchestration-and-state-graphs/) | yes | yes | yes | none | none |
@@ -36,3 +36,5 @@ A feature file that opens with a comment of the form `# spec: NNN-slug` is match
 | [028-enforce-fixed-action-hashes](../specs/028-enforce-fixed-action-hashes/) | yes | yes | yes | [enforce_fixed_action_hashes.feature](../tests/features/enforce_fixed_action_hashes.feature) | none |
 | [029-local-swarm-dispatcher](../specs/029-local-swarm-dispatcher/) | yes | yes | yes | none | none |
 | [030-swarm-test-sandbox](../specs/030-swarm-test-sandbox/) | yes | yes | yes | none | none |
+| [031-preemptible-compute-governor](../specs/031-preemptible-compute-governor/) | yes | yes | yes | [preemptible_compute_governor.feature](../tests/features/preemptible_compute_governor.feature) | [0014-adopt-preemptible-host-governor-and](adr/0014-adopt-preemptible-host-governor-and-sticky-model-epoch-queue.md) |
+| [032-portable-production-runtime](../specs/032-portable-production-runtime/) | yes | yes | yes | [portable_runtime.feature](../features/portable_runtime.feature) | [0016-adopt-dual-mode-portable-wheel-and-](adr/0016-adopt-dual-mode-portable-wheel-and-hardened-container-production-runtime.md) |
