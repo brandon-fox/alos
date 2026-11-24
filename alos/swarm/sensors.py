@@ -42,6 +42,7 @@ class TelemetrySnapshot:
     total_vram_mb: int = 0
     used_vram_mb: int = 0
     managed_vram_mb: int = 0
+    free_commit_mb: int | None = None
     compute_pids: tuple[int, ...] = ()
     d3d_fullscreen: bool = False
     user_idle_seconds: float = 3600.0
@@ -95,6 +96,20 @@ class _NvmlFieldValue(ctypes.Structure):
 
 class _LastInputInfo(ctypes.Structure):
     _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
+
+
+class _MemoryStatusEx(ctypes.Structure):
+    _fields_ = [
+        ("dwLength", ctypes.c_ulong),
+        ("dwMemoryLoad", ctypes.c_ulong),
+        ("ullTotalPhys", ctypes.c_ulonglong),
+        ("ullAvailPhys", ctypes.c_ulonglong),
+        ("ullTotalPageFile", ctypes.c_ulonglong),
+        ("ullAvailPageFile", ctypes.c_ulonglong),
+        ("ullTotalVirtual", ctypes.c_ulonglong),
+        ("ullAvailVirtual", ctypes.c_ulonglong),
+        ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+    ]
 
 
 def _load_nvml_library() -> Any | None:
@@ -236,6 +251,20 @@ def query_win32_d3d_fullscreen() -> bool:
     return False
 
 
+def query_win32_free_commit_mb() -> int | None:
+    """Return available Windows OS virtual commit headroom (RAM + pagefile) in MiB."""
+    if sys.platform != "win32":
+        return None
+    win = getattr(ctypes, "windll", None)
+    if win is None:
+        return None
+    mem = _MemoryStatusEx(dwLength=ctypes.sizeof(_MemoryStatusEx))
+    with contextlib.suppress(AttributeError, OSError):
+        if win.kernel32.GlobalMemoryStatusEx(ctypes.byref(mem)):
+            return int(mem.ullAvailPageFile // BYTES_PER_MIB)
+    return None
+
+
 def query_ollama_vram_mb(hosts: Sequence[str]) -> int:
     """Sum ``size_vram`` across our managed Ollama endpoints in MiB."""
     total_bytes = 0
@@ -297,6 +326,7 @@ class WindowsNativeSensor:
             total_vram_mb=total_mb,
             used_vram_mb=used_mb,
             managed_vram_mb=min(used_mb, managed_mb) if used_mb else managed_mb,
+            free_commit_mb=query_win32_free_commit_mb(),
             compute_pids=tuple(sorted(compute_procs)),
             d3d_fullscreen=query_win32_d3d_fullscreen(),
             user_idle_seconds=query_win32_idle_seconds(),
