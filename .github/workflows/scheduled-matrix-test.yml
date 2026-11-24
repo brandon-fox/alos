@@ -15,12 +15,15 @@ permissions:
 
 jobs:
   matrix-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest]
         python-version: ['3.11', '3.12', '3.13']
+    env:
+      HYPOTHESIS_PROFILE: deep
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -30,8 +33,19 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Run tests
-        run: uv run pytest
+      - name: Run Parallel Pytest & Deep Hypothesis Fuzzing
+        run: uv run python scripts/run_pytest_clean.py --keep-coverage --cov=alos --cov-report=term-missing --cov-fail-under=90
+
+      - name: Run Parallel Mocked Behave Suite
+        run: uv run python scripts/run_behave_parallel.py --tags="@mocked"
+
+      - name: Upload Matrix Coverage Shard
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        with:
+          name: matrix-cov-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: .coverage
+          retention-days: 7
 
       - name: Create issue on failure
         if: failure()
@@ -42,7 +56,7 @@ jobs:
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `🐍 Python Compatibility Failure: ${{ matrix.python-version }} (${date})`,
-              body: `The automated matrix tests failed for Python ${{ matrix.python-version }}. Please check the workflow run for more details:\n\n${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              title: `Python/OS Matrix Failure: ${{ matrix.os }} / Python ${{ matrix.python-version }} (${date})`,
+              body: `The automated dual-OS matrix tests failed on ${{ matrix.os }} (Python ${{ matrix.python-version }}). Please check the workflow run for more details:\n\n${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
               labels: ['compatibility', 'automated']
             });

@@ -143,3 +143,30 @@ override-dependencies = [
     "chromadb>=1.5.0",
     "python-slugify>=8.0.0",
 ]
+
+[tool.coverage.run]
+branch = true
+parallel = true
+sigterm = true
+source = ["alos"]
+
+[tool.coverage.paths]
+source = [
+    "alos/",
+    "/home/runner/work/alos/alos/alos/",
+    "D:\\a\\alos\\alos\\alos\\",
+    "C:\\Users\\*\\*\\alos\\",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+
+[tool.mutmut]
+paths_to_mutate = "alos/core/evaluator.py,alos/core/graph.py,alos/swarm/governor.py,alos/swarm/queue.py,alos/swarm/sandbox.py,alos/runtime.py"
+tests_dir = "tests/"
+runner = "python -m pytest -p no:xdist -p no:cov -x -q -m 'not docker and not live'"
