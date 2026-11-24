@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from pathlib import Path
 
 import pytest
 
+from alos.cli import main as alos_cli_main
 from alos.runtime import (
     DaemonAlreadyRunningError,
     HealthHeartbeat,
@@ -18,8 +20,10 @@ from alos.runtime import (
     SingleInstanceLock,
     bootstrap_home,
     is_pid_alive,
+    query_ledger,
     run_doctor,
 )
+from alos.swarm.queue import _build_default_stack, _run_daemon, mock_prompt_executor
 
 
 def test_runtime_paths_and_db_url_resolution(
@@ -94,6 +98,78 @@ def test_bootstrap_idempotency_doctor_and_heartbeat(tmp_path: Path) -> None:
     assert saved["active_tier"] == "fast_coder"
 
 
+def test_daemon_stop_event_lock_contention_and_unified_cli(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Verify graceful stop_event shutdown, lock exit code 3, ledger query, and unified alos CLI."""
+    home = tmp_path / "cli_home"
+    paths = RuntimePaths.resolve(home)
+    db_url = paths.resolve_db_url()
+
+    with pytest.raises(SystemExit) as b_exc:
+        alos_cli_main(["--home", str(home), "--mock", "bootstrap"])
+    assert b_exc.value.code == 0
+
+    with pytest.raises(SystemExit) as d_exc:
+        alos_cli_main(["--home", str(home), "--mock", "doctor", "--json"])
+    assert d_exc.value.code == 0
+
+    with pytest.raises(SystemExit) as e_exc:
+        alos_cli_main(
+            [
+                "--home",
+                str(home),
+                "--mock",
+                "enqueue",
+                "--id",
+                "p-1",
+                "--prompt",
+                "portable check",
+            ]
+        )
+    assert e_exc.value.code == 0
+
+    # Stop event wakes daemon cleanly and writes stopped health.json
+    loop = _build_default_stack(db_url, mock_mode=True)
+    stopper = threading.Event()
+    threading.Timer(0.05, stopper.set).start()
+    rc = _run_daemon(
+        loop,
+        executor=mock_prompt_executor,
+        paths=paths,
+        poll_s=5.0,
+        ledger_interval_s=1.0,
+        max_ticks=None,
+        stop_event=stopper,
+    )
+    assert rc == 0
+    health = json.loads(paths.health_file.read_text(encoding="utf-8"))
+    assert health["status"] == "stopped"
+    assert len(query_ledger(db_url, limit=5)) >= 1
+
+    # Duplicate daemon while lock is held exits with code 3
+    with SingleInstanceLock(paths.lock_file):
+        rc_locked = _run_daemon(
+            loop,
+            executor=mock_prompt_executor,
+            paths=paths,
+            poll_s=0.1,
+            ledger_interval_s=10.0,
+            max_ticks=1,
+        )
+        assert rc_locked == 3
+
+    with pytest.raises(SystemExit) as l_exc:
+        alos_cli_main(["--home", str(home), "--mock", "ledger", "--limit", "3"])
+    assert l_exc.value.code == 0
+    _ = capsys.readouterr()
+
+    # Shorthand direct query delegates to dual-loop reasoning graph
+    alos_cli_main(["Plan focus time tomorrow", "--vault", str(paths.vault_dir)])
+    out = capsys.readouterr().out
+    assert "final_status" in out or "query" in out
+
+
 def test_commit_aware_candidate_selection_steps_down_under_tight_commit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -128,3 +204,72 @@ def test_commit_aware_candidate_selection_steps_down_under_tight_commit(
     assert tight.model == "qwen2.5-coder:0.5b"
     assert tight.slots == 1
     assert tight.num_ctx == 2048
+
+
+def test_backlog_bug_regressions_ensure_tier_fail_batch_cli_and_jobs(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Regression suite for bugs discovered during the 10-item live backlog burn-down."""
+    home = tmp_path / "reg_home"
+    paths = RuntimePaths.resolve(home)
+    db_url = paths.resolve_db_url()
+
+    # BUG-005: `alos --help` lists runtime/governor commands
+    with pytest.raises(SystemExit) as h_exc:
+        alos_cli_main(["--help"])
+    assert h_exc.value.code == 0
+    help_out = capsys.readouterr().out
+    for cmd in ("bootstrap", "doctor", "status", "enqueue", "jobs", "daemon", "ledger"):
+        assert cmd in help_out
+
+    # BUG-007: batch `--file` backlog loader + `alos jobs` inspection
+    batch_file = tmp_path / "batch.json"
+    batch_file.write_text(
+        json.dumps(
+            [
+                {
+                    "job_id": "b-1",
+                    "repo_slug": "alos",
+                    "workflow_type": "bugfix",
+                    "model_tier": "fast_coder",
+                    "priority": 75,
+                    "requires_merge": True,
+                    "payload": {"prompt": "batch item 1"},
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(SystemExit) as bf_exc:
+        alos_cli_main(["--home", str(home), "--mock", "enqueue", "--file", str(batch_file)])
+    assert bf_exc.value.code == 0
+    _ = capsys.readouterr()
+
+    # BUG-006: duplicate `--id` returns exit code 2 with JSON error instead of raw traceback
+    with pytest.raises(SystemExit) as dup_exc:
+        alos_cli_main(
+            ["--home", str(home), "--mock", "enqueue", "--id", "b-1", "--prompt", "duplicate"]
+        )
+    assert dup_exc.value.code == 2
+    dup_out = json.loads(capsys.readouterr().out.strip())
+    assert dup_out["error"] == "duplicate_job_id"
+
+    with pytest.raises(SystemExit) as j_exc:
+        alos_cli_main(["--home", str(home), "--mock", "jobs", "--state", "queued"])
+    assert j_exc.value.code == 0
+    jobs_list = json.loads(capsys.readouterr().out.strip())
+    assert len(jobs_list) == 1 and jobs_list[0]["job_id"] == "b-1"
+
+    # BUG-001: ensure_tier exception marks job failed instead of crashing daemon or orphaning lease
+    loop = _build_default_stack(db_url, mock_mode=True)
+    loop.queue.enqueue(
+        "bad-tier-1",
+        "alos",
+        "probe",
+        "nonexistent_tier",
+        priority=99,
+        payload={"prompt": "x"},
+    )
+    tick = loop.run_once(mock_prompt_executor)
+    assert tick.outcome == "failed"
+    assert tick.job_id == "bad-tier-1"
