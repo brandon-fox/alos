@@ -1,0 +1,395 @@
+"""Portable production runtime layout, single-instance locking, health probes, and bootstrap.
+
+Spec: specs/034-portable-production-runtime/spec.md (FR-001 through FR-005)
+ADR: docs/adr/0018-adopt-dual-mode-portable-wheel-and-hardened-container-production-runtime.md
+"""
+
+from __future__ import annotations
+
+import contextlib
+import ctypes
+import importlib.resources
+import json
+import os
+import shutil
+import sys
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from types import TracebackType
+from typing import Any
+
+from sqlalchemy import select, text
+
+from alos.db.models import ComputeCapacityLedgerModel, ComputeQueueJobModel
+from alos.db.session import DatabaseManager
+from alos.swarm.dispatcher import DEFAULT_HOST, Ollama
+from alos.swarm.governor import DEFAULT_MODEL_TIERS
+from alos.swarm.sensors import WindowsNativeSensor, query_win32_free_commit_mb
+
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+STILL_ACTIVE = 259
+VAULT_TEMPLATE_FILES = ("USER_PROFILE.md", "PREFERENCES.md", "CORRECTION_LEDGER.md")
+DEFAULT_ENV_TEMPLATE = """# ALOS Portable Runtime Configuration
+# Override ALOS_QUEUE_DB_URL to switch from local SQLite to PostgreSQL:
+# ALOS_QUEUE_DB_URL=postgresql+psycopg://postgres:postgres@localhost:5432/alos
+ALOS_MOCK_MODE=false
+ALOS_SWARM_OLLAMA=http://127.0.0.1:11434
+"""
+
+
+class DaemonAlreadyRunningError(RuntimeError):
+    """Raised when another live ALOS governor daemon holds the runtime lockfile."""
+
+
+@dataclass(frozen=True)
+class RuntimePaths:
+    """Self-contained directory layout under ``ALOS_HOME`` for portable/container execution."""
+
+    root: Path
+
+    @classmethod
+    def resolve(cls, home: Path | str | None = None) -> RuntimePaths:
+        """Resolve ``ALOS_HOME`` from explicit path, env vars, or ``~/.alos``."""
+        if home is not None:
+            return cls(root=Path(home).expanduser().resolve())
+        env_home = os.environ.get("ALOS_HOME") or os.environ.get("ALOS_SWARM_HOME")
+        target = Path(env_home) if env_home else (Path.home() / ".alos")
+        return cls(root=target.expanduser().resolve())
+
+    @property
+    def vault_dir(self) -> Path:
+        return self.root / "vault"
+
+    @property
+    def queue_dir(self) -> Path:
+        return self.root / "queue"
+
+    @property
+    def logs_dir(self) -> Path:
+        return self.root / "logs"
+
+    @property
+    def run_dir(self) -> Path:
+        return self.root / "run"
+
+    @property
+    def env_file(self) -> Path:
+        return self.root / "alos.env"
+
+    @property
+    def lock_file(self) -> Path:
+        return self.run_dir / "governor.lock"
+
+    @property
+    def health_file(self) -> Path:
+        return self.run_dir / "health.json"
+
+    @property
+    def sqlite_db_path(self) -> Path:
+        return self.queue_dir / "compute_queue.db"
+
+    def resolve_db_url(self, explicit_url: str | None = None) -> str:
+        """Return explicit DB URL, ``ALOS_QUEUE_DB_URL`` env override, or portable SQLite URL."""
+        if explicit_url:
+            return explicit_url
+        env_url = os.environ.get("ALOS_QUEUE_DB_URL")
+        if env_url:
+            return env_url
+        self.queue_dir.mkdir(parents=True, exist_ok=True)
+        return f"sqlite:///{self.sqlite_db_path.as_posix()}"
+
+
+def _is_windows_pid_alive(pid: int) -> bool:
+    win = getattr(ctypes, "windll", None)
+    if win is None:
+        return False
+    handle = win.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
+    if not handle:
+        return False
+    try:
+        exit_code = ctypes.c_ulong(0)
+        if not win.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+            return False
+        return int(exit_code.value) == STILL_ACTIVE
+    finally:
+        win.kernel32.CloseHandle(handle)
+
+
+def is_pid_alive(pid: int) -> bool:
+    """Return True when ``pid`` refers to a currently running OS process."""
+    if pid <= 0:
+        return False
+    if sys.platform == "win32":
+        return _is_windows_pid_alive(pid)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+class SingleInstanceLock:
+    """Exclusive PID lockfile preventing split-brain duplicate governor daemons."""
+
+    def __init__(self, lock_path: Path) -> None:
+        self.lock_path = lock_path
+        self._acquired = False
+
+    def _read_holder_pid(self) -> int:
+        with contextlib.suppress(OSError, ValueError, KeyError):
+            data = json.loads(self.lock_path.read_text(encoding="utf-8"))
+            return int(data.get("pid", 0))
+        return 0
+
+    def _try_atomic_create(self) -> bool:
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+        try:
+            fd = os.open(str(self.lock_path), flags, 0o600)
+        except FileExistsError:
+            return False
+        payload = {
+            "pid": os.getpid(),
+            "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle)
+        self._acquired = True
+        return True
+
+    def acquire(self) -> None:
+        """Acquire exclusive lock or reclaim stale lock left by a dead process."""
+        if self._try_atomic_create():
+            return
+        holder = self._read_holder_pid()
+        if is_pid_alive(holder):
+            raise DaemonAlreadyRunningError(
+                f"ALOS governor daemon is already running (PID {holder}, lock: {self.lock_path})"
+            )
+        with contextlib.suppress(OSError):
+            self.lock_path.unlink()
+        if not self._try_atomic_create():
+            raise DaemonAlreadyRunningError(f"Could not acquire daemon lock at {self.lock_path}")
+
+    def release(self) -> None:
+        """Remove lockfile if owned by this instance."""
+        if not self._acquired:
+            return
+        self._acquired = False
+        with contextlib.suppress(OSError):
+            self.lock_path.unlink()
+
+    def __enter__(self) -> SingleInstanceLock:
+        self.acquire()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.release()
+
+
+class HealthHeartbeat:
+    """Writes atomic ``run/health.json`` snapshots for container healthchecks and monitors."""
+
+    def __init__(self, health_path: Path) -> None:
+        self.health_path = health_path
+
+    def write(self, status: str, governor_state: str, active_tier: str | None = None) -> Path:
+        """Atomically persist health JSON via temporary sibling rename."""
+        self.health_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "status": status,
+            "governor_state": governor_state,
+            "active_tier": active_tier,
+            "pid": os.getpid(),
+            "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
+        tmp = self.health_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        tmp.replace(self.health_path)
+        return self.health_path
+
+
+def _seed_vault_templates(vault_dir: Path) -> list[str]:
+    vault_dir.mkdir(parents=True, exist_ok=True)
+    seeded: list[str] = []
+    pkg_files = importlib.resources.files("alos.templates.vault")
+    for name in VAULT_TEMPLATE_FILES:
+        dest = vault_dir / name
+        if dest.exists():
+            continue
+        content = pkg_files.joinpath(name).read_text(encoding="utf-8")
+        dest.write_text(content, encoding="utf-8")
+        seeded.append(name)
+    return seeded
+
+
+def bootstrap_home(home: Path | str | None = None, db_url: str | None = None) -> dict[str, Any]:
+    """Initialize portable ``ALOS_HOME`` directories, vault templates, env file, and DB schema."""
+    paths = RuntimePaths.resolve(home)
+    for directory in (paths.vault_dir, paths.queue_dir, paths.logs_dir, paths.run_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+    seeded = _seed_vault_templates(paths.vault_dir)
+    if not paths.env_file.exists():
+        paths.env_file.write_text(DEFAULT_ENV_TEMPLATE, encoding="utf-8")
+    resolved_db = paths.resolve_db_url(db_url)
+    db = DatabaseManager(db_url=resolved_db)
+    db.create_all_tables()
+    return {
+        "status": "bootstrapped",
+        "home": str(paths.root),
+        "vault_dir": str(paths.vault_dir),
+        "db_url": resolved_db,
+        "seeded_vault_files": seeded,
+        "tables_ready": True,
+    }
+
+
+def _probe_database(db_url: str) -> dict[str, Any]:
+    try:
+        db = DatabaseManager(db_url=db_url)
+        with db.engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"ok": True, "url": db_url}
+    except Exception as exc:
+        return {"ok": False, "url": db_url, "error": str(exc)}
+
+
+def _probe_ollama(ollama_host: str, mock: bool) -> dict[str, Any]:
+    if mock:
+        return {
+            "ok": True,
+            "host": ollama_host,
+            "installed_models": [spec.model for spec in DEFAULT_MODEL_TIERS.values()],
+            "missing_tier_models": [],
+        }
+    try:
+        tags = Ollama(ollama_host).call("/api/tags", timeout=1.5)
+        installed = sorted({str(m.get("name", "")) for m in tags.get("models", [])})
+        wanted = {spec.model for spec in DEFAULT_MODEL_TIERS.values()}
+        missing = sorted(wanted - set(installed))
+        return {
+            "ok": True,
+            "host": ollama_host,
+            "installed_models": installed,
+            "missing_tier_models": missing,
+        }
+    except (OSError, ValueError) as exc:
+        return {"ok": False, "host": ollama_host, "error": str(exc), "missing_tier_models": []}
+
+
+def _probe_home_writable(paths: RuntimePaths) -> dict[str, Any]:
+    try:
+        paths.run_dir.mkdir(parents=True, exist_ok=True)
+        probe = paths.run_dir / ".write_probe"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        return {"ok": True, "path": str(paths.root)}
+    except OSError as exc:
+        return {"ok": False, "path": str(paths.root), "error": str(exc)}
+
+
+def run_doctor(
+    home: Path | str | None = None,
+    db_url: str | None = None,
+    ollama_host: str | None = None,
+    require_ollama: bool = False,
+    mock: bool = False,
+) -> dict[str, Any]:
+    """Run production preflight checks across filesystem, DB, vault, GPU, Ollama, and Docker."""
+    paths = RuntimePaths.resolve(home)
+    resolved_db = paths.resolve_db_url(db_url)
+    host = ollama_host or os.environ.get("ALOS_SWARM_OLLAMA", DEFAULT_HOST)
+
+    home_check = _probe_home_writable(paths)
+    db_check = _probe_database(resolved_db)
+    vault_present = (paths.vault_dir / "USER_PROFILE.md").exists() or Path(
+        "vault/USER_PROFILE.md"
+    ).exists()
+    nvml_ok = True if mock else WindowsNativeSensor(ollama_hosts=()).nvml_available
+    free_commit = 16384 if mock else query_win32_free_commit_mb()
+    ollama_check = _probe_ollama(host, mock=mock)
+    docker_ok = True if mock else (shutil.which("docker") is not None)
+
+    healthy = bool(home_check["ok"]) and bool(db_check["ok"])
+    if require_ollama and not ollama_check["ok"]:
+        healthy = False
+    return {
+        "healthy": healthy,
+        "home": str(paths.root),
+        "checks": {
+            "home_writable": home_check,
+            "database": db_check,
+            "vault_seeded": {"ok": vault_present, "vault_dir": str(paths.vault_dir)},
+            "gpu_nvml": {"available": nvml_ok},
+            "commit_memory": {
+                "free_mb": free_commit,
+                "low_headroom_warning": free_commit is not None and free_commit < 8192,
+            },
+            "ollama": ollama_check,
+            "docker_cli": {"available": docker_ok},
+        },
+    }
+
+
+def query_ledger(db_url: str, limit: int = 10) -> list[dict[str, Any]]:
+    """Return the most recent ``limit`` capacity & thermal ledger entries."""
+    db = DatabaseManager(db_url=db_url)
+    db.create_all_tables()
+    with db.get_session() as session:
+        stmt = (
+            select(ComputeCapacityLedgerModel)
+            .order_by(ComputeCapacityLedgerModel.id.desc())
+            .limit(max(1, limit))
+        )
+        rows = list(session.scalars(stmt))
+        return [
+            {
+                "id": r.id,
+                "recorded_at": r.recorded_at.isoformat() if r.recorded_at else None,
+                "governor_state": r.governor_state,
+                "active_tier": r.active_tier,
+                "gpu_temp_c": r.gpu_temp_c,
+                "used_vram_mb": r.used_vram_mb,
+                "managed_vram_mb": r.managed_vram_mb,
+                "jobs_waiting": r.jobs_waiting,
+                "jobs_done_delta": r.jobs_done_delta,
+                "jobs_preempted_delta": r.jobs_preempted_delta,
+                "oldest_wait_seconds": r.oldest_wait_seconds,
+            }
+            for r in rows
+        ]
+
+
+def query_jobs(db_url: str, state: str | None = None, limit: int = 25) -> list[dict[str, Any]]:
+    """Return queue jobs ordered by update timestamp, optionally filtered by ``state``."""
+    db = DatabaseManager(db_url=db_url)
+    db.create_all_tables()
+    with db.get_session() as session:
+        stmt = select(ComputeQueueJobModel).order_by(ComputeQueueJobModel.updated_at.desc())
+        if state:
+            stmt = stmt.where(ComputeQueueJobModel.state == state)
+        rows = list(session.scalars(stmt.limit(max(1, limit))))
+        return [
+            {
+                "job_id": r.job_id,
+                "repo_slug": r.repo_slug,
+                "workflow_type": r.workflow_type,
+                "model_tier": r.model_tier,
+                "priority": r.priority,
+                "requires_merge": r.requires_merge,
+                "state": r.state,
+                "attempts": r.attempts,
+                "last_error": r.last_error,
+                "result": r.result_json,
+                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+            }
+            for r in rows
+        ]
