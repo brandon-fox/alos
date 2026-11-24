@@ -21,6 +21,7 @@
 * [0015 - Adopt Preemptible Host Governor and Sticky Model-Epoch Queue](0015-adopt-preemptible-host-governor-and-sticky-model-epoch-queue.md)
 * [0016 - Evaluate Local Model Gateway Routing Shim vs LiteLLM Proxy](0016-evaluate-local-model-gateway-routing-shim-vs-litellm-proxy.md)
 * [0017 - Adopt Signed CI PR Rebase and Universal Auto Merge](0017-adopt-signed-ci-pr-rebase-and-universal-auto-merge.md)
+* [0018 - Adopt Dual-Mode Portable Wheel and Hardened Container Production Runtime](0018-adopt-dual-mode-portable-wheel-and-hardened-container-production-runtime.md)
 
 ## Rejected Records
 
