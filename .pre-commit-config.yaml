@@ -89,8 +89,8 @@ repos:
         stages: [pre-push]
 
       - id: behave-bdd-check
-        name: Behave BDD Suite - Mocked & Live (pre-push)
-        entry: uv run behave
+        name: Behave BDD Suite - Parallel Mocked & Serialized Live (pre-push)
+        entry: uv run python scripts/run_behave_parallel.py --profile full
         language: system
         pass_filenames: false
         always_run: true

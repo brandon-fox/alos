@@ -7,6 +7,7 @@ Constitution: Article VII (Code Quality, Exception Documentation & Sonar Scan Go
 from __future__ import annotations
 
 import ast
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
@@ -50,6 +51,7 @@ def compute_function_complexity(node: ast.FunctionDef | ast.AsyncFunctionDef) ->
     return visitor.complexity
 
 
+@lru_cache(maxsize=256)
 def analyze_file_ast(file_path: Path) -> list[tuple[str, int]]:
     """Parse Python source file into AST and analyze function complexity."""
     content = file_path.read_text(encoding="utf-8")
