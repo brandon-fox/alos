@@ -1,7 +1,11 @@
-"""CrewAI local LLM configuration and privacy telemetry control."""
+"""CrewAI local LLM configuration and runtime-scoped privacy telemetry control."""
+
+from __future__ import annotations
 
 import os
 from typing import Any
+
+from alos.config.settings import ALOSSettings
 
 
 def disable_crewai_telemetry() -> None:
@@ -10,23 +14,22 @@ def disable_crewai_telemetry() -> None:
     os.environ["OTEL_SDK_DISABLED"] = "true"
 
 
-# Disable telemetry immediately on module import
-disable_crewai_telemetry()
-
-
 class LocalLLMConfig:
     """Configuration helper for 100% local Ollama/LiteLLM execution in ALOS."""
 
     def __init__(
         self,
-        model: str = "ollama/qwen2.5-coder:32b",
-        base_url: str = "http://localhost:11434",
-        fallback_model: str = "ollama/llama3.1:8b",
+        model: str | None = None,
+        base_url: str | None = None,
+        fallback_model: str | None = None,
         is_mock: bool = False,
     ) -> None:
-        self.model = model
-        self.base_url = base_url
-        self.fallback_model = fallback_model
+        # Enforce Factor III: opt out of CrewAI telemetry at instantiation, never on import.
+        disable_crewai_telemetry()
+        settings = ALOSSettings()
+        self.model = model or settings.ollama_model
+        self.base_url = base_url or settings.ollama_base_url
+        self.fallback_model = fallback_model or settings.ollama_fallback_model
         self.is_mock = is_mock
 
     def get_llm_kwargs(self) -> dict[str, Any]:
@@ -44,5 +47,5 @@ class LocalLLMConfig:
             "base_url": self.base_url,
             "fallback_model": self.fallback_model,
             "is_mock": self.is_mock,
-            "telemetry_disabled": os.getenv("CREWAI_TELEMETRY_OPT_OUT") == "true",
+            "telemetry_disabled": ALOSSettings().crewai_telemetry_opt_out,
         }

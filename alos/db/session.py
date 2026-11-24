@@ -1,11 +1,11 @@
 """Database session management and connection pooling for ALOS engine.
 
 Spec: specs/035-parallel-testing-and-qa-matrix/spec.md (FR-006)
+Spec: specs/036-hexagonal-twelve-factor-refactor/spec.md (FR-3602)
 """
 
 from __future__ import annotations
 
-import os
 from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any
@@ -13,11 +13,10 @@ from typing import Any
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
+from alos.config.settings import ALOSSettings
 from alos.db.base import Base
 
-DEFAULT_DB_URL = os.getenv(
-    "DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/n8n"
-)
+DEFAULT_DB_URL = "postgresql+psycopg://postgres:postgres@localhost:5432/n8n"
 
 
 def _configure_sqlite_pragmas(dbapi_conn: Any, is_memory: bool) -> None:
@@ -34,15 +33,16 @@ def _configure_sqlite_pragmas(dbapi_conn: Any, is_memory: bool) -> None:
 class DatabaseManager:
     """Manager for database engine creation, table management, and sessions."""
 
-    def __init__(self, db_url: str = DEFAULT_DB_URL) -> None:
-        is_sqlite = db_url.startswith("sqlite")
+    def __init__(self, db_url: str | None = None) -> None:
+        resolved_url = db_url or ALOSSettings().database_url
+        is_sqlite = resolved_url.startswith("sqlite")
         connect_args: dict[str, Any] = {}
         if is_sqlite:
             connect_args = {"check_same_thread": False, "timeout": 30.0}
 
-        self.engine = create_engine(db_url, connect_args=connect_args, pool_pre_ping=True)
+        self.engine = create_engine(resolved_url, connect_args=connect_args, pool_pre_ping=True)
         if is_sqlite:
-            is_memory = ":memory:" in db_url
+            is_memory = ":memory:" in resolved_url
             event.listen(
                 self.engine,
                 "connect",

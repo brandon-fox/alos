@@ -19,6 +19,8 @@ readme = "README.md"
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "pyyaml>=6.0.0",
     "sqlalchemy>=2.0.52",
     "alembic>=1.19.1",
     "asyncpg>=0.29.0",

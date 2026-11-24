@@ -1,4 +1,5 @@
-import os
+"""Alembic migration environment configured via Factor III ALOSSettings."""
+
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
@@ -8,6 +9,7 @@ from sqlalchemy import engine_from_config, pool
 # The module is not directly referenced by name in env.py.
 import alos.db.models  # noqa: F401
 from alembic import context
+from alos.config.settings import ALOSSettings
 
 # Import ALOS Base and ORM models for autogenerate support
 from alos.db.base import Base
@@ -20,10 +22,10 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Override sqlalchemy.url from DATABASE_URL env var if set
-db_url = os.getenv("DATABASE_URL")
-if db_url:
-    config.set_main_option("sqlalchemy.url", db_url)
+# Populate sqlalchemy.url from Factor III ALOSSettings when not explicitly overridden.
+current_url = config.get_main_option("sqlalchemy.url")
+if current_url in (None, "", "driver://user:pass@localhost/dbname"):
+    config.set_main_option("sqlalchemy.url", ALOSSettings().database_url)
 
 target_metadata = Base.metadata
 
