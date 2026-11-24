@@ -25,11 +25,25 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 DEFAULT_TARGETS: dict[str, list[str]] = {
-    "alos/core/evaluator.py": [
-        "tests/test_coverage_fortification.py",
+    "alos/domain/services/safety_policy.py": [
+        "tests/test_domain_policies.py",
         "tests/test_sdd_bdd_features.py",
         "tests/step_defs/test_03_safety_matrix.py",
         "tests/test_expanded_coverage.py",
+    ],
+    "alos/application/use_cases/dual_loop_orchestrator.py": [
+        "tests/step_defs/test_11_solid_approval_gate.py",
+        "tests/test_sdd_bdd_features.py",
+    ],
+    "alos/domain/services/lifecycle_fsm.py": [
+        "tests/test_domain_policies.py",
+    ],
+    "alos/domain/services/draft_builder.py": [
+        "tests/test_domain_policies.py",
+    ],
+    "alos/application/use_cases/evaluate_action.py": [
+        "tests/test_application_core_use_cases.py",
+        "tests/test_sdd_bdd_features.py",
     ],
     "alos/swarm/governor.py": [
         "tests/test_swarm_governor.py",

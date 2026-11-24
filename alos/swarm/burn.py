@@ -7,6 +7,7 @@ ADR: ADR-0025 (Multi-Repo Backlog Harvester, Active-Use Hold Latch, and Artifact
 from __future__ import annotations
 
 import contextlib
+import os
 import re
 import shutil
 import subprocess  # nosec B404
@@ -106,6 +107,19 @@ def _write_deliverable_files(
     return artifact_path, digest_path
 
 
+def _clean_git_env() -> dict[str, str]:
+    drop = {
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_COMMON_DIR",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_PREFIX",
+    }
+    return {k: v for k, v in os.environ.items() if k not in drop}
+
+
 def _maybe_stage_worktree(
     paths: RuntimePaths, job: LeasedJob, artifact_path: Path
 ) -> dict[str, str]:
@@ -127,7 +141,14 @@ def _maybe_stage_worktree(
     if not wt_dir.exists():
         cmd = [git_bin, "-C", str(repo_path), "worktree", "add", "-B", branch, str(wt_dir)]
         # Fixed argument vector invoking resolved git binary without shell expansion.
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=False)  # noqa: S603  # nosec B603
+        res = subprocess.run(  # noqa: S603  # nosec B603
+            cmd,
+            env=_clean_git_env(),
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
         if res.returncode != 0:
             return {"worktree_error": (res.stderr or res.stdout).strip()[:240]}
     drafts_dir = wt_dir / ".alos_drafts"

@@ -136,7 +136,9 @@ def test_t2_hung_runner_process_tree_killed_on_eviction() -> None:
         assert spinner.server_pid == dummy_proc.pid
 
         sensor = ScriptedSensor(TelemetrySnapshot(used_vram_mb=1500, managed_vram_mb=0))
+        assert spinner.refresh_keep_alive() is False
         report = spinner.evict_all(sensor=sensor)
+        assert report.graceful_unloaded is False
         assert report.tree_killed is True
         assert report.elapsed_s < 2.0
         assert dummy_proc.poll() is not None

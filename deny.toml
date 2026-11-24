@@ -12,10 +12,6 @@ ignore = [
     # serde_yaml 0.9 is marked unmaintained upstream (RUSTSEC-2024-0320) with no security vulnerability;
     # retained for YAML frontmatter parsing parity until serde-saphyr migration.
     "RUSTSEC-2024-0320",
-    # pyo3 0.23.0 baseline advisories tracked under newly enabled cargo Dependabot updates (#144-#146).
-    "GHSA-chgr-c6px-7xpp",
-    "GHSA-36hh-v3qg-5jq4",
-    "GHSA-pph8-gcv7-4qj5",
 ]
 
 [licenses]

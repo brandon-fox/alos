@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import os
 import shutil
 import subprocess
 import urllib.error
@@ -77,9 +78,24 @@ class _MissingPrimarySpinner(ModelSpinner):
 def _run_git(repo_dir: Path, *args: str) -> None:
     git_bin = shutil.which("git")
     assert git_bin is not None
+    drop = {
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_COMMON_DIR",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_PREFIX",
+    }
+    clean_env = {k: v for k, v in os.environ.items() if k not in drop}
     # Fixed argument list invoking resolved git binary inside isolated test tmp_path.
     subprocess.run(  # noqa: S603
-        [git_bin, *args], cwd=repo_dir, check=True, capture_output=True, text=True
+        [git_bin, *args],
+        cwd=repo_dir,
+        env=clean_env,
+        check=True,
+        capture_output=True,
+        text=True,
     )
 
 
