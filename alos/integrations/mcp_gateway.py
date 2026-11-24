@@ -5,8 +5,12 @@ from typing import Any
 
 import mcp.types as mcp_types
 
-from alos.core.protocols import MCPGatewayProtocol, TelemetryProtocol, ToolHandlerProtocol
+from alos.application.ports.outbound import MCPGatewayPort, TelemetryPort
+from alos.core.protocols import ToolHandlerProtocol
 from alos.logs.telemetry import global_tracer
+
+MCPGatewayProtocol = MCPGatewayPort
+TelemetryProtocol = TelemetryPort
 
 
 class TodoistTaskHandler:
