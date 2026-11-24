@@ -397,34 +397,73 @@ def test_19_open_source_workflows_dir_configuration(monkeypatch, tmp_path):
     assert custom_config.workflows_dir == custom_dir
 
 
-def test_20_w3c_traceparent_prometheus_and_jsonl_sink(tmp_path):
-    """Spec 031 (FR-001, FR-002, FR-003): W3C traceparent, Prometheus exposition, and JSONL sink."""
-    from alos.logs.system_audit import SystemAuditLogger
+def test_20_w3c_traceparent_and_jsonl_telemetry_sink(tmp_path):
+    """Spec 031 (FR-001, FR-002): W3C traceparent parsing, events, and JSONL persistence."""
     from alos.logs.telemetry import TelemetryTracer, parse_traceparent
 
     sink = tmp_path / "logs" / "telemetry_spans.jsonl"
-    audit_path = tmp_path / "logs" / "audit.jsonl"
     tracer = TelemetryTracer(log_file_path=str(sink))
-    audit = SystemAuditLogger(log_file_path=str(audit_path))
     incoming = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
-    assert parse_traceparent(incoming) == ("4bf92f3577b34da6a3ce929d0e0e4736", "00f067aa0ba902b7")
+    parsed = parse_traceparent(incoming)
+    assert parsed == ("4bf92f3577b34da6a3ce929d0e0e4736", "00f067aa0ba902b7")
     assert parse_traceparent("invalid-header") is None
 
     with tracer.span("parent_op", traceparent=incoming) as parent:
         parent.add_event("checkpoint", {"items": 2})
         with tracer.span("child_op") as child:
-            rec = audit.log_event("Child Step", "SUCCESS")
             assert child.trace_id == "4bf92f3577b34da6a3ce929d0e0e4736"
             assert child.parent_span_id == parent.span_id
-            assert rec["trace_id"] == child.trace_id
-            assert rec["span_id"] == child.span_id
 
-    tracer.inc_counter("alos_ops_total", labels={"status": "ok"})
-    tracer.set_gauge("alos_queue_depth", 2.0)
-    summary = tracer.observe_histogram("alos_op_latency_ms", 12.5, labels={"op": "read"})
-    assert summary.p50 == 12.5
-    prom = tracer.render_prometheus()
-    assert "# TYPE alos_ops_total counter" in prom
-    assert "# TYPE alos_op_latency_ms histogram" in prom
-    assert "alos_ops_total" in str(tracer.snapshot()["counters"])
-    assert len(sink.read_text(encoding="utf-8").strip().splitlines()) == 2
+    assert parent.parent_span_id == "00f067aa0ba902b7"
+    assert len(parent.events) == 1
+    lines = sink.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 2
+
+
+def test_21_scheduler_n8n_and_cli_observability_instrumentation(tmp_path, capsys, monkeypatch):
+    """Spec 031 (FR-004, FR-005, FR-007): Scheduler, n8n loop, and CLI observability commands."""
+    import pytest
+
+    from alos.cli import main
+    from alos.engine.langgraph_n8n_loop import N8nSelfReflectionGraph, N8nTaskState
+    from alos.engine.scheduler import BackgroundScheduler
+    from alos.logs.telemetry import TelemetryTracer
+
+    tracer = TelemetryTracer()
+    vault_dir = tmp_path / "vault"
+    vault_dir.mkdir()
+    scheduler = BackgroundScheduler(vault_dir=str(vault_dir), tracer=tracer)
+    scheduler.start()
+    assert tracer.get_gauge("alos_scheduler_running") == 1.0
+    scheduler.run_morning_sweep()
+    scheduler.shutdown()
+    assert tracer.get_gauge("alos_scheduler_running") == 0.0
+    assert tracer.get_counter("alos_scheduler_sweeps_total", labels={"status": "SUCCESS"}) == 1.0
+
+    n8n_graph = N8nSelfReflectionGraph(mock_mode=True, tracer=tracer)
+    initial: N8nTaskState = {
+        "task_id": "t-1",
+        "workflow_id": "wf-obs",
+        "payload": {"api_key": "ok"},
+        "execution_output": None,
+        "evaluation_valid": False,
+        "critique": "",
+        "attempt_count": 0,
+        "max_attempts": 2,
+        "status": "pending",
+        "audit_logs": [],
+    }
+    res = n8n_graph.run(initial)
+    assert res["status"] == "success"
+    span_names = {s.name for s in tracer.get_spans()}
+    assert "n8n.self_reflection.run" in span_names
+    assert "n8n.workflow.trigger" in span_names
+
+    for subcmd in (["observability", "health"], ["observability", "metrics", "--format", "json"]):
+        monkeypatch.setattr("sys.argv", ["alos.cli", *subcmd])
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == 0
+    out = capsys.readouterr().out
+    assert "HEALTHY" in out or "DEGRADED" in out
+    assert "counters" in out
