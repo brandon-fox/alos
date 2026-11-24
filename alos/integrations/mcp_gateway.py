@@ -5,7 +5,8 @@ from typing import Any
 
 import mcp.types as mcp_types
 
-from alos.core.protocols import MCPGatewayProtocol, ToolHandlerProtocol
+from alos.core.protocols import MCPGatewayProtocol, TelemetryProtocol, ToolHandlerProtocol
+from alos.logs.telemetry import global_tracer
 
 
 class TodoistTaskHandler:
@@ -90,8 +91,9 @@ class MCPGateway(MCPGatewayProtocol):
     extensible tool handler registry and DIP by conforming to MCPGatewayProtocol.
     """
 
-    def __init__(self, mock_mode: bool = True):
+    def __init__(self, mock_mode: bool = True, tracer: TelemetryProtocol | None = None):
         self.mock_mode = mock_mode
+        self.tracer: TelemetryProtocol = tracer if tracer is not None else global_tracer
         self._handlers: dict[str, ToolHandlerProtocol] = {}
         self._mcp_tools: dict[str, Any] = {}
         self._register_default_handlers()
@@ -115,12 +117,20 @@ class MCPGateway(MCPGatewayProtocol):
         )
 
     def execute_tool(self, tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
-        """Dispatch tool execution via registered tool handler strategy."""
-        handler = self._handlers.get(tool_name)
-        if handler:
-            return handler.execute(payload)
-        return {
-            "status": "UNKNOWN_TOOL",
-            "tool": tool_name,
-            "payload": payload,
-        }
+        """Dispatch tool execution via registered tool handler strategy with span metrics."""
+        with self.tracer.span(f"mcp.tool.{tool_name}", tags={"tool": tool_name}) as span:
+            handler = self._handlers.get(tool_name)
+            res = (
+                handler.execute(payload)
+                if handler
+                else {"status": "UNKNOWN_TOOL", "tool": tool_name, "payload": payload}
+            )
+        status = str(res.get("status", "SUCCESS"))
+        self.tracer.inc_counter(
+            "alos_mcp_tool_calls_total", labels={"tool": tool_name, "status": status}
+        )
+        if getattr(span, "duration_ms", None) is not None:
+            self.tracer.observe_histogram(
+                "alos_mcp_tool_duration_ms", float(span.duration_ms), labels={"tool": tool_name}
+            )
+        return res

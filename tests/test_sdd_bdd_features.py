@@ -395,3 +395,36 @@ def test_19_open_source_workflows_dir_configuration(monkeypatch, tmp_path):
     monkeypatch.setenv("ALOS_WORKFLOWS_DIR", custom_dir)
     custom_config = ALOSConfig()
     assert custom_config.workflows_dir == custom_dir
+
+
+def test_20_w3c_traceparent_prometheus_and_jsonl_sink(tmp_path):
+    """Spec 031 (FR-001, FR-002, FR-003): W3C traceparent, Prometheus exposition, and JSONL sink."""
+    from alos.logs.system_audit import SystemAuditLogger
+    from alos.logs.telemetry import TelemetryTracer, parse_traceparent
+
+    sink = tmp_path / "logs" / "telemetry_spans.jsonl"
+    audit_path = tmp_path / "logs" / "audit.jsonl"
+    tracer = TelemetryTracer(log_file_path=str(sink))
+    audit = SystemAuditLogger(log_file_path=str(audit_path))
+    incoming = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+    assert parse_traceparent(incoming) == ("4bf92f3577b34da6a3ce929d0e0e4736", "00f067aa0ba902b7")
+    assert parse_traceparent("invalid-header") is None
+
+    with tracer.span("parent_op", traceparent=incoming) as parent:
+        parent.add_event("checkpoint", {"items": 2})
+        with tracer.span("child_op") as child:
+            rec = audit.log_event("Child Step", "SUCCESS")
+            assert child.trace_id == "4bf92f3577b34da6a3ce929d0e0e4736"
+            assert child.parent_span_id == parent.span_id
+            assert rec["trace_id"] == child.trace_id
+            assert rec["span_id"] == child.span_id
+
+    tracer.inc_counter("alos_ops_total", labels={"status": "ok"})
+    tracer.set_gauge("alos_queue_depth", 2.0)
+    summary = tracer.observe_histogram("alos_op_latency_ms", 12.5, labels={"op": "read"})
+    assert summary.p50 == 12.5
+    prom = tracer.render_prometheus()
+    assert "# TYPE alos_ops_total counter" in prom
+    assert "# TYPE alos_op_latency_ms histogram" in prom
+    assert "alos_ops_total" in str(tracer.snapshot()["counters"])
+    assert len(sink.read_text(encoding="utf-8").strip().splitlines()) == 2
