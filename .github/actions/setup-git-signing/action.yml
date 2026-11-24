@@ -1,0 +1,46 @@
+name: Setup Git SSH Signing
+description: Configure Git SSH commit and tag signing from a private key secret when present.
+
+inputs:
+  signing-key:
+    description: Private SSH key for commit signing.
+    required: false
+    default: ''
+  git-user-name:
+    required: false
+    default: 'Brandon Fox'
+  git-user-email:
+    required: false
+    default: '32090240+brandon-fox@users.noreply.github.com'
+
+outputs:
+  configured:
+    value: ${{ steps.configure.outputs.configured }}
+
+runs:
+  using: composite
+  steps:
+    - id: configure
+      shell: bash
+      env:
+        SIGNING_KEY: ${{ inputs.signing-key }}
+        GIT_USER_NAME: ${{ inputs.git-user-name }}
+        GIT_USER_EMAIL: ${{ inputs.git-user-email }}
+      run: |
+        set -euo pipefail
+        git config --global user.name "$GIT_USER_NAME"
+        git config --global user.email "$GIT_USER_EMAIL"
+        if [ -z "$SIGNING_KEY" ]; then
+          echo "configured=false" >> "$GITHUB_OUTPUT"
+          echo "::warning::COMMIT_SIGNING_KEY is not configured; automated rebase/re-sign cannot sign commits."
+          exit 0
+        fi
+        KEY_FILE="$RUNNER_TEMP/alos_ci_signing_key"
+        printf '%s\n' "$SIGNING_KEY" > "$KEY_FILE"
+        chmod 600 "$KEY_FILE"
+        ssh-keygen -y -f "$KEY_FILE" > "${KEY_FILE}.pub"
+        git config --global gpg.format ssh
+        git config --global user.signingkey "${KEY_FILE}.pub"
+        git config --global commit.gpgsign true
+        git config --global tag.gpgsign true
+        echo "configured=true" >> "$GITHUB_OUTPUT"

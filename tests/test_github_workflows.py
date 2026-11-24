@@ -189,3 +189,29 @@ def test_coverage_floor_is_enforced() -> None:
     """The test job must fail when coverage drops below the floor."""
     content = (WORKFLOWS_DIR / "quality-gate.yml").read_text(encoding="utf-8")
     assert "--cov-fail-under=" in content, "pytest-suite must enforce a coverage floor"
+
+
+@pytest.mark.meta
+def test_signed_rebase_and_universal_automerge_workflows() -> None:
+    """Auto Merge, signing action, post-merge, and ADE axioms satisfy Spec 033."""
+    auto_merge = (WORKFLOWS_DIR / "auto-merge.yml").read_text(encoding="utf-8")
+    triggers = yaml.safe_load(auto_merge).get("on", yaml.safe_load(auto_merge).get(True, {}))
+    assert {"push", "pull_request", "check_run", "schedule"} <= set(triggers)
+    assert "pr-queue-rebase.yml" not in auto_merge
+    assert "signed_pr_rebase.py" in auto_merge
+    assert "./.github/actions/setup-git-signing" in auto_merge
+    assert "PR_QUEUE_TOKEN" in auto_merge and "'ready'" in auto_merge and "pr.draft" in auto_merge
+    assert "github.actor != 'dependabot[bot]'" not in auto_merge
+    assert "github.actor != 'github-actions[bot]'" not in auto_merge
+
+    signing_action = Path(".github/actions/setup-git-signing/action.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "gpg.format" in signing_action and "commit.gpgsign" in signing_action
+
+    post_merge = (WORKFLOWS_DIR / "post-merge-pipeline.yml").read_text(encoding="utf-8")
+    assert "./.github/actions/setup-git-signing" in post_merge
+    assert "secrets.PR_QUEUE_TOKEN" in post_merge
+
+    ade = (WORKFLOWS_DIR / "ade-axioms.yml").read_text(encoding="utf-8")
+    assert "First-ADE/.github/.github/actions/ade-axioms@" in ade and "gpgsig" in ade

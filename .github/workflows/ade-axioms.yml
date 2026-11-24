@@ -23,3 +23,9 @@ jobs:
         with:
           fetch-depth: 0
       - uses: First-ADE/.github/.github/actions/ade-axioms@de17a5a93b5b00b8bf073d25299202680a93bd78 # main
+      - if: failure()
+        run: |
+          RANGE=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo "origin/main...HEAD" || echo "HEAD~1..HEAD")
+          for sha in $(git log "$RANGE" --format="%H" 2>/dev/null || true); do
+            git cat-file commit "$sha" | grep -q '^gpgsig' || echo "::error::Unsigned commit missing gpgsig: $(git log -1 --format='%h %an | %cn | %s' "$sha")"
+          done

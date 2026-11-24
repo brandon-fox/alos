@@ -1,25 +1,21 @@
 name: Auto Merge
 
-# Trigger on every check_run completion so we re-evaluate after each quality gate
-# job finishes, and on PR events for label/draft state changes.
+# Enable squash auto-merge for all eligible PRs (Drafts, Dependabot, bots, humans)
+# and keep PR branches rebased onto main with SSH-signed commits on every update.
 on:
   push:
     branches: [main]
   pull_request:
-    types:
-      - labeled
-      - unlabeled
-      - synchronize
-      - opened
-      - reopened
-      - ready_for_review
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled]
   check_run:
-    types:
-      - completed
+    types: [completed]
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
 
 concurrency:
-  group: auto-merge-${{ github.head_ref || github.sha }}
-  cancel-in-progress: true
+  group: auto-merge-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.check_run.head_sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'check_run' }}
 
 permissions:
   contents: write
@@ -27,114 +23,105 @@ permissions:
 
 jobs:
   automerge:
-    name: Auto Merge Human PRs
+    name: Universal Auto Merge
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'pull_request' || github.event_name == 'check_run'
+    steps:
+      - name: Mark draft ready and enable squash auto-merge
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.0.1
+        env:
+          GH_TOKEN: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
+        with:
+          script: |
+            let prNumber = context.payload.pull_request?.number;
+            if (!prNumber && context.payload.check_run) {
+              const { data: prs } = await github.rest.pulls.list({ owner: context.repo.owner, repo: context.repo.repo, state: 'open', per_page: 50 });
+              prNumber = prs.find(p => p.head.sha === context.payload.check_run.head_sha)?.number;
+            }
+            if (!prNumber) return;
+            const repoSlug = `${context.repo.owner}/${context.repo.repo}`;
+            const { data: pr } = await github.rest.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber });
+            if (pr.state !== 'open') return;
+            const labels = (pr.labels || []).map(l => l.name);
+            if (labels.includes('wip') || labels.includes('do-not-merge')) return;
+            if (pr.draft) await exec.exec('gh', ['pr', 'ready', String(prNumber), '--repo', repoSlug]);
+            if (pr.user?.login === 'dependabot[bot]') {
+              await exec.exec('gh', ['pr', 'review', '--approve', String(prNumber), '--repo', repoSlug], { ignoreReturnCode: true });
+            }
+            if (!pr.auto_merge) {
+              const mode = pr.mergeable_state === 'clean' ? [] : ['--auto'];
+              await exec.exec('gh', ['pr', 'merge', String(prNumber), ...mode, '--squash', '--delete-branch', '--repo', repoSlug]);
+            }
+
+  signed-rebase-on-update:
+    name: Signed Rebase on PR Update
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Skip bots — they have their own job below
-    if: |
-      github.actor != 'dependabot[bot]' &&
-      github.actor != 'github-actions[bot]'
-    permissions:
-      contents: write
-      pull-requests: write
+    if: >-
+      github.event_name == 'pull_request' &&
+      contains(fromJSON('["opened","reopened","synchronize","ready_for_review"]'), github.event.action) &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !contains(github.event.pull_request.labels.*.name, 'wip') &&
+      !contains(github.event.pull_request.labels.*.name, 'do-not-merge')
     steps:
-      - name: Check PR eligibility
-        id: check
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
+      - id: signing
+        uses: ./.github/actions/setup-git-signing
+        with:
+          signing-key: ${{ secrets.COMMIT_SIGNING_KEY }}
+      - id: rebase
+        env:
+          GH_TOKEN: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          python3 .github/scripts/signed_pr_rebase.py --mode single \
+            --base-branch "${{ github.event.pull_request.base.ref }}" \
+            --head-branch "${{ github.event.pull_request.head.ref }}" \
+            --signing-configured "${{ steps.signing.outputs.configured }}"
+      - if: steps.rebase.outputs.status == 'conflict'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.0.1
         with:
-          result-encoding: string
           script: |
-            // Resolve PR number. check_run events don't carry it directly —
-            // match by head SHA against open PRs.
-            let prNumber = context.payload.pull_request?.number;
+            const tag = '<!-- auto-rebase-conflict-comment -->';
+            const body = `${tag}\n⚠️ **Automatic Signed Rebase Paused**: Merge conflicts with \`${{ github.event.pull_request.base.ref }}\`. Resolve locally with signed commits and push.`;
+            const { data: comments } = await github.rest.issues.listComments({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number });
+            const existing = comments.find(c => c.body && c.body.includes(tag));
+            if (existing) await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body });
 
-            if (!prNumber && context.payload.check_run) {
-              const sha = context.payload.check_run.head_sha;
-              const { data: prs } = await github.rest.pulls.list({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                state: 'open',
-                per_page: 50,
-              });
-              const match = prs.find(pr => pr.head.sha === sha);
-              if (!match) {
-                core.info('No open PR found for this check_run SHA — skipping.');
-                return '';
-              }
-              prNumber = match.number;
-            }
-
-            if (!prNumber) {
-              core.info('Could not resolve PR number — skipping.');
-              return '';
-            }
-
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber,
-            });
-
-            const labels = pr.labels.map(l => l.name);
-
-            // Block if any hold label is present — auto-merge is the default
-            const holdLabels = ['wip', 'do-not-merge'];
-            const blocked = holdLabels.filter(l => labels.includes(l));
-            if (blocked.length > 0) {
-              core.info(`PR #${prNumber} is blocked by label(s): ${blocked.join(', ')} — skipping.`);
-              return '';
-            }
-
-            if (pr.draft) {
-              core.info(`PR #${prNumber} is a draft — skipping.`);
-              return '';
-            }
-
-            core.info(`PR #${prNumber} is eligible for auto-merge.`);
-            return String(prNumber);
-
-      - name: Enable auto-merge (waits for all required status checks)
-        if: steps.check.outputs.result != ''
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ steps.check.outputs.result }}
-        run: |
-          gh pr merge "$PR_NUMBER" \
-            --auto \
-            --squash \
-            --delete-branch \
-            --repo "${{ github.repository }}"
-
-  dependabot-automerge:
-    name: Auto Merge Dependabot PRs
+  rebase-queue:
+    name: Signed Rebase Queue & Sweep
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    if: github.actor == 'dependabot[bot]' && github.event_name == 'pull_request'
-    permissions:
-      contents: write
-      pull-requests: write
+    timeout-minutes: 20
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
-      - name: Dependabot metadata
-        id: metadata
-        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2.3.0
-        with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
-
-      - name: Approve and enable auto-merge for minor/patch updates
-        if: |
-          steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-patch'
+      - name: Sweep open PRs for draft-ready and auto-merge
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.0.1
         env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
+        with:
+          script: |
+            const repoSlug = `${context.repo.owner}/${context.repo.repo}`;
+            const prs = await github.paginate(github.rest.pulls.list, { owner: context.repo.owner, repo: context.repo.repo, state: 'open', base: 'main', per_page: 50 });
+            for (const pr of prs) {
+              if ((pr.labels || []).some(l => l.name === 'wip' || l.name === 'do-not-merge')) continue;
+              if (pr.draft) await exec.exec('gh', ['pr', 'ready', String(pr.number), '--repo', repoSlug]);
+              if (pr.user?.login === 'dependabot[bot]') await exec.exec('gh', ['pr', 'review', '--approve', String(pr.number), '--repo', repoSlug], { ignoreReturnCode: true });
+              if (!pr.auto_merge) await exec.exec('gh', ['pr', 'merge', String(pr.number), '--auto', '--squash', '--delete-branch', '--repo', repoSlug], { ignoreReturnCode: true });
+            }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
+      - id: signing
+        uses: ./.github/actions/setup-git-signing
+        with:
+          signing-key: ${{ secrets.COMMIT_SIGNING_KEY }}
+      - env:
+          GH_TOKEN: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          gh pr review --approve "$PR_URL"
-          gh pr merge --auto --squash --delete-branch "$PR_URL"
-
-  rebase-next:
-    if: github.event_name == 'push'
-    uses: brandon-fox/.github/.github/workflows/pr-queue-rebase.yml@093fbcf217975354790f21e30f7ce4e4061d35c2 # main
-    with:
-      mode: rebase-next
-    secrets:
-      token: ${{ secrets.PR_QUEUE_TOKEN }}
+          python3 .github/scripts/signed_pr_rebase.py --mode queue --base-branch main --signing-configured "${{ steps.signing.outputs.configured }}"
