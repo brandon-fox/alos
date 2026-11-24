@@ -5,6 +5,8 @@ from typing import Any, Literal, TypedDict, cast
 
 from langgraph.graph import END, START, StateGraph
 
+from alos.adapters.outbound.integrations.n8n_adapters import N8nHttpAdapter, N8nMockAdapter
+from alos.application.use_cases.n8n_reflection_loop import N8nSelfReflectionUseCase
 from alos.core.protocols import TelemetryProtocol
 from alos.integrations.n8n_client import N8nClient, N8nExecutionResponse
 from alos.logs.telemetry import global_tracer
@@ -33,6 +35,8 @@ class N8nSelfReflectionGraph:
     def __init__(self, mock_mode: bool = True, tracer: TelemetryProtocol | None = None) -> None:
         self.tracer: TelemetryProtocol = tracer if tracer is not None else global_tracer
         self.client = N8nClient(mock_mode=mock_mode)
+        orch = N8nMockAdapter() if mock_mode else N8nHttpAdapter()
+        self.use_case = N8nSelfReflectionUseCase(orchestrator=orch, tracer=self.tracer)
         self.graph = self._build_graph()
 
     def _poll_or_execute(self, state: N8nTaskState) -> dict[str, Any]:
@@ -45,8 +49,8 @@ class N8nSelfReflectionGraph:
             "n8n.workflow.trigger",
             tags={"workflow_id": state["workflow_id"], "attempt": attempts},
         ):
-            response: N8nExecutionResponse = self.client.trigger_workflow(
-                workflow_id=state["workflow_id"], payload=state["payload"]
+            response: N8nExecutionResponse = self.use_case.orchestrator.trigger_workflow(
+                {"workflow_id": state["workflow_id"], "payload": state["payload"]}
             )
         self.tracer.inc_counter(
             "alos_n8n_workflow_attempts_total",
