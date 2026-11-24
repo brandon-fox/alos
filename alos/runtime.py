@@ -1,7 +1,8 @@
 """Portable production runtime layout, single-instance locking, health probes, and bootstrap.
 
 Spec: specs/034-portable-production-runtime/spec.md (FR-001 through FR-005)
-ADR: docs/adr/0018-adopt-dual-mode-portable-wheel-and-hardened-container-production-runtime.md
+Spec: specs/035-parallel-testing-and-qa-matrix/spec.md (FR-001, FR-007, FR-014)
+ADRs: ADR-0018, ADR-0019
 """
 
 from __future__ import annotations
@@ -12,7 +13,11 @@ import importlib.resources
 import json
 import os
 import shutil
+import socket
 import sys
+import threading
+import time
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +33,7 @@ from alos.swarm.governor import DEFAULT_MODEL_TIERS
 from alos.swarm.sensors import WindowsNativeSensor, query_win32_free_commit_mb
 
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+ERROR_ACCESS_DENIED = 5
 STILL_ACTIVE = 259
 VAULT_TEMPLATE_FILES = ("USER_PROFILE.md", "PREFERENCES.md", "CORRECTION_LEDGER.md")
 DEFAULT_ENV_TEMPLATE = """# ALOS Portable Runtime Configuration
@@ -40,6 +46,13 @@ ALOS_SWARM_OLLAMA=http://127.0.0.1:11434
 
 class DaemonAlreadyRunningError(RuntimeError):
     """Raised when another live ALOS governor daemon holds the runtime lockfile."""
+
+
+def allocate_free_port(host: str = "127.0.0.1") -> int:
+    """Ask the OS kernel for an unused ephemeral TCP port on ``host``."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind((host, 0))
+        return int(sock.getsockname()[1])
 
 
 @dataclass(frozen=True)
@@ -106,7 +119,8 @@ def _is_windows_pid_alive(pid: int) -> bool:
         return False
     handle = win.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
     if not handle:
-        return False
+        last_err = int(win.kernel32.GetLastError())
+        return last_err == ERROR_ACCESS_DENIED
     try:
         exit_code = ctypes.c_ulong(0)
         if not win.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
@@ -137,50 +151,93 @@ class SingleInstanceLock:
     def __init__(self, lock_path: Path) -> None:
         self.lock_path = lock_path
         self._acquired = False
+        self._token = uuid.uuid4().hex
 
-    def _read_holder_pid(self) -> int:
-        with contextlib.suppress(OSError, ValueError, KeyError):
-            data = json.loads(self.lock_path.read_text(encoding="utf-8"))
-            return int(data.get("pid", 0))
-        return 0
+    def _read_holder(self) -> tuple[int, str]:
+        for _ in range(3):
+            with contextlib.suppress(OSError, ValueError, KeyError):
+                data = json.loads(self.lock_path.read_text(encoding="utf-8"))
+                return int(data.get("pid", 0)), str(data.get("token", ""))
+            time.sleep(0.002)
+        return 0, ""
 
     def _try_atomic_create(self) -> bool:
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = json.dumps(
+            {
+                "pid": os.getpid(),
+                "token": self._token,
+                "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            }
+        )
+        tmp_path = self.lock_path.with_name(
+            f".{self.lock_path.name}.{os.getpid()}.{self._token[:8]}.tmp"
+        )
+        tmp_path.write_text(payload, encoding="utf-8")
+        try:
+            os.link(str(tmp_path), str(self.lock_path))
+            self._acquired = True
+            return True
+        except FileExistsError:
+            return False
+        except OSError:
+            return self._fallback_excl_create(payload)
+        finally:
+            with contextlib.suppress(OSError):
+                tmp_path.unlink()
+
+    def _fallback_excl_create(self, payload: str) -> bool:
         flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
         try:
             fd = os.open(str(self.lock_path), flags, 0o600)
         except FileExistsError:
             return False
-        payload = {
-            "pid": os.getpid(),
-            "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        }
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle)
+            handle.write(payload)
         self._acquired = True
         return True
 
+    def _reclaim_stale_under_gate(self) -> bool:
+        reclaim_gate = self.lock_path.with_name(f".{self.lock_path.name}.reclaim")
+        try:
+            os.mkdir(str(reclaim_gate))
+        except FileExistsError:
+            time.sleep(0.015)
+            return self._try_atomic_create()
+        try:
+            holder_pid, _ = self._read_holder()
+            if is_pid_alive(holder_pid):
+                return False
+            with contextlib.suppress(OSError):
+                self.lock_path.unlink()
+            return self._try_atomic_create()
+        finally:
+            with contextlib.suppress(OSError):
+                os.rmdir(str(reclaim_gate))
+
     def acquire(self) -> None:
-        """Acquire exclusive lock or reclaim stale lock left by a dead process."""
+        """Acquire exclusive lock or atomically reclaim stale lock left by a dead process."""
         if self._try_atomic_create():
             return
-        holder = self._read_holder_pid()
-        if is_pid_alive(holder):
-            raise DaemonAlreadyRunningError(
-                f"ALOS governor daemon is already running (PID {holder}, lock: {self.lock_path})"
-            )
-        with contextlib.suppress(OSError):
-            self.lock_path.unlink()
-        if not self._try_atomic_create():
-            raise DaemonAlreadyRunningError(f"Could not acquire daemon lock at {self.lock_path}")
+        holder_pid, _ = self._read_holder()
+        if is_pid_alive(holder_pid):
+            msg = f"ALOS governor daemon is already running (PID {holder_pid}, {self.lock_path})"
+            raise DaemonAlreadyRunningError(msg)
+        if self._reclaim_stale_under_gate():
+            return
+        holder_pid, _ = self._read_holder()
+        msg = f"ALOS governor daemon is already running (PID {holder_pid}, {self.lock_path})"
+        raise DaemonAlreadyRunningError(msg)
 
     def release(self) -> None:
-        """Remove lockfile if owned by this instance."""
+        """Remove lockfile only if still owned by this instance's token."""
         if not self._acquired:
             return
         self._acquired = False
-        with contextlib.suppress(OSError):
-            self.lock_path.unlink()
+        _, current_token = self._read_holder()
+        if current_token in ("", self._token):
+            with contextlib.suppress(OSError):
+                self.lock_path.unlink()
 
     def __enter__(self) -> SingleInstanceLock:
         self.acquire()
@@ -202,7 +259,7 @@ class HealthHeartbeat:
         self.health_path = health_path
 
     def write(self, status: str, governor_state: str, active_tier: str | None = None) -> Path:
-        """Atomically persist health JSON via temporary sibling rename."""
+        """Atomically persist health JSON via per-thread temporary sibling rename."""
         self.health_path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "status": status,
@@ -211,9 +268,23 @@ class HealthHeartbeat:
             "pid": os.getpid(),
             "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         }
-        tmp = self.health_path.with_suffix(".tmp")
+        tmp = self.health_path.with_name(
+            f".{self.health_path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        )
         tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        tmp.replace(self.health_path)
+        try:
+            for attempt in range(4):
+                try:
+                    tmp.replace(self.health_path)
+                    break
+                except PermissionError:
+                    if attempt == 3:
+                        raise
+                    time.sleep(0.005 * (attempt + 1))
+        finally:
+            if tmp.exists():
+                with contextlib.suppress(OSError):
+                    tmp.unlink()
         return self.health_path
 
 
@@ -271,7 +342,7 @@ def _probe_ollama(ollama_host: str, mock: bool) -> dict[str, Any]:
             "missing_tier_models": [],
         }
     try:
-        tags = Ollama(ollama_host).call("/api/tags", timeout=1.5)
+        tags = Ollama(ollama_host).call("/api/tags", timeout=0.4)
         installed = sorted({str(m.get("name", "")) for m in tags.get("models", [])})
         wanted = {spec.model for spec in DEFAULT_MODEL_TIERS.values()}
         missing = sorted(wanted - set(installed))
@@ -288,7 +359,7 @@ def _probe_ollama(ollama_host: str, mock: bool) -> dict[str, Any]:
 def _probe_home_writable(paths: RuntimePaths) -> dict[str, Any]:
     try:
         paths.run_dir.mkdir(parents=True, exist_ok=True)
-        probe = paths.run_dir / ".write_probe"
+        probe = paths.run_dir / f".write_probe_{os.getpid()}_{threading.get_ident()}"
         probe.write_text("ok", encoding="utf-8")
         probe.unlink()
         return {"ok": True, "path": str(paths.root)}
