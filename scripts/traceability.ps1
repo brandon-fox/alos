@@ -1,7 +1,8 @@
 param([Parameter(Mandatory=$true)][string]$Repo, [string]$FeaturesDir = 'tests\features', [string]$Out = 'docs\traceability.md')
 Set-Location $Repo
+$RepoFull = (Get-Location).Path
 $specDirs = Get-ChildItem specs -Directory | Where-Object { $_.Name -match '^\d{3}-' } | Sort-Object Name
-$features = @(Get-ChildItem $FeaturesDir -File -Filter *.feature -ErrorAction SilentlyContinue)
+$features = @(Get-ChildItem @($FeaturesDir, 'features') -File -Filter *.feature -ErrorAction SilentlyContinue)
 $adrs = @(Get-ChildItem docs\adr -File -Filter *.md -ErrorAction SilentlyContinue)
 # A feature file may name its spec outright with a leading comment such as
 # "# spec: 010-audit-and-decision-log" (only the three-digit number is read).
@@ -30,7 +31,8 @@ foreach ($d in $specDirs) {
     $feat = $features | ForEach-Object { $n = $_.BaseName; $hits = @($words | Where-Object { $n -like "*$_*" }); $long = @($hits | Where-Object { $_.Length -ge 7 }); [pscustomobject]@{ F = $_; Score = $hits.Count + $long.Count } } | Where-Object { $_.Score -ge 2 } | Sort-Object Score -Descending | Select-Object -First 1 -ExpandProperty F
   }
   $adr = $adrs | Where-Object { $n = $_.BaseName; (($words | Where-Object { $n -like "*$_*" }).Count -ge 2) } | Select-Object -First 1
-  $featCell = if ($feat) { "[$($feat.Name)](../$($FeaturesDir.Replace('\','/'))/$($feat.Name))" } else { $gaps++; "none" }
+  $featRel = if ($feat) { $feat.Directory.FullName.Substring($RepoFull.Length).TrimStart('\','/').Replace('\','/') } else { '' }
+  $featCell = if ($feat) { "[$($feat.Name)](../$featRel/$($feat.Name))" } else { $gaps++; "none" }
   $adrCell = if ($adr) { "[$($adr.BaseName.Substring(0, [Math]::Min(40, $adr.BaseName.Length)))](adr/$($adr.Name))" } else { "none" }
   $mark = { param($b) if ($b) { 'yes' } else { 'no' } }
   $rows += ("| [$($d.Name)](../specs/$($d.Name)/) | {0} | {1} | {2} | {3} | {4} |" -f (& $mark $hasSpec), (& $mark $hasPlan), (& $mark $hasTasks), $featCell, $adrCell)
