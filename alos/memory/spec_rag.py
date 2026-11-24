@@ -5,34 +5,38 @@ import os
 import re
 from typing import Any
 
-from pydantic import BaseModel
-
 # Third-party library rank_bm25 lacks PEP 561 py.typed marker or type stubs
 from rank_bm25 import BM25Okapi  # type: ignore[import-untyped]
 
 from alos.core.protocols import MemoryStoreProtocol
+from alos.domain.models.memory import SpecChunk
 from alos.native import get_bm25_indexer
 
 logger = logging.getLogger(__name__)
 
 
-class SpecChunk(BaseModel):
-    """Chunk of specification or markdown document with header and metadata."""
-
-    file_path: str
-    file_name: str
-    header: str
-    content: str
-    source_type: str
-
-
 class SpecRAGIndexer(MemoryStoreProtocol):
     """Spec-aware RAG Indexer for specs and vault notes using BM25 (SOLID: DIP)."""
 
-    def __init__(self, root_dir: str):
+    def __init__(self, root_dir: str) -> None:
         self.root_dir = os.path.abspath(root_dir)
-        self.chunks: list[SpecChunk] = []
-        self._build_index()
+        self._chunks: list[SpecChunk] = []
+        self._indexed = False
+
+    @property
+    def is_indexed(self) -> bool:
+        """Return whether the specification and vault corpus has been lazily indexed."""
+        return self._indexed
+
+    @property
+    def chunks(self) -> list[SpecChunk]:
+        """Return indexed specification chunks, building the index lazily on first access."""
+        self._ensure_index()
+        return self._chunks
+
+    def _ensure_index(self) -> None:
+        if not self._indexed:
+            self._build_index()
 
     def _determine_source_type(self, rel_path: str) -> str:
         rel_path_lower = rel_path.lower()
@@ -75,7 +79,7 @@ class SpecRAGIndexer(MemoryStoreProtocol):
         return chunks
 
     def _build_index(self) -> None:
-        self.chunks.clear()
+        self._chunks.clear()
 
         # Scan specs/, vault/, references/, .specify/memory/
         search_dirs = [
@@ -100,23 +104,25 @@ class SpecRAGIndexer(MemoryStoreProtocol):
                             with open(full_path, encoding="utf-8") as f:
                                 content = f.read()
                             file_chunks = self._chunk_markdown(full_path, content, source_type)
-                            self.chunks.extend(file_chunks)
+                            self._chunks.extend(file_chunks)
                         except (OSError, UnicodeDecodeError):
                             continue
+        self._indexed = True
 
     def search(
         self, query: str, top_k: int = 5, source_filter: str | None = None
     ) -> list[dict[str, Any]]:
         """Search indexed specification chunks using BM25 and optional source type filtering."""
+        self._ensure_index()
         filtered_chunks = [
-            c for c in self.chunks if not source_filter or c.source_type == source_filter
+            c for c in self._chunks if not source_filter or c.source_type == source_filter
         ]
         if not filtered_chunks:
             return []
 
         try:
             indexer = get_bm25_indexer()
-            for c in self.chunks:
+            for c in self._chunks:
                 indexer.add_chunk(c.header, c.file_name, c.file_path, c.source_type, c.content)
             native_res: list[dict[str, Any]] = list(indexer.search(query, top_k, source_filter))
             if native_res:
