@@ -1,158 +1,120 @@
 # Getting Started with ALOS
 
-Welcome to **ALOS (Local Autonomous Life Operating System)**! This guide will take you step-by-step through setting up your local development environment, initializing your local vault memory, running Docker services, executing the test suite, and interacting with the system.
+Welcome to **ALOS (Local Autonomous Life Operating System)**. ALOS supports two portable production deployment modes—**Standalone Portable Install** (recommended on Windows gaming workstations for zero-overhead NVML & Direct3D hardware preemption) and **Container / Devcontainer Mode**—as well as source-checkout development.
 
 ---
 
-## 1. Prerequisites & System Requirements
+## 1. Prerequisites & Local Model Roster
 
-Before setting up ALOS, ensure your system meets the following requirements:
+- **Python / Packaging**: `uv` (manages Python 3.12+, lockfiles, wheels, and isolated tool environments).
+- **Local Model Runtime**: [Ollama](https://ollama.com) serving on `127.0.0.1:11434`.
+- **Optional Container Runtime**: Docker Desktop (WSL2 on Windows) for PostgreSQL 16, Redis, n8n, isolated test sandboxes, or containerized daemon deployments.
 
-- **Operating System**: Windows 10/11, macOS, or Linux (Windows PowerShell 7+ recommended on Windows).
-- **Python**: Python 3.10 or higher (Python 3.12 recommended).
-- **Package & Environment Manager**: `uv` (modern, ultra-fast Python package installer).
-- **Container Engine**: Docker Desktop or Podman (for running PostgreSQL + `pgvector` locally).
-- **Git**: Git with SSH commit signing configured (`gpg.format=ssh`).
+Pull the local capability-tier models once:
+
+```powershell
+ollama pull qwen2.5-coder:7b-instruct   # fast_coder primary (4 slots, 8k ctx, q8_0 KV)
+ollama pull qwen2.5-coder:1.5b          # compact commit-pressure fallback (<1 GB)
+ollama pull qwen2.5-coder:0.5b          # emergency ultra-low-commit fallback (<400 MB)
+ollama pull gemma4:12b                  # reasoner tier   (4 slots, 8k ctx, q8_0 KV)
+ollama pull qwen3-coder:30b             # architect tier  (1 slot, 8k ctx, q8_0 KV)
+ollama pull nomic-embed-text            # embed tier      (4 slots, 8k ctx)
+```
+
+> [!TIP]
+> **Windows Gaming Workstation Guardrail**: Cap WSL2 in `%USERPROFILE%\.wslconfig` (`memory=24GB`, `processors=12`, `autoMemoryReclaim=gradual`) and keep at least `16–32 GB` of Windows Virtual Memory (`pagefile.sys`) when running Docker Desktop alongside `7B`/`12B` CUDA models (`nvcuda64.dll` reserves OS commit charge equal to GPU allocations; if commit headroom gets tight, ALOS automatically steps down along `7b -> 3b -> 1.5b -> 0.5b`).
 
 ---
 
-## 2. Quickstart Installation
+## 2. Deployment Option A: Portable Standalone Install (Zero Containers Required)
 
-Follow these steps to clone and bootstrap the repository:
+Installs self-contained `alos`, `alos-governor`, `alos-dispatcher`, and `alos-sandbox` binaries that run from **any directory** using `~/.alos` (`ALOS_HOME`) and an embedded SQLite queue/ledger database:
 
-### Step 1: Clone the Repository & Checkout Feature Branch
 ```powershell
-git clone https://github.com/bfoxt/n8nSetup.git
-cd n8nSetup
+# One-command portable wheel build, isolated runtime venv (~/.alos/runtime), bootstrap, and doctor check
+.\scripts\install-portable.ps1
+
+# Or install globally onto PATH via uv tool:
+.\scripts\install-portable.ps1 -UseUvTool
+
+# Optional: register (or remove) a user logon Windows Scheduled Task for the background daemon
+.\scripts\install-portable.ps1 -RegisterStartupTask
+.\scripts\install-portable.ps1 -UnregisterStartupTask
 ```
 
-### Step 2: Install Dependencies with `uv`
-ALOS uses `uv` for deterministic dependency resolution. Install all dependencies and development extras:
+Once installed, run ALOS from anywhere without needing the Git checkout:
 
 ```powershell
-# Sync core dependencies and development tools (pytest, ruff, mypy, bandit)
-uv sync --extra dev
-```
-
-### Step 3: Run Automated Environment Setup Scripts
-ALOS includes automated PowerShell scripts in `.specify/scripts/powershell/` to configure pre-commit hooks, directory structures, and git signing rules:
-
-```powershell
-# Initialize dev environment and virtualenv
-.\.specify\scripts\powershell\setup-dev-environment.ps1
-
-# Configure git workflow, pre-commit hooks, and signing
-.\.specify\scripts\powershell\setup-git-workflow.ps1
+alos bootstrap          # Idempotently seeds ~/.alos/vault, queue DB, logs, and alos.env
+alos doctor --json      # Verifies ALOS_HOME, DB, vault, NVML GPU, Ollama models, and Docker
+alos status             # Prints live governor FSM state + GPU/VRAM/HID telemetry
+alos daemon             # Starts standing warm-linger loop (PID-locked, SIGTERM-safe)
 ```
 
 ---
 
-## 3. Launching Local Infrastructure (PostgreSQL & Vector DB)
+## 3. Deployment Option B: Production Containers & Devcontainers
 
-ALOS uses a local PostgreSQL database with `pgvector` for structured state storage and hybrid search:
+### Full Docker Compose Stack (PostgreSQL 16 + Redis + n8n + ALOS Daemon)
 
 ```powershell
-# Spin up PostgreSQL + pgvector container in the background
-docker compose up -d
-```
+Copy-Item .env.example .env   # Configure POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, N8N_ENCRYPTION_KEY
 
-To verify that the database container is running properly:
-```powershell
+# Start Postgres, Redis, n8n, and the non-root (UID 10001) alos-daemon container
+docker compose --profile alos up -d --build
+
+# Check container health (backed by `alos doctor --json` HEALTHCHECK)
 docker compose ps
 ```
 
----
+### Standalone Production Container
 
-## 4. Running the Quality & Test Suite
-
-ALOS enforces **100% test passing** and zero-tolerance quality gates before any code can be committed or merged.
-
-### Run All Unit & Integration Tests
 ```powershell
-uv run pytest
+docker build -f Dockerfile -t alos:local .
+docker run --rm -v alos_data:/data --add-host=host.docker.internal:host-gateway alos:local bootstrap
+docker run --rm -v alos_data:/data --add-host=host.docker.internal:host-gateway alos:local doctor --json
 ```
 
-### Run Static Type Checker (Mypy)
-```powershell
-uv run mypy alos tests
-```
+### Portable Devcontainer
 
-### Run Linter & Formatter (Ruff)
-```powershell
-uv run ruff check alos tests
-```
-
-### Run Security Audit (Bandit)
-```powershell
-uv run bandit -r alos
-```
-
-### Run All Pre-Push Quality Hooks
-To test the exact pre-push quality gate that CI/CD and git hooks enforce:
-```powershell
-uv run pre-commit run --all-files --hook-stage pre-push
-```
+Open the repository in VS Code / Antigravity Dev Containers (uses `.devcontainer/devcontainer.json` with `--cpus=6`, `--memory=8g`, `--no-new-privileges`, and `host.docker.internal` Ollama routing).
 
 ---
 
-## 5. Directory Blueprint: Where Things Live
-
-Once initialized, your project layout looks like this:
-
-```
-n8nSetup/
-├── alos/                     # Core Python Package
-│   ├── core/                 # Dual-Loop engine (Planner, Evaluator, Graph)
-│   ├── db/                   # SQLAlchemy 2.0 ORM models & Alembic migrations
-│   ├── memory/               # Local RAG, VectorStore, Obsidian Vault engine
-│   ├── integrations/         # MCP gateways & n8n workflow client
-│   └── schemas/              # Pydantic v2 action models & schemas
-├── docs/                     # Human Documentation Suite & ADRs
-│   ├── adr/                  # Architectural Decision Records (managed via pyadr)
-│   ├── idea.md               # Core vision, safety matrix, & philosophy
-│   ├── architecture.md       # Technical architecture & component deep-dive
-│   ├── specs_setup.md        # SpecKit (SDD), BDD, and TDD workflow
-│   └── getting_started.md    # This getting started guide
-├── specs/                    # SpecKit Feature Specifications (specs/01- through 18-)
-├── tests/                    # Unit, Integration, & BDD Gherkin test suites
-├── vault/                    # Local Obsidian Markdown Brain (User Profile, Preferences)
-│   ├── USER_PROFILE.md       # User identity, contacts, roles
-│   ├── PREFERENCES.md        # Explicit user rules (e.g., meeting constraints)
-│   └── CORRECTION_LEDGER.md  # Historical correction ledger
-├── docker-compose.yml        # Local PostgreSQL + pgvector service
-├── pyproject.toml            # Project dependencies, Ruff, Mypy, and Pytest configs
-└── README.md                 # Project landing page
-```
-
----
-
-## 6. Using the ALOS CLI
-
-ALOS exposes a command-line interface (`alos`) powered by `typer`:
+## 4. Day-to-Day Operations & Monitoring
 
 ```powershell
-# Inspect system status and vault connectivity
-uv run alos inspect
+# Enqueue work onto a capability tier (fast_coder | reasoner | architect)
+alos enqueue --id job-01 --repo alos --tier fast_coder --prompt "Audit error handling."
 
-# Evaluate a sample action against the Safety Matrix and local preferences
-uv run alos eval --action-type "google_calendar_create_event" --summary "Sync with Alex"
+# Execute one bounded cycle (or let `alos daemon` pull automatically)
+alos tick
 
-# Execute a reasoning graph run
-uv run alos run --prompt "Plan focus time for tomorrow morning"
+# Inspect recent GPU thermal, VRAM, and queue wait-time ledger entries
+alos ledger --limit 10
+
+# Run Dual-Loop Planner + Safety Matrix Evaluator against your Obsidian vault
+alos ask "Plan focus blocks for tomorrow morning"
+
+# Run CrewAI or SpecKit lifecycle commands
+alos crew run --name code_quality --goal "alos/swarm"
+alos speckit lifecycle --action list
 ```
+
+### Live Monitoring Signals
+- **Daemon Liveness File**: `~/.alos/run/health.json` (or `/data/run/health.json` in Docker) records atomic `status`, `governor_state`, `active_tier`, `pid`, and `updated_at`.
+- **Single-Instance Lock**: `~/.alos/run/governor.lock` prevents duplicate daemons and automatically reclaims stale dead-PID locks.
+- **Managed Epoch Server**: `Invoke-RestMethod http://127.0.0.1:11435/api/ps` shows the currently hot model and `size_vram` footprint.
 
 ---
 
-## 7. Troubleshooting & Frequently Asked Questions
+## 5. Development Setup & Validation Gates
 
-> [!TIP]
-> **Issue**: `ModuleNotFoundError: No module named 'alos'` when running pytest directly.
-> **Fix**: Ensure you run pytest via `uv run pytest`, which automatically respects `pythonpath = ["."]` in `pyproject.toml`.
+```powershell
+uv sync --extra dev
+.\.specify\scripts\powershell\setup-dev-environment.ps1
+.\.specify\scripts\powershell\setup-git-workflow.ps1
 
-> [!WARNING]
-> **Issue**: `pyadr` command fails or reports ADR inconsistencies.
-> **Fix**: Never edit ADR files manually inside `docs/adr/`. Always use `uv run pyadr propose` or `uv run pyadr check-adr-repo`.
-
-> [!NOTE]
-> **Issue**: Git push fails due to unsigned commits.
-> **Fix**: Ensure your SSH or GPG key is registered with Git (`git config gpg.format ssh` and `git config user.signingkey ~/.ssh/id_ed25519.pub`). All commits in ALOS must be signed.
+# Run all 8 pre-handback gates (uv.lock, Ruff, Mypy, Bandit, pyadr, Pytest >=85%, @mocked + @live Behave)
+.\scripts\run-validation-suite.ps1
+```
