@@ -34,12 +34,14 @@ DEFAULT_TARGETS: dict[str, list[str]] = {
     "alos/swarm/governor.py": [
         "tests/test_swarm_governor.py",
         "tests/test_cross_platform_contracts.py",
+        "tests/test_backlog_hold_and_burn.py",
     ],
     "alos/swarm/queue.py": [
         "tests/test_swarm_queue.py",
         "tests/test_contention_stress.py",
         "tests/test_portable_runtime.py",
         "tests/test_expanded_coverage.py",
+        "tests/test_backlog_hold_and_burn.py",
     ],
     "alos/swarm/sandbox.py": [
         "tests/test_swarm_sandbox.py",
@@ -48,6 +50,7 @@ DEFAULT_TARGETS: dict[str, list[str]] = {
     "alos/runtime.py": [
         "tests/test_portable_runtime.py",
         "tests/test_cross_platform_contracts.py",
+        "tests/test_backlog_hold_and_burn.py",
     ],
 }
 

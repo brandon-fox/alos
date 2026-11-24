@@ -15,7 +15,21 @@ if TYPE_CHECKING:
 
 
 GOVERNOR_COMMANDS = frozenset(
-    {"bootstrap", "doctor", "status", "enqueue", "jobs", "tick", "daemon", "ledger"}
+    {
+        "bootstrap",
+        "doctor",
+        "status",
+        "enqueue",
+        "jobs",
+        "tick",
+        "daemon",
+        "ledger",
+        "pause",
+        "resume",
+        "review",
+        "burn",
+        "backlog",
+    }
 )
 
 

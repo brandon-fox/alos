@@ -470,7 +470,7 @@ def test_21_scheduler_n8n_and_cli_observability_instrumentation(tmp_path, capsys
 
 
 def test_22_backlog_hold_gate_and_artifact_burn(tmp_path):
-    """Spec 037 (FR-3701..FR-3707): Hold latch blocks active-desk execution and burn writes artifacts."""
+    """Spec 037 (FR-3701..FR-3707): Hold latch gates active desk and burn writes deliverables."""
     from alos.runtime import QueueHoldLatch, RuntimePaths, bootstrap_home, review_jobs
     from alos.swarm.queue import main as queue_main
 
@@ -513,4 +513,3 @@ def test_22_backlog_hold_gate_and_artifact_burn(tmp_path):
     rev = review_jobs(db_url=boot["db_url"], repo_slug="brandon-fox/alos", action="approve")
     assert rev["updated"] == 1
     assert rev["target_state"] == "succeeded"
-

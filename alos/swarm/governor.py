@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import shutil
 import subprocess  # nosec B404
 import threading
 import time
@@ -65,6 +66,22 @@ class HysteresisConfig:
     warm_linger_s: float = 600.0
     evict_grace_s: float = 1.2
     evict_vram_floor_mb: int = 128
+
+    @classmethod
+    def from_env(cls) -> HysteresisConfig:
+        """Build hysteresis thresholds with optional workstation environment overrides."""
+        base = cls()
+        raw_vram = os.environ.get("ALOS_FOREIGN_VRAM_LIMIT_MB", "").strip()
+        raw_idle = os.environ.get("ALOS_PREEMPT_RECOVER_IDLE_S", "").strip()
+        vram_limit = int(raw_vram) if raw_vram else base.foreign_vram_limit_mb
+        vram_recover = int(vram_limit * 0.78) if raw_vram else base.foreign_vram_recover_mb
+        recover_idle = float(raw_idle) if raw_idle else base.preempt_recover_idle_s
+        return replace(
+            base,
+            foreign_vram_limit_mb=vram_limit,
+            foreign_vram_recover_mb=vram_recover,
+            preempt_recover_idle_s=recover_idle,
+        )
 
 
 @dataclass(frozen=True)
@@ -367,6 +384,11 @@ class ModelSpinner:
         return {self._proc.pid} if self._proc is not None and self._proc.poll() is None else set()
 
     def _spawn_server(self, spec: ModelTierSpec) -> Ollama:
+        if shutil.which("ollama") is None:
+            bridge = Ollama(os.environ.get("ALOS_SWARM_OLLAMA", self.stock_host))
+            with contextlib.suppress(OSError, ValueError):
+                bridge.call("/api/version", timeout=1.5)
+                return bridge
         client = Ollama(self.host)
         env = dict(
             os.environ,
@@ -409,8 +431,17 @@ class ModelSpinner:
         markers = ("out of memory", "cudamalloc", "mem_buffer", "0xc0000409", "failed to allocate")
         return any(m in low for m in markers)
 
+    def _classify_warm_http_error(self, exc: urllib.error.HTTPError) -> str:
+        """Classify recoverable HTTP warm-load errors (missing model tag or CUDA OOM)."""
+        detail = exc.read().decode("utf-8", errors="replace")
+        if exc.code == 404 or "not found" in detail.lower():
+            return f"MISSING_MODEL:{detail}"
+        if self._is_oom_failure(detail):
+            return detail
+        raise RuntimeError(f"Ollama warm-load HTTP {exc.code}: {detail}") from exc
+
     def _warm_model(self, client: Ollama, spec: ModelTierSpec) -> str | None:
-        """Warm ``spec.model`` and its prompt buffer in VRAM; return OOM detail on failure."""
+        """Warm ``spec.model`` and its prompt buffer in VRAM; return recoverable failure detail."""
         try:
             if is_embedding_model(spec.model, spec.tier):
                 client.call(
@@ -432,10 +463,7 @@ class ModelSpinner:
             )
             return None
         except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            if self._is_oom_failure(detail):
-                return detail
-            raise RuntimeError(f"Ollama warm-load HTTP {exc.code}: {detail}") from exc
+            return self._classify_warm_http_error(exc)
 
     def _query_stock_model_sizes_mb(self) -> dict[str, int]:
         with contextlib.suppress(OSError, ValueError):
@@ -468,14 +496,22 @@ class ModelSpinner:
         if not spec.fallback_models:
             return spec, []
         sizes_mb = self._query_stock_model_sizes_mb()
+        if not sizes_mb:
+            return spec, list(spec.fallback_models)
         fallback_queue = [m for m in spec.fallback_models if m in sizes_mb]
         if not fallback_queue:
             return spec, []
+        if spec.model not in sizes_mb:
+            spec = replace(spec, model=fallback_queue.pop(0))
         return self._select_commit_fitting_candidate(spec, fallback_queue, sizes_mb), fallback_queue
 
     def _next_degraded_spec(
-        self, candidate: ModelTierSpec, fallback_queue: list[str]
+        self, candidate: ModelTierSpec, fallback_queue: list[str], missing_model: bool = False
     ) -> ModelTierSpec | None:
+        if missing_model:
+            if not fallback_queue:
+                return None
+            return replace(candidate, model=fallback_queue.pop(0))
         if candidate.slots > 1:
             return replace(candidate, slots=max(1, candidate.slots // 2))
         if candidate.num_ctx > 2048:
@@ -495,13 +531,14 @@ class ModelSpinner:
                 client = Ollama(self.host)
             if not warm_load:
                 return client, candidate
-            oom_detail = self._warm_model(client, candidate)
-            if oom_detail is None:
+            fail_detail = self._warm_model(client, candidate)
+            if fail_detail is None:
                 return client, candidate
-            degraded = self._next_degraded_spec(candidate, fallback_queue)
+            is_missing = fail_detail.startswith("MISSING_MODEL:")
+            degraded = self._next_degraded_spec(candidate, fallback_queue, missing_model=is_missing)
             self._stop_process_tree()
             if degraded is None:
-                raise RuntimeError(f"Ollama CUDA OOM even at 1 slot: {oom_detail}")
+                raise RuntimeError(f"Ollama tier warm-load failed ({spec.tier}): {fail_detail}")
             candidate = degraded
 
     def ensure_tier(self, tier_name: str, warm_load: bool = True) -> Ollama:

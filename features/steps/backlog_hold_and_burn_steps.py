@@ -19,7 +19,10 @@ def _run_spec037_cli(home: Path, args_str: str) -> subprocess.CompletedProcess[s
     env = dict(os.environ)
     env["ALOS_SWARM_MODE"] = "mock"
     env["ALOS_MOCK_SENSOR_JSON"] = json.dumps({"user_idle_seconds": 15.0, "d3d_fullscreen": False})
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=60, check=False, env=env)
+    # Fixed argument vector invoking our own CLI module via sys.executable without a shell.
+    return subprocess.run(  # noqa: S603
+        cmd, capture_output=True, text=True, timeout=60, check=False, env=env
+    )
 
 
 @given("an isolated Spec 037 ALOS_HOME")

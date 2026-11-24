@@ -101,6 +101,14 @@ class RuntimePaths:
         return self.run_dir / "health.json"
 
     @property
+    def hold_file(self) -> Path:
+        return self.run_dir / "queue_hold.json"
+
+    @property
+    def results_dir(self) -> Path:
+        return self.root / "results"
+
+    @property
     def sqlite_db_path(self) -> Path:
         return self.queue_dir / "compute_queue.db"
 
@@ -307,7 +315,13 @@ def _seed_vault_templates(vault_dir: Path) -> list[str]:
 def bootstrap_home(home: Path | str | None = None, db_url: str | None = None) -> dict[str, Any]:
     """Initialize portable ``ALOS_HOME`` directories, vault templates, env file, and DB schema."""
     paths = RuntimePaths.resolve(home)
-    for directory in (paths.vault_dir, paths.queue_dir, paths.logs_dir, paths.run_dir):
+    for directory in (
+        paths.vault_dir,
+        paths.queue_dir,
+        paths.logs_dir,
+        paths.run_dir,
+        paths.results_dir,
+    ):
         directory.mkdir(parents=True, exist_ok=True)
     seeded = _seed_vault_templates(paths.vault_dir)
     if not paths.env_file.exists():
@@ -466,3 +480,123 @@ def query_jobs(db_url: str, state: str | None = None, limit: int = 25) -> list[d
             }
             for r in rows
         ]
+
+
+@dataclass(frozen=True)
+class HoldStatus:
+    """Evaluated outcome of the persistent queue staging hold latch (Spec 037)."""
+
+    held: bool
+    outcome: str
+    mode: str | None
+    reason: str
+    min_idle_s: float = 0.0
+
+
+class QueueHoldLatch:
+    """File-backed hold latch preventing GPU warm-up while the user is actively at the desk."""
+
+    def __init__(self, hold_path: Path) -> None:
+        self.hold_path = hold_path
+
+    def _write_state(self, mode: str, min_idle_s: float, reason: str) -> dict[str, Any]:
+        self.hold_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "mode": mode,
+            "min_idle_s": float(min_idle_s),
+            "reason": reason,
+            "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
+        self.hold_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return payload
+
+    def engage_manual(self, reason: str = "manual pause") -> dict[str, Any]:
+        """Hold queue execution unconditionally until ``clear()`` / ``resume`` is called."""
+        return self._write_state("manual", 0.0, reason)
+
+    def engage_idle_gate(
+        self, min_idle_s: float = 300.0, reason: str = "staged while using machine"
+    ) -> dict[str, Any]:
+        """Hold queue execution until uninterrupted user idle reaches ``min_idle_s``."""
+        return self._write_state("idle_gate", max(1.0, float(min_idle_s)), reason)
+
+    def clear(self) -> bool:
+        """Remove active hold latch and return True when a latch was cleared."""
+        if not self.hold_path.exists():
+            return False
+        with contextlib.suppress(OSError):
+            self.hold_path.unlink()
+        return True
+
+    def read(self) -> dict[str, Any] | None:
+        """Return persisted hold latch dictionary or None when unlatched."""
+        if not self.hold_path.exists():
+            return None
+        with contextlib.suppress(OSError, ValueError):
+            loaded: dict[str, Any] = json.loads(self.hold_path.read_text(encoding="utf-8"))
+            return loaded
+        return None
+
+    def evaluate(
+        self,
+        user_idle_seconds: float,
+        d3d_fullscreen: bool = False,
+        blocked_process: str | None = None,
+    ) -> HoldStatus:
+        """Check whether execution must stay held or auto-arm after hands-off idle expiry."""
+        data = self.read()
+        if data is None:
+            return HoldStatus(held=False, outcome="open", mode=None, reason="")
+        mode = str(data.get("mode", "manual"))
+        reason = str(data.get("reason", "queue held"))
+        min_idle = float(data.get("min_idle_s", 0.0))
+        if mode == "manual":
+            return HoldStatus(held=True, outcome="held", mode="manual", reason=reason)
+        activity_clear = not d3d_fullscreen and blocked_process is None
+        if activity_clear and user_idle_seconds >= min_idle:
+            self.clear()
+            return HoldStatus(
+                held=False,
+                outcome="armed_from_idle",
+                mode=None,
+                reason="idle threshold satisfied",
+                min_idle_s=min_idle,
+            )
+        return HoldStatus(
+            held=True,
+            outcome="held_user_active",
+            mode="idle_gate",
+            reason=reason,
+            min_idle_s=min_idle,
+        )
+
+
+def review_jobs(
+    db_url: str,
+    job_id: str | None = None,
+    repo_slug: str | None = None,
+    action: str = "approve",
+) -> dict[str, Any]:
+    """Transition ``review_pending`` jobs to ``succeeded``, ``queued``, or ``escalated``."""
+    state_map = {"approve": "succeeded", "requeue": "queued", "reject": "escalated"}
+    target_state = state_map.get(action)
+    if target_state is None:
+        raise ValueError(f"unsupported review action {action!r}")
+    now = datetime.now(timezone.utc)
+    db = DatabaseManager(db_url=db_url)
+    db.create_all_tables()
+    updated_ids: list[str] = []
+    with db.get_session() as session:
+        stmt = select(ComputeQueueJobModel).where(ComputeQueueJobModel.state == "review_pending")
+        if job_id:
+            stmt = stmt.where(ComputeQueueJobModel.job_id == job_id)
+        if repo_slug:
+            stmt = stmt.where(ComputeQueueJobModel.repo_slug == repo_slug)
+        for row in session.scalars(stmt):
+            row.state = target_state
+            if action == "requeue":
+                row.attempts = 0
+            row.updated_at = now
+            updated_ids.append(row.job_id)
+        session.flush()
+    return {"updated": len(updated_ids), "target_state": target_state, "job_ids": updated_ids}
