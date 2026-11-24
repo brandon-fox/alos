@@ -5,7 +5,9 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from alos.application.use_cases.assemble_context import AssembleContextUseCase
 from alos.core.protocols import MemoryStoreProtocol
+from alos.domain.models.context import RAGDocument
 
 
 class ContextPayload(BaseModel):
@@ -65,18 +67,31 @@ class ContextAssembler:
                         items.append(cleaned)
         return items
 
-    def assemble_context(self, user_query: str) -> ContextPayload:
-        """Assemble complete context payload from vault, preferences, and RAG search."""
-        wiki_links = self._collect_wiki_links()
-        profile = self._read_profile()
-        preferences = self._read_vault_list("PREFERENCES.md")
-        corrections = self._read_vault_list("CORRECTION_LEDGER.md")
-        rag_results = self.vector_store.search(user_query, top_k=3)
+    def read_profile(self) -> dict[str, Any]:
+        """Implement VaultRepositoryPort profile read."""
+        return self._read_profile()
 
-        return ContextPayload(
-            profile=profile,
-            preferences=preferences,
-            corrections=corrections,
-            rag_docs=rag_results,
-            wiki_links=wiki_links,
-        )
+    def read_list(self, filename: str) -> list[str]:
+        """Implement VaultRepositoryPort vault list read."""
+        m = {"preferences.md": "PREFERENCES.md", "corrections.md": "CORRECTION_LEDGER.md"}
+        return self._read_vault_list(m.get(filename, filename))
+
+    def collect_wiki_links(self) -> list[str]:
+        """Implement VaultRepositoryPort wiki link collection."""
+        return self._collect_wiki_links()
+
+    def search(self, query: str, top_k: int = 5) -> list[RAGDocument]:
+        """Implement MemoryStorePort dict-to-RAGDocument search."""
+        docs: list[RAGDocument] = []
+        for h in self.vector_store.search(query, top_k=top_k):
+            fn = str(h.get("file_name") or h.get("filename", ""))
+            fp = str(h.get("file_path") or h.get("filepath", ""))
+            c, s = str(h.get("content", "")), float(h.get("score", 0.0))
+            docs.append(RAGDocument(file_name=fn, file_path=fp, content=c, score=s))
+        return docs
+
+    def assemble_context(self, user_query: str) -> ContextPayload:
+        """Assemble complete context payload via Ring 2 AssembleContextUseCase (Strangler-Fig)."""
+        dom = AssembleContextUseCase(self, self).execute(user_query, top_k=3)
+        docs = [d.model_dump() for d in dom.rag_docs]
+        return ContextPayload(**dom.model_dump(exclude={"rag_docs"}), rag_docs=docs)
