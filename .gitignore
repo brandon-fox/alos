@@ -39,6 +39,8 @@ wheels/
 # Tooling Caches
 .gemini/
 .pytest_cache/
+.pytest_tmp/
+.pytest_precommit_tmp/
 .ruff_cache/
 .mypy_cache/
 .coverage

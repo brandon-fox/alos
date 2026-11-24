@@ -14,9 +14,10 @@ This file contains repository-scoped behavioral rules and directives for AI agen
 - **Constitution**: System constitution directives live in `.specify/memory/constitution.md`.
 - **Skill Usage**: Refer to `.agents/skills/speckit-workflow/SKILL.md` for explicit PowerShell script invocation (`create-new-feature.ps1`, `setup-plan.ps1`, `setup-tasks.ps1`), requirement tracing (`FR-XXX`), and TDD phase enforcement.
 
-### 3. Testing & TDD
-- **Test-Driven Development**: Always follow Red-Green-Refactor. Write failing tests in `tests/test_sdd_bdd_features.py` before writing implementation code.
-- **BDD Scenarios**: Gherkin acceptance feature files live in `tests/features/`.
+### 3. Testing, TDD & Behave BDD Suites
+- **Test-Driven Development**: Always follow Red-Green-Refactor. Write failing tests before implementation code.
+- **Dual BDD Coverage**: Keep `pytest-bdd` specs in `tests/features/` and full end-to-end `behave` suites in `features/` covering **both `@mocked` and `@live` integration calls** across all features and edge cases.
+- **Pre-Handback Gate (MANDATORY)**: Never hand back a completed plan without running `.\scripts\run-validation-suite.ps1` (lock check, Ruff, Mypy, Bandit, `pyadr`, `pytest` >= 85% coverage via `scripts/run_pytest_clean.py`, `@mocked` Behave, and `@live` Behave). Manual checks are only the final stage after all automated gates pass.
 
 ### 4. Git Atomic Commit, Push & Worktree Lifecycle Workflow
 - **Commit Cadence**: "More is better". Commit early and often for every tested incremental change, decision, or spec milestone.
@@ -30,7 +31,7 @@ This file contains repository-scoped behavioral rules and directives for AI agen
 ### 6. Code Quality, Rule Exception Documentation & Agent Fix-First Directive
 - **Fix-First Directive (MANDATORY)**: AI agents MUST always prefer resolving and fixing code issues, bugs, linting errors, typing issues, security vulnerabilities, and Sonar code smells over ignoring or suppressing them (`# noqa`, `# type: ignore`, `NOSONAR`, `# pragma: no cover`), even if fixing is significantly harder or requires refactoring.
 - **Mandatory Exception Documentation & Native Linter Enforcement**: Suppressions (`# noqa`, `# type: ignore`, `NOSONAR`, etc.) are permitted ONLY when fixing is technically impossible or limited by external framework requirements. Every exception MUST be preceded or accompanied by an explicit justification comment. Native linters strictly enforce rule specificity (`ruff` `PGH004` disallows bare `# noqa`, `RUF100` disallows unused `# noqa`, `mypy` `enable_error_code = ["ignore-without-code"]` disallows bare `# type: ignore`).
-- **Sonar Scans & Quality Gates**: All code MUST pass Sonar code quality scans, ruff lint checks, mypy type checks, bandit security audits, and pytest suites. Pre-commit hooks run fast linting and formatting checks; pre-push hooks strictly enforce passing test suites, type checking, security audits, and Sonar quality gates.
+- **Sonar Scans & Quality Gates**: All code MUST pass Sonar code quality scans, ruff lint checks, mypy type checks, bandit security audits, `pytest` suites, and `behave` BDD suites. `pre-commit` hooks run formatting, linting, and fast light unit tests (`pytest-light-unit`) on every commit; `pre-push` hooks strictly enforce coverage, type checking, security audits, and full `behave` BDD execution.
 
 ### 7. Subagent Delegation Protocol & Adaptive Workspace Rules
 - **Proactive Delegation**: AI agents MUST spawn specialized subagents (`invoke_subagent` or `define_subagent`) for parallel research, heavy context searching, code quality audits, and test execution.
