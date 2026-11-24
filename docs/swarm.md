@@ -4,7 +4,7 @@
 > standing loop and an hourly capacity ledger) is specified and not built. Stage 3 (five feeders
 > and a vault folder that local models, a planner and a cloud lane share) is specified, with a
 > prototype running outside this repository. Spec:
-> [`specs/029-local-swarm-dispatcher/spec.md`](../specs/029-local-swarm-dispatcher/spec.md).
+> [`specs/029-local-swarm-dispatcher/spec.md`](https://github.com/brandon-fox/alos/blob/main/specs/029-local-swarm-dispatcher/spec.md).
 
 The dispatcher fans independent jobs out across local [Ollama](https://ollama.com) models. A
 planner (you, or a cloud model) writes a run folder and reads one summary; the dispatcher does
@@ -30,7 +30,7 @@ The last line printed is a one-line JSON summary. The exit code is 0 only when t
 
 A job names a class; the roster maps a class to a model, a number of concurrent slots and a
 context size. The default roster is `DEFAULT_ROSTER` in
-[`alos/swarm/dispatcher.py`](../alos/swarm/dispatcher.py). To change it, put a `roster.json`
+[`alos/swarm/dispatcher.py`](https://github.com/brandon-fox/alos/blob/main/alos/swarm/dispatcher.py). To change it, put a `roster.json`
 with the same shape in the swarm home:
 
 ```json
@@ -51,7 +51,7 @@ Phases run in the order models first appear in `classes`.
 
 One machine, 2026-11-09: RTX 5080 (16 GB), i9-14900KF, 64 GB RAM, Ollama 0.34.4, all models
 Q4_K_M. These numbers set the default roster; rerun
-[`scripts/swarm/bench_slots.py`](../scripts/swarm/bench_slots.py) on other hardware.
+[`scripts/swarm/bench_slots.py`](https://github.com/brandon-fox/alos/blob/main/scripts/swarm/bench_slots.py) on other hardware.
 
 **A stock Ollama server runs one request at a time.** Sending 8 concurrent requests to the
 normal server gave the same total throughput as sending 1 (about 295 tokens per second on
@@ -91,7 +91,7 @@ contention gate caught the orphan on the next run (`busy`), which is how it was 
 ## Running draft tests safely
 
 Tests drafted by a local model are run only inside the sandbox
-([spec 030](../specs/030-swarm-test-sandbox/spec.md)): a container with the repository mounted
+([spec 030](https://github.com/brandon-fox/alos/blob/main/specs/030-swarm-test-sandbox/spec.md)): a container with the repository mounted
 read-only, no network, a read-only root and an unprivileged user. A draft that passes is then
 run against small deliberate breakages of the code; it is promoted only if one of them makes it
 fail.

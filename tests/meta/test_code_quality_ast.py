@@ -93,3 +93,54 @@ def test_ast_baseline_json_snapshot_exists() -> None:
     """Verify that ast_metrics_baseline.json exists and contains valid thresholds."""
     baseline_path = Path("tests/meta/ast_metrics_baseline.json")
     assert baseline_path.exists(), "AST baseline snapshot JSON file missing"
+
+
+@pytest.mark.meta
+def test_inline_suppressions_are_specific_and_justified() -> None:
+    """Constitution VII / Spec 038 FR-008: Disallow bare suppressions and ratchet unjustified."""
+    import io
+    import json
+    import re
+    import tokenize
+
+    bare_re = re.compile(r"#\s*(?:noqa(?!\s*:)|type:\s*ignore(?!\s*\[))")
+    supp_re = re.compile(
+        r"#\s*(?:noqa:\s*[A-Z0-9,\s]+|type:\s*ignore\[[^\]]+\]|pragma:\s*no\s*cover|NOSONAR)"
+    )
+    directive_only_re = re.compile(
+        r"^(?:#\s*(?:noqa:\s*[A-Z0-9,\s]+|type:\s*ignore\[[^\]]+\]|nosec[^#]*|pragma:\s*no\s*cover|NOSONAR)\s*)+$"
+    )
+
+    bare_hits: list[str] = []
+    unjustified: list[str] = []
+    for folder in ("alos", "tests"):
+        for py_file in sorted(Path(folder).rglob("*.py")):
+            source = py_file.read_text(encoding="utf-8")
+            lines = source.splitlines()
+            comments_by_line: dict[int, str] = {}
+            for tok in tokenize.generate_tokens(io.StringIO(source).readline):
+                if tok.type == tokenize.COMMENT:
+                    comments_by_line[tok.start[0]] = tok.string
+
+            for lineno, comment_part in sorted(comments_by_line.items()):
+                if bare_re.search(comment_part):
+                    bare_hits.append(f"{py_file}:{lineno}: {lines[lineno - 1].strip()}")
+                if not supp_re.search(comment_part):
+                    continue
+                inline_has_prose = not directive_only_re.match(comment_part.strip())
+                prev_has_prose = any(
+                    ln in comments_by_line
+                    and not directive_only_re.match(comments_by_line[ln].strip())
+                    for ln in range(max(1, lineno - 3), lineno)
+                )
+                if not (inline_has_prose or prev_has_prose):
+                    unjustified.append(f"{py_file}:{lineno}: {lines[lineno - 1].strip()}")
+
+    assert not bare_hits, "Bare # noqa or # type: ignore forbidden:\n" + "\n".join(bare_hits)
+    cap = json.loads(Path("tests/meta/ast_metrics_baseline.json").read_text(encoding="utf-8"))[
+        "thresholds"
+    ]["max_legacy_unjustified_suppressions"]
+    assert len(unjustified) <= cap, (
+        f"Unjustified inline suppressions ({len(unjustified)} > {cap}); add a technical "
+        f"justification comment:\n" + "\n".join(unjustified)
+    )

@@ -1,0 +1,46 @@
+# Cargo-deny supply-chain, advisory, license, and source policy for crates/alos_native.
+# Spec: specs/038-enterprise-cicd-pipeline/spec.md (FR-007)
+
+[graph]
+all-features = false
+no-default-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = [
+    # serde_yaml 0.9 is marked unmaintained upstream (RUSTSEC-2024-0320) with no security vulnerability;
+    # retained for YAML frontmatter parsing parity until serde-saphyr migration.
+    "RUSTSEC-2024-0320",
+    # pyo3 0.23.0 baseline advisories tracked under newly enabled cargo Dependabot updates (#144-#146).
+    "GHSA-chgr-c6px-7xpp",
+    "GHSA-36hh-v3qg-5jq4",
+    "GHSA-pph8-gcv7-4qj5",
+]
+
+[licenses]
+version = 2
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Zlib",
+    "CC0-1.0",
+]
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

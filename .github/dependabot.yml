@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # Python dependencies via uv
+  # Python dependencies via uv (grouped runtime + dev to minimize PR churn)
   - package-ecosystem: "uv"
     directory: "/"
     schedule:
@@ -22,7 +22,26 @@ updates:
         versions: [">=9.2.0"]
     open-pull-requests-limit: 5
 
-  # GitHub Actions versions
+  # Rust native extension dependencies (crates/alos_native)
+  - package-ecosystem: "cargo"
+    directory: "/crates/alos_native"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "rust"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      rust-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    open-pull-requests-limit: 3
+
+  # GitHub Actions 40-char SHA updates (grouped so 1 weekly PR updates all actions together)
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -34,9 +53,13 @@ updates:
       - "automated"
     commit-message:
       prefix: "chore(ci)"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
     open-pull-requests-limit: 3
 
-  # Docker image versions
+  # Docker base image versions
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
