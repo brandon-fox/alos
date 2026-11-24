@@ -15,6 +15,7 @@ import contextlib
 import ctypes
 import os
 import sys
+import threading
 from collections import deque
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
@@ -251,10 +252,22 @@ def query_win32_d3d_fullscreen() -> bool:
     return False
 
 
-def query_win32_free_commit_mb() -> int | None:
-    """Return available Windows OS virtual commit headroom (RAM + pagefile) in MiB."""
-    if sys.platform != "win32":
+def _read_linux_memavailable_mb(meminfo_path: Path) -> int | None:
+    if not meminfo_path.exists():
         return None
+    with contextlib.suppress(OSError, ValueError):
+        for line in meminfo_path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("MemAvailable:"):
+                parts = line.split()
+                if len(parts) >= 2:
+                    return int(parts[1]) // 1024
+    return None
+
+
+def query_win32_free_commit_mb(meminfo_path: Path | None = None) -> int | None:
+    """Return available OS virtual commit/memory headroom in MiB across Windows and Linux."""
+    if sys.platform != "win32":
+        return _read_linux_memavailable_mb(meminfo_path or Path("/proc/meminfo"))
     win = getattr(ctypes, "windll", None)
     if win is None:
         return None
@@ -338,6 +351,7 @@ class ScriptedSensor:
     """Deterministic fault-injection sensor for testing spin-down and thermal hysteresis."""
 
     def __init__(self, initial: TelemetrySnapshot | None = None) -> None:
+        self._lock = threading.Lock()
         self._current = initial or TelemetrySnapshot(
             gpu_temp_c=44.0,
             vram_temp_c=52.0,
@@ -353,18 +367,21 @@ class ScriptedSensor:
 
     def push(self, *snapshots: TelemetrySnapshot) -> None:
         """Queue one or more snapshots to be yielded sequentially on ``sample()``."""
-        self._queue.extend(snapshots)
+        with self._lock:
+            self._queue.extend(snapshots)
 
     def update(self, **changes: Any) -> TelemetrySnapshot:
         """Mutate fields on the current steady-state snapshot and return it."""
-        self._current = replace(self._current, **changes)
-        return self._current
+        with self._lock:
+            self._current = replace(self._current, **changes)
+            return self._current
 
     def sample(self) -> TelemetrySnapshot:
         """Pop next scripted reading if queued, else return current steady-state reading."""
-        if self._queue:
-            self._current = self._queue.popleft()
-        return self._current
+        with self._lock:
+            if self._queue:
+                self._current = self._queue.popleft()
+            return self._current
 
 
 class FaultOverlaySensor:
@@ -373,16 +390,21 @@ class FaultOverlaySensor:
     def __init__(self, backing: SensorProvider) -> None:
         self._backing = backing
         self._overrides: dict[str, Any] = {}
+        self._lock = threading.Lock()
 
     def inject(self, **overrides: Any) -> None:
         """Apply synthetic field overrides (e.g., ``d3d_fullscreen=True``) over live readings."""
-        self._overrides.update(overrides)
+        with self._lock:
+            self._overrides.update(overrides)
 
     def clear(self) -> None:
         """Remove all synthetic overrides and return pure hardware telemetry."""
-        self._overrides.clear()
+        with self._lock:
+            self._overrides.clear()
 
     def sample(self) -> TelemetrySnapshot:
         """Sample live hardware and overlay any injected stimulus fields."""
         live = self._backing.sample()
-        return replace(live, **self._overrides) if self._overrides else live
+        with self._lock:
+            overrides = dict(self._overrides)
+        return replace(live, **overrides) if overrides else live
