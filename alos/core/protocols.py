@@ -1,41 +1,14 @@
-"""Abstract protocol interfaces for ALOS core components (SOLID: ISP & DIP)."""
+"""Abstract protocol interfaces for ALOS core components (Strangler-Fig shim -> Ring 2 ports).
 
-from contextlib import AbstractContextManager
+Canonical Hexagonal outbound ports live in ``alos.application.ports.outbound``; legacy
+dict-returning protocols remain here temporarily until Wave 3 adapters migrate.
+"""
+
 from typing import Any, Protocol, runtime_checkable
 
+from alos.application.ports.outbound import MCPGatewayPort, TelemetryPort
 
-@runtime_checkable
-class TelemetryProtocol(Protocol):
-    """Protocol for distributed tracing and runtime metrics collection (SOLID: ISP & DIP)."""
-
-    def span(
-        self,
-        name: str,
-        tags: dict[str, Any] | None = None,
-        traceparent: str | None = None,
-    ) -> AbstractContextManager[Any]:
-        """Trace an execution block with hierarchical span propagation."""
-        ...
-
-    def inc_counter(
-        self, name: str, amount: float = 1.0, labels: dict[str, str] | None = None
-    ) -> float:
-        """Increment a cumulative counter metric."""
-        ...
-
-    def set_gauge(self, name: str, value: float, labels: dict[str, str] | None = None) -> float:
-        """Set a point-in-time gauge metric."""
-        ...
-
-    def observe_histogram(
-        self,
-        name: str,
-        value: float,
-        labels: dict[str, str] | None = None,
-        buckets: tuple[float, ...] | None = None,
-    ) -> Any:
-        """Record an observation in a latency/value histogram."""
-        ...
+TelemetryProtocol = TelemetryPort
 
 
 @runtime_checkable
@@ -92,10 +65,5 @@ class ToolHandlerProtocol(Protocol):
         ...
 
 
-@runtime_checkable
-class MCPGatewayProtocol(Protocol):
-    """Protocol for MCP gateway integrations (SOLID: ISP & DIP)."""
-
-    def execute_tool(self, tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
-        """Execute named tool via MCP gateway."""
-        ...
+# Strangler-Fig re-export: canonical Ring 2 port lives in alos.application.ports.outbound.
+MCPGatewayProtocol = MCPGatewayPort
