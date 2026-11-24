@@ -1,10 +1,13 @@
-"""Command Line Interface (CLI) entry point for the ALOS runtime and SpecKit integrations."""
+"""Unified production CLI entry point for ALOS runtime, compute governor, crews, and SpecKit."""
+
+from __future__ import annotations
 
 import argparse
 import json
 import os
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 from alos.core.config import ALOSConfig
@@ -16,6 +19,12 @@ from alos.integrations.speckit.archiver import SpecKitArchiver
 from alos.integrations.speckit.lifecycle import SpecKitLifecycleManager
 from alos.logs.monitor import ObservabilityServer, RuntimeMonitor
 from alos.logs.telemetry import global_tracer
+from alos.runtime import RuntimePaths
+from alos.swarm.queue import main as governor_main
+
+GOVERNOR_COMMANDS = frozenset(
+    {"bootstrap", "doctor", "status", "enqueue", "jobs", "tick", "daemon", "ledger"}
+)
 
 
 def _handle_speckit_lifecycle(args: argparse.Namespace) -> None:
@@ -53,6 +62,34 @@ def _handle_speckit_archive(args: argparse.Namespace) -> None:
         res = archiver.archive_feature(args.feature)
     print(json.dumps(res, indent=2))
     sys.exit(0)
+
+
+def _resolve_vault_dir(configured: str) -> str:
+    local = Path(configured)
+    if local.exists():
+        return str(local.resolve())
+    portable = RuntimePaths.resolve().vault_dir
+    if portable.exists():
+        return str(portable)
+    return os.path.abspath(configured)
+
+
+def _extract_governor_delegation(raw_args: list[str]) -> list[str] | None:
+    """If the user invoked a governor/runtime subcommand, reorder global flags and forward."""
+    value_flags = {"--home", "--db-url"}
+    idx = 0
+    while idx < len(raw_args):
+        token = raw_args[idx]
+        if token in GOVERNOR_COMMANDS:
+            return [*raw_args[:idx], token, *raw_args[idx + 1 :]]
+        if token in value_flags:
+            idx += 2
+            continue
+        if token.startswith("-"):
+            idx += 1
+            continue
+        return None
+    return None
 
 
 def _register_observability_parser(subparsers: Any, config: ALOSConfig) -> None:
@@ -107,8 +144,23 @@ def _handle_observability(args: argparse.Namespace, config: ALOSConfig) -> None:
     sys.exit(1)
 
 
-def _build_parser(config: ALOSConfig) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="ALOS - Personal Life Autonomous Runtime CLI")
+def _build_main_parser(config: ALOSConfig) -> argparse.ArgumentParser:
+    epilog = (
+        "Runtime & Compute Governor commands (accept --home PATH, --db-url URL, --mock):\n"
+        "  bootstrap   Initialize ALOS_HOME, vault templates, and queue schema\n"
+        "  doctor      Verify runtime, DB, NVML GPU, Ollama models, and Docker readiness\n"
+        "  status      Sample host telemetry and print governor FSM state JSON\n"
+        "  enqueue     Enqueue one job or a batch JSON backlog (--file PATH)\n"
+        "  jobs        List queued, review_pending, succeeded, or escalated jobs\n"
+        "  tick        Execute a single governor + queue poll cycle\n"
+        "  daemon      Start standing warm-linger daemon (PID-locked, SIGTERM/SIGBREAK-safe)\n"
+        "  ledger      Inspect recent thermal & capacity ledger rows\n"
+    )
+    parser = argparse.ArgumentParser(
+        description="ALOS - Autonomous Local Operating System CLI",
+        epilog=epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     subparsers = parser.add_subparsers(dest="subcommand")
 
     crew_parser = subparsers.add_parser("crew", help="CrewAI agent orchestration commands")
@@ -140,19 +192,53 @@ def _build_parser(config: ALOSConfig) -> argparse.ArgumentParser:
 
     archive_parser = speckit_subparsers.add_parser("archive", help="SpecKit archiving operations")
     archive_parser.add_argument("--feature", help="Feature specification name")
-    archive_parser.add_argument("--restore", action="store_true", help="Restore feature")
+    archive_parser.add_argument("--restore", action="store_true", help="Restore archived spec")
     archive_parser.add_argument("--list", action="store_true", help="List archived specifications")
 
     _register_observability_parser(subparsers, config)
-    parser.add_argument("query", nargs="?", help="Task or life logistics prompt for ALOS")
-    parser.add_argument("--vault", default=config.vault_dir, help="Path to local vault directory")
+
+    ask_parser = subparsers.add_parser("ask", help="Run dual-loop reasoning query against vault")
+    ask_parser.add_argument("query", help="Task or life logistics prompt for ALOS")
+    ask_parser.add_argument("--vault", default=config.vault_dir, help="Path to Markdown vault")
     return parser
 
 
-def main() -> None:
-    """Main CLI entry point for executing ALOS queries, CrewAI, SpecKit, and observability."""
+def _print_banner() -> None:
+    print("ALOS Runtime CLI v0.1.0")
+    print("Usage: alos bootstrap | doctor | status | enqueue | tick | daemon | ledger")
+    print("Usage: alos ask 'Plan my schedule for today'")
+    print("Usage: alos crew run --name speckit_architect --goal 'Add user RAG'")
+
+
+def _run_crew_command(args: argparse.Namespace) -> None:
+    if args.name == "speckit_architect":
+        res = SpecKitArchitectCrew().run(goal=args.goal)
+    elif args.name == "code_quality":
+        res = CodeQualityCrew().run(target_module=args.goal)
+    else:
+        res = ObsidianGraphSynthesizerCrew().run(vault_dir="vault")
+    print(json.dumps(res, indent=2))
+    sys.exit(0)
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Main CLI entry point supporting unified runtime, governor, crew, and SpecKit commands."""
+    raw = list(sys.argv[1:] if argv is None else argv)
+    if not raw:
+        _print_banner()
+        sys.exit(0)
+
+    delegated = _extract_governor_delegation(raw)
+    if delegated is not None:
+        sys.exit(governor_main(delegated))
+
+    # Backward-compatible shorthand: `alos "Plan my morning"` maps to `alos ask "Plan my morning"`
+    known_roots = {"crew", "speckit", "ask", "observability", "-h", "--help"}
+    if raw[0] not in known_roots and not raw[0].startswith("-"):
+        raw = ["ask", *raw]
+
     config = ALOSConfig()
-    args = _build_parser(config).parse_args()
+    args = _build_main_parser(config).parse_args(raw)
 
     if args.subcommand == "speckit":
         if args.speckit_action == "lifecycle":
@@ -164,22 +250,9 @@ def main() -> None:
         _handle_observability(args, config)
 
     if args.subcommand == "crew" and args.crew_action == "run":
-        if args.name == "speckit_architect":
-            res = SpecKitArchitectCrew().run(goal=args.goal)
-        elif args.name == "code_quality":
-            res = CodeQualityCrew().run(target_module=args.goal)
-        else:
-            res = ObsidianGraphSynthesizerCrew().run(vault_dir="vault")
-        print(json.dumps(res, indent=2))
-        sys.exit(0)
+        _run_crew_command(args)
 
-    if not args.query:
-        print("ALOS Runtime CLI v0.1.0")
-        print("Usage: python -m alos.cli 'Plan my schedule for today'")
-        print("Usage: python -m alos.cli observability health")
-        sys.exit(0)
-
-    vault_path = os.path.abspath(args.vault)
+    vault_path = _resolve_vault_dir(str(args.vault))
     graph = ALOSStateGraph(vault_dir=vault_path, config=config)
     print(json.dumps(graph.run(args.query), indent=2))
 
