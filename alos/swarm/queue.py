@@ -29,12 +29,14 @@ from alos.db.session import DatabaseManager
 from alos.runtime import (
     DaemonAlreadyRunningError,
     HealthHeartbeat,
+    QueueHoldLatch,
     RuntimePaths,
     SingleInstanceLock,
     allocate_free_port,
     bootstrap_home,
     query_jobs,
     query_ledger,
+    review_jobs,
     run_doctor,
 )
 from alos.swarm.dispatcher import Ollama
@@ -43,8 +45,10 @@ from alos.swarm.governor import (
     GovernorState,
     GovernorTransition,
     HostGovernor,
+    HysteresisConfig,
     ModelSpinner,
     is_embedding_model,
+    is_thermal_cutoff,
     is_thermal_throttled,
 )
 from alos.swarm.sensors import (
@@ -520,6 +524,8 @@ class ComputeRuntimeLoop:
     queue: StickyEpochQueue
     worker_id: str = "alos-local-1"
     throttled_swap_hold_s: float = 5.0
+    hold_latch: QueueHoldLatch | None = None
+    force_gate: bool = False
     _last_linger_refresh: float = field(default=0.0, init=False, repr=False)
     _throttled_wait_since: float | None = field(default=None, init=False, repr=False)
 
@@ -530,6 +536,45 @@ class ComputeRuntimeLoop:
         if (now - self._last_linger_refresh) >= 120.0:
             self.governor.spinner.refresh_keep_alive()
             self._last_linger_refresh = now
+
+    def _evaluate_governor(self, has_queued_work: bool) -> GovernorTransition:
+        if not self.force_gate:
+            return self.governor.evaluate(has_queued_work=has_queued_work)
+        snap = self.governor.sensor.sample()
+        thermal_reason = is_thermal_cutoff(snap, self.governor.config)
+        if thermal_reason is not None:
+            return self.governor.evaluate(has_queued_work=has_queued_work)
+        prev = self.governor.state
+        target = GovernorState.WARM_ACTIVE if has_queued_work else GovernorState.ARMED_IDLE
+        self.governor.state = target
+        self.governor.cancel_event.clear()
+        return GovernorTransition(
+            previous_state=prev,
+            state=target,
+            reason="force_gate override active",
+            snapshot=snap,
+        )
+
+    def _check_hold_latch(self) -> LoopTickResult | None:
+        if self.force_gate or self.hold_latch is None:
+            return None
+        snap = self.governor.sensor.sample()
+        hs = self.hold_latch.evaluate(
+            snap.user_idle_seconds, snap.d3d_fullscreen, snap.blocked_process
+        )
+        if not hs.held:
+            return None
+        tr = GovernorTransition(
+            previous_state=self.governor.state,
+            state=self.governor.state,
+            reason=hs.reason,
+            snapshot=snap,
+        )
+        return LoopTickResult(
+            outcome=hs.outcome,
+            transition=tr,
+            active_tier=self.governor.spinner.active_tier,
+        )
 
     def _resolve_tier_filter(self, transition: GovernorTransition) -> str | None:
         if transition.state != GovernorState.THROTTLED:
@@ -552,11 +597,11 @@ class ComputeRuntimeLoop:
             result = executor(job, client, self.governor.cancel_event)
         except PreemptedExecutionError as exc:
             self.queue.release_preempted(job.job_id, checkpoint_ns=exc.checkpoint_ns)
-            return "preempted", self.governor.evaluate(has_queued_work=True)
+            return "preempted", self._evaluate_governor(has_queued_work=True)
         except Exception as exc:
             self.queue.fail_job(job.job_id, str(exc))
             return "failed", pre_transition
-        post = self.governor.evaluate(has_queued_work=True)
+        post = self._evaluate_governor(has_queued_work=True)
         if not post.can_pull_work or self.governor.cancel_event.is_set():
             ckpt = str(result["checkpoint_ns"]) if "checkpoint_ns" in result else job.checkpoint_ns
             self.queue.release_preempted(job.job_id, checkpoint_ns=ckpt)
@@ -566,8 +611,11 @@ class ComputeRuntimeLoop:
 
     def run_once(self, executor: JobExecutor) -> LoopTickResult:
         """Run a single non-blocking poll-and-execute step."""
+        held = self._check_hold_latch()
+        if held is not None:
+            return held
         has_work = self.queue.has_runnable_work()
-        transition = self.governor.evaluate(has_queued_work=has_work)
+        transition = self._evaluate_governor(has_queued_work=has_work)
         if not transition.can_pull_work:
             return LoopTickResult(
                 outcome="gated",
@@ -725,14 +773,22 @@ def _build_sensor_from_env(mock_mode: bool, spinner: ModelSpinner) -> SensorProv
     return ScriptedSensor(snap)
 
 
-def _build_default_stack(db_url: str, mock_mode: bool = False) -> ComputeRuntimeLoop:
+def _build_default_stack(
+    db_url: str,
+    mock_mode: bool = False,
+    paths: RuntimePaths | None = None,
+    force_gate: bool = False,
+) -> ComputeRuntimeLoop:
     db = DatabaseManager(db_url=db_url)
     db.create_all_tables()
     spinner: ModelSpinner = _InMemoryMockSpinner() if mock_mode else ModelSpinner()
     sensor = _build_sensor_from_env(mock_mode, spinner)
-    governor = HostGovernor(sensor=sensor, spinner=spinner)
+    governor = HostGovernor(sensor=sensor, spinner=spinner, config=HysteresisConfig.from_env())
     queue = StickyEpochQueue(db=db)
-    return ComputeRuntimeLoop(governor=governor, queue=queue)
+    latch = QueueHoldLatch(paths.hold_file) if paths is not None else None
+    return ComputeRuntimeLoop(
+        governor=governor, queue=queue, hold_latch=latch, force_gate=force_gate
+    )
 
 
 def _emit_daemon_event(payload: dict[str, Any]) -> None:
@@ -836,6 +892,23 @@ def _run_daemon(
     return 0
 
 
+def _register_spec037_parsers(sub: Any) -> None:
+    pause_p = sub.add_parser("pause", help="Hold queue execution manually or until idle window")
+    pause_p.add_argument("--arm-after-idle", type=float, default=0.0, help="Auto-arm idle seconds")
+    pause_p.add_argument("--reason", default="staged while using machine", help="Hold reason")
+    sub.add_parser("resume", help="Clear active hold latch and permit queue execution")
+    rev_p = sub.add_parser("review", help="Approve, requeue, or reject review_pending merge jobs")
+    rev_p.add_argument("--id", default=None, dest="job_id", help="Specific job_id")
+    rev_p.add_argument("--repo", default=None, help="Filter by repo_slug")
+    rev_p.add_argument("--approve-all", action="store_true", help="Approve matching pending jobs")
+    rev_p.add_argument(
+        "--action", choices=["approve", "requeue", "reject"], default="approve", help="Decision"
+    )
+    burn_p = sub.add_parser("burn", help="Drain up to N runnable jobs across warm model epochs")
+    burn_p.add_argument("--max-jobs", type=int, default=10, help="Maximum jobs to execute")
+    burn_p.add_argument("--force", action="store_true", help="Bypass hold and non-thermal gates")
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="ALOS Preemptible Local Compute Governor & Queue")
     parser.add_argument("--home", default=None, help="Portable ALOS_HOME root directory")
@@ -868,13 +941,41 @@ def _build_parser() -> argparse.ArgumentParser:
     jobs_p.add_argument("--limit", type=int, default=25, help="Maximum rows to return")
     tick_p = sub.add_parser("tick", help="Run one governor + queue cycle and print result JSON")
     tick_p.add_argument("--keep-warm", action="store_true", help="Retain warm runner after tick")
+    tick_p.add_argument("--force", action="store_true", help="Bypass hold and non-thermal gates")
     d_p = sub.add_parser("daemon", help="Run standing governor + queue loop with warm linger")
     d_p.add_argument("--poll-s", type=float, default=1.0)
     d_p.add_argument("--ledger-interval-s", type=float, default=300.0)
     d_p.add_argument("--max-ticks", type=int, default=None)
     led_p = sub.add_parser("ledger", help="Inspect recent capacity and thermal ledger rows")
     led_p.add_argument("--limit", type=int, default=10)
+    _register_spec037_parsers(sub)
     return parser
+
+
+def _dispatch_control_cmd(args: argparse.Namespace, paths: RuntimePaths, db_url: str) -> int | None:
+    if args.cmd == "pause":
+        latch = QueueHoldLatch(paths.hold_file)
+        idle_s = float(args.arm_after_idle)
+        state = (
+            latch.engage_idle_gate(min_idle_s=idle_s, reason=str(args.reason))
+            if idle_s > 0
+            else latch.engage_manual(reason=str(args.reason))
+        )
+        print(json.dumps({"status": "paused", **state}))
+        return 0
+    if args.cmd == "resume":
+        cleared = QueueHoldLatch(paths.hold_file).clear()
+        print(json.dumps({"status": "resumed", "cleared": cleared}))
+        return 0
+    if args.cmd == "review":
+        action = "approve" if args.approve_all else str(args.action)
+        print(
+            json.dumps(
+                review_jobs(db_url=db_url, job_id=args.job_id, repo_slug=args.repo, action=action)
+            )
+        )
+        return 0
+    return None
 
 
 def _dispatch_admin_cmd(
@@ -898,7 +999,7 @@ def _dispatch_admin_cmd(
     if args.cmd == "jobs":
         print(json.dumps(query_jobs(db_url=db_url, state=args.state, limit=int(args.limit))))
         return 0
-    return None
+    return _dispatch_control_cmd(args, paths, db_url)
 
 
 def _enqueue_batch_file(queue: StickyEpochQueue, file_path: str) -> int:
@@ -949,38 +1050,44 @@ def _run_enqueue_cmd(args: argparse.Namespace, queue: StickyEpochQueue) -> int:
         return 2
 
 
-def main(argv: list[str] | None = None) -> int:
-    """CLI entry point for ALOS compute runtime, governor, queue, and ledger."""
-    args = _build_parser().parse_args(argv)
-    paths = RuntimePaths.resolve(args.home)
-    db_url = paths.resolve_db_url(args.db_url)
-    mock_mode = bool(args.mock)
-
-    admin_rc = _dispatch_admin_cmd(args, paths, db_url, mock_mode)
-    if admin_rc is not None:
-        return admin_rc
-
-    executor = mock_prompt_executor if mock_mode else default_prompt_executor
-    loop = _build_default_stack(db_url, mock_mode=mock_mode)
-    if args.cmd == "status":
-        tr = loop.governor.evaluate(has_queued_work=loop.queue.has_runnable_work())
-        print(
-            json.dumps(
-                {"state": tr.state.value, "reason": tr.reason, "snapshot": asdict(tr.snapshot)}
-            )
+def _run_burn_batch(loop: ComputeRuntimeLoop, executor: JobExecutor, max_jobs: int) -> int:
+    """Drain up to ``max_jobs`` runnable tasks across warm sticky epochs and evict VRAM."""
+    completed = failed = preempted = 0
+    job_ids: list[str] = []
+    last_tick: LoopTickResult | None = None
+    try:
+        for _ in range(max(1, max_jobs)):
+            tick = loop.run_once(executor)
+            last_tick = tick
+            if tick.outcome == "completed" and tick.job_id:
+                completed += 1
+                job_ids.append(tick.job_id)
+            elif tick.outcome == "failed":
+                failed += 1
+            elif tick.outcome == "preempted":
+                preempted += 1
+                break
+            else:
+                break
+        if last_tick is not None:
+            loop.queue.record_ledger_entry(last_tick.transition, loop.governor.spinner.active_tier)
+    finally:
+        loop.governor.spinner.evict_all(loop.governor.sensor)
+    print(
+        json.dumps(
+            {
+                "completed": completed,
+                "failed": failed,
+                "preempted": preempted,
+                "last_outcome": last_tick.outcome if last_tick else "starved",
+                "job_ids": job_ids,
+            }
         )
-        return 0
-    if args.cmd == "enqueue":
-        return _run_enqueue_cmd(args, loop.queue)
-    if args.cmd == "daemon":
-        return _run_daemon(
-            loop,
-            executor=executor,
-            paths=paths,
-            poll_s=float(args.poll_s),
-            ledger_interval_s=float(args.ledger_interval_s),
-            max_ticks=args.max_ticks,
-        )
+    )
+    return 0
+
+
+def _run_single_tick(loop: ComputeRuntimeLoop, executor: JobExecutor, keep_warm: bool) -> int:
     try:
         tick = loop.run_once(executor)
         print(
@@ -994,9 +1101,55 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
     finally:
-        if not args.keep_warm:
+        if not keep_warm:
             loop.governor.spinner.evict_all(loop.governor.sensor)
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entry point for ALOS compute runtime, governor, queue, and ledger."""
+    args = _build_parser().parse_args(argv)
+    paths = RuntimePaths.resolve(args.home)
+    db_url = paths.resolve_db_url(args.db_url)
+    mock_mode = bool(args.mock)
+
+    admin_rc = _dispatch_admin_cmd(args, paths, db_url, mock_mode)
+    if admin_rc is not None:
+        return admin_rc
+
+    from alos.swarm.burn import build_burn_executor
+
+    force_gate = bool(getattr(args, "force", False))
+    executor = build_burn_executor(paths=paths, mock_mode=mock_mode)
+    loop = _build_default_stack(db_url, mock_mode=mock_mode, paths=paths, force_gate=force_gate)
+    if args.cmd == "status":
+        tr = loop.governor.evaluate(has_queued_work=loop.queue.has_runnable_work())
+        hold = QueueHoldLatch(paths.hold_file).read()
+        print(
+            json.dumps(
+                {
+                    "state": tr.state.value,
+                    "reason": tr.reason,
+                    "hold": hold,
+                    "snapshot": asdict(tr.snapshot),
+                }
+            )
+        )
+        return 0
+    if args.cmd == "enqueue":
+        return _run_enqueue_cmd(args, loop.queue)
+    if args.cmd == "burn":
+        return _run_burn_batch(loop, executor, max_jobs=int(args.max_jobs))
+    if args.cmd == "daemon":
+        return _run_daemon(
+            loop,
+            executor=executor,
+            paths=paths,
+            poll_s=float(args.poll_s),
+            ledger_interval_s=float(args.ledger_interval_s),
+            max_ticks=args.max_ticks,
+        )
+    return _run_single_tick(loop, executor, keep_warm=bool(args.keep_warm))
 
 
 if __name__ == "__main__":

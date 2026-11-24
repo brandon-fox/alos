@@ -13,11 +13,11 @@
 
 **Goal**: Prevent cold-start disruption while using the workstation, step down cleanly when primary Ollama tier tags return 404, write structured Markdown deliverables + optional git worktree branches, and unlock `review_pending` merge caps.
 
-- [ ] T003 [P] [US1] Write failing unit and `@mocked` BDD scenarios for `QueueHoldLatch` (`manual` & `idle_gate`), `pause`/`resume`, `--force`, missing-tag fallback, artifact deliverables, git worktree drafts, and `review` transitions in `tests/test_backlog_hold_and_burn.py` and `features/backlog_hold_and_burn.feature`
-- [ ] T004 [US1] Implement `QueueHoldLatch` (`hold_file`, `results_dir`) and `review_jobs()` state helper in `alos/runtime.py`
-- [ ] T005 [US2] Implement HTTP 404 / uninstalled primary tier model step-down to installed `fallback_models`, remote bridge fallback, and `ALOS_FOREIGN_VRAM_LIMIT_MB` configuration in `alos/swarm/governor.py`
-- [ ] T006 [US2] Implement `alos/swarm/burn.py` (`artifact_burn_executor`) writing `ALOS_HOME/results/<repo>/<job_id>.md`, updating `burn_digest.md` + `vault/Bus/Results/`, and supporting optional `git worktree` branch `alos-burn/<job_id>` and sandbox test checks
-- [ ] T007 [US1] Wire `QueueHoldLatch`, `artifact_burn_executor`, `--force`, and CLI commands (`pause`, `resume`, `review`, `burn`) into `alos/swarm/queue.py` and `alos/cli.py`
+- [x] T003 [P] [US1] Write failing unit and `@mocked` BDD scenarios for `QueueHoldLatch` (`manual` & `idle_gate`), `pause`/`resume`, `--force`, missing-tag fallback, artifact deliverables, git worktree drafts, and `review` transitions in `tests/test_backlog_hold_and_burn.py` and `features/backlog_hold_and_burn.feature`
+- [x] T004 [US1] Implement `QueueHoldLatch` (`hold_file`, `results_dir`) and `review_jobs()` state helper in `alos/runtime.py`
+- [x] T005 [US2] Implement HTTP 404 / uninstalled primary tier model step-down to installed `fallback_models`, remote bridge fallback, and `ALOS_FOREIGN_VRAM_LIMIT_MB` configuration in `alos/swarm/governor.py`
+- [x] T006 [US2] Implement `alos/swarm/burn.py` (`artifact_burn_executor`) writing `ALOS_HOME/results/<repo>/<job_id>.md`, updating `burn_digest.md` + `vault/Bus/Results/`, and supporting optional `git worktree` branch `alos-burn/<job_id>` and sandbox test checks
+- [x] T007 [US1] Wire `QueueHoldLatch`, `artifact_burn_executor`, `--force`, and CLI commands (`pause`, `resume`, `review`, `burn`) into `alos/swarm/queue.py` and `alos/cli.py`
 
 ## Phase 3: Multi-Repo GitHub Backlog Harvester & Curated 2.6h Bundle (`PR-3` — `[US1]`)
 
