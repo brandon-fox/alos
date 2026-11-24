@@ -1,7 +1,7 @@
 """Sticky Model-Epoch Work Queue, Capacity Ledger, and Preemptible Runtime Loop.
 
 Spec: specs/032-preemptible-compute-governor/spec.md (FR-006, FR-007, FR-008, FR-009)
-ADR: docs/adr/0014-adopt-preemptible-host-governor-and-sticky-model-epoch-queue.md
+ADR: docs/adr/0015-adopt-preemptible-host-governor-and-sticky-model-epoch-queue.md
 """
 
 from __future__ import annotations
@@ -18,10 +18,10 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
-from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import CursorResult, func, select, update
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from alos.db.models import ComputeCapacityLedgerModel, ComputeQueueJobModel
@@ -31,6 +31,7 @@ from alos.runtime import (
     HealthHeartbeat,
     RuntimePaths,
     SingleInstanceLock,
+    allocate_free_port,
     bootstrap_home,
     query_jobs,
     query_ledger,
@@ -110,6 +111,9 @@ def _as_utc(dt: datetime) -> datetime:
     return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
 
 
+_T = TypeVar("_T")
+
+
 def _to_leased_job(row: ComputeQueueJobModel) -> LeasedJob:
     return LeasedJob(
         job_id=row.job_id,
@@ -141,11 +145,24 @@ class StickyEpochQueue:
         self.config = config or QueueConfig()
         self._now = now_fn or (lambda: datetime.now(timezone.utc))
         self._mono = mono_fn
+        self._lock = threading.RLock()
         self._epoch_tier: str | None = None
         self._epoch_started_at: float | None = None
         self._done_delta = 0
         self._preempted_delta = 0
         self._overflow_delta = 0
+
+    def _with_write_retry(self, operation: Callable[[], _T]) -> _T:
+        pid_jitter = (os.getpid() % 7) * 0.0005
+        for attempt in range(12):
+            try:
+                return operation()
+            except OperationalError as exc:
+                msg = str(exc).lower()
+                if ("locked" not in msg and "busy" not in msg) or attempt == 11:
+                    raise
+                time.sleep(0.004 * ((attempt % 5) + 1) + pid_jitter)
+        return operation()
 
     def enqueue(
         self,
@@ -161,40 +178,49 @@ class StickyEpochQueue:
         max_attempts: int = 2,
     ) -> LeasedJob:
         """Insert a new job into ``compute_work_queue``."""
-        now = self._now()
-        with self.db.get_session() as session:
-            row = ComputeQueueJobModel(
-                job_id=job_id,
-                repo_slug=repo_slug,
-                workflow_type=workflow_type,
-                model_tier=model_tier,
-                priority=priority,
-                requires_merge=requires_merge,
-                allow_cloud_overflow=allow_cloud_overflow,
-                payload=payload or {},
-                checkpoint_ns=checkpoint_ns,
-                state="queued",
-                attempts=0,
-                max_attempts=max_attempts,
-                created_at=now,
-                updated_at=now,
-            )
-            session.add(row)
-            session.flush()
-            return _to_leased_job(row)
+
+        def _op() -> LeasedJob:
+            now = self._now()
+            with self.db.get_session() as session:
+                row = ComputeQueueJobModel(
+                    job_id=job_id,
+                    repo_slug=repo_slug,
+                    workflow_type=workflow_type,
+                    model_tier=model_tier,
+                    priority=priority,
+                    requires_merge=requires_merge,
+                    allow_cloud_overflow=allow_cloud_overflow,
+                    payload=payload or {},
+                    checkpoint_ns=checkpoint_ns,
+                    state="queued",
+                    attempts=0,
+                    max_attempts=max_attempts,
+                    created_at=now,
+                    updated_at=now,
+                )
+                session.add(row)
+                session.flush()
+                return _to_leased_job(row)
+
+        return self._with_write_retry(_op)
 
     def _reclaim_expired_leases(self, session: Session, now: datetime) -> None:
-        reclaimed = False
         stmt = select(ComputeQueueJobModel).where(ComputeQueueJobModel.state == "leased")
         for row in session.scalars(stmt):
             if row.leased_until is not None and _as_utc(row.leased_until) <= now:
-                row.state = "preempted"
-                row.leased_by = None
-                row.leased_until = None
-                row.updated_at = now
-                reclaimed = True
-        if reclaimed:
-            session.flush()
+                session.execute(
+                    update(ComputeQueueJobModel)
+                    .where(
+                        ComputeQueueJobModel.job_id == row.job_id,
+                        ComputeQueueJobModel.state == "leased",
+                    )
+                    .values(
+                        state="preempted",
+                        leased_by=None,
+                        leased_until=None,
+                        updated_at=now,
+                    )
+                )
 
     def _promote_overflow_jobs(self, session: Session, now: datetime) -> int:
         promoted = 0
@@ -205,18 +231,25 @@ class StickyEpochQueue:
         for row in session.scalars(stmt):
             waited_s = (now - _as_utc(row.created_at)).total_seconds()
             if waited_s >= self.config.overflow_wait_s:
-                row.state = "overflow"
-                row.updated_at = now
-                promoted += 1
+                res: CursorResult[Any] = session.execute(  # type: ignore[assignment]
+                    update(ComputeQueueJobModel)
+                    .where(
+                        ComputeQueueJobModel.job_id == row.job_id,
+                        ComputeQueueJobModel.state.in_(RUNNABLE_STATES),
+                    )
+                    .values(state="overflow", updated_at=now)
+                )
+                promoted += int(res.rowcount or 0)
         if promoted:
-            session.flush()
-        self._overflow_delta += promoted
+            with self._lock:
+                self._overflow_delta += promoted
         return promoted
 
     def _saturated_merge_repos(self, session: Session) -> set[str]:
         stmt = (
             select(ComputeQueueJobModel.repo_slug, func.count(ComputeQueueJobModel.job_id))
-            .where(ComputeQueueJobModel.state == "review_pending")
+            .where(ComputeQueueJobModel.state.in_(("review_pending", "leased")))
+            .where(ComputeQueueJobModel.requires_merge.is_(True))
             .group_by(ComputeQueueJobModel.repo_slug)
         )
         return {
@@ -229,11 +262,12 @@ class StickyEpochQueue:
         if active_tier is None:
             return False
         now_m = self._mono()
-        if self._epoch_tier != active_tier or self._epoch_started_at is None:
-            self._epoch_tier = active_tier
-            self._epoch_started_at = now_m
-            return True
-        return (now_m - self._epoch_started_at) < self.config.max_epoch_s
+        with self._lock:
+            if self._epoch_tier != active_tier or self._epoch_started_at is None:
+                self._epoch_tier = active_tier
+                self._epoch_started_at = now_m
+                return True
+            return (now_m - self._epoch_started_at) < self.config.max_epoch_s
 
     def _score_row(
         self,
@@ -251,23 +285,70 @@ class StickyEpochQueue:
         return score
 
     def _update_epoch_tracker(self, chosen_tier: str) -> None:
-        if self._epoch_tier != chosen_tier:
-            self._epoch_tier = chosen_tier
-            self._epoch_started_at = self._mono()
+        with self._lock:
+            if self._epoch_tier != chosen_tier:
+                self._epoch_tier = chosen_tier
+                self._epoch_started_at = self._mono()
 
     def has_runnable_work(self) -> bool:
         """Return True when at least one runnable job is waiting and not merge-blocked."""
-        now = self._now()
-        with self.db.get_session() as session:
-            self._reclaim_expired_leases(session, now)
-            capped = self._saturated_merge_repos(session)
-            stmt = select(ComputeQueueJobModel).where(
-                ComputeQueueJobModel.state.in_(RUNNABLE_STATES)
+
+        def _op() -> bool:
+            now = self._now()
+            with self.db.get_session() as session:
+                self._reclaim_expired_leases(session, now)
+                capped = self._saturated_merge_repos(session)
+                stmt = select(ComputeQueueJobModel).where(
+                    ComputeQueueJobModel.state.in_(RUNNABLE_STATES)
+                )
+                for row in session.scalars(stmt):
+                    if not (row.requires_merge and row.repo_slug in capped):
+                        return True
+            return False
+
+        return self._with_write_retry(_op)
+
+    def _claim_candidate_cas(
+        self,
+        session: Session,
+        candidate: ComputeQueueJobModel,
+        worker_id: str,
+        now: datetime,
+    ) -> LeasedJob | None:
+        prior_state = candidate.state
+        next_attempts = candidate.attempts + (1 if prior_state == "queued" else 0)
+        lease_deadline = now + timedelta(seconds=self.config.lease_ttl_s)
+        res: CursorResult[Any] = session.execute(  # type: ignore[assignment]
+            update(ComputeQueueJobModel)
+            .where(
+                ComputeQueueJobModel.job_id == candidate.job_id,
+                ComputeQueueJobModel.state == prior_state,
             )
-            for row in session.scalars(stmt):
-                if not (row.requires_merge and row.repo_slug in capped):
-                    return True
-        return False
+            .values(
+                state="leased",
+                attempts=next_attempts,
+                leased_by=worker_id,
+                leased_until=lease_deadline,
+                updated_at=now,
+            )
+        )
+        if int(res.rowcount or 0) != 1:
+            return None
+        self._update_epoch_tracker(candidate.model_tier)
+        return LeasedJob(
+            job_id=candidate.job_id,
+            repo_slug=candidate.repo_slug,
+            workflow_type=candidate.workflow_type,
+            model_tier=candidate.model_tier,
+            priority=candidate.priority,
+            requires_merge=candidate.requires_merge,
+            allow_cloud_overflow=candidate.allow_cloud_overflow,
+            payload=dict(candidate.payload or {}),
+            checkpoint_ns=candidate.checkpoint_ns,
+            state="leased",
+            attempts=next_attempts,
+            max_attempts=candidate.max_attempts,
+        )
 
     def lease_next(
         self,
@@ -275,135 +356,157 @@ class StickyEpochQueue:
         active_tier: str | None = None,
         allowed_tier_only: str | None = None,
     ) -> LeasedJob | None:
-        """Atomically lease the highest-scoring runnable job using ``SKIP LOCKED`` semantics."""
-        now = self._now()
-        epoch_fresh = self._is_epoch_fresh(active_tier)
-        with self.db.get_session() as session:
-            self._reclaim_expired_leases(session, now)
-            self._promote_overflow_jobs(session, now)
-            capped = self._saturated_merge_repos(session)
-            stmt = (
-                select(ComputeQueueJobModel)
-                .where(ComputeQueueJobModel.state.in_(RUNNABLE_STATES))
-                .with_for_update(skip_locked=True)
-            )
-            candidates = [
-                r
-                for r in session.scalars(stmt)
-                if not (r.requires_merge and r.repo_slug in capped)
-                and (allowed_tier_only is None or r.model_tier == allowed_tier_only)
-            ]
-            if not candidates:
-                return None
-            candidates.sort(
-                key=lambda r: (
-                    -self._score_row(r, active_tier, epoch_fresh, now),
-                    _as_utc(r.created_at),
-                    r.job_id,
-                )
-            )
-            winner = candidates[0]
-            if winner.state == "queued":
-                winner.attempts += 1
-            winner.state = "leased"
-            winner.leased_by = worker_id
-            winner.leased_until = now + timedelta(seconds=self.config.lease_ttl_s)
-            winner.updated_at = now
-            self._update_epoch_tracker(winner.model_tier)
-            session.flush()
-            return _to_leased_job(winner)
+        """Atomically lease the highest-scoring runnable job using CAS + ``SKIP LOCKED``."""
+
+        def _op() -> LeasedJob | None:
+            for _cas_round in range(6):
+                now = self._now()
+                epoch_fresh = self._is_epoch_fresh(active_tier)
+                with self.db.get_session() as session:
+                    self._reclaim_expired_leases(session, now)
+                    self._promote_overflow_jobs(session, now)
+                    capped = self._saturated_merge_repos(session)
+                    stmt = (
+                        select(ComputeQueueJobModel)
+                        .where(ComputeQueueJobModel.state.in_(RUNNABLE_STATES))
+                        .with_for_update(skip_locked=True)
+                    )
+                    candidates = [
+                        r
+                        for r in session.scalars(stmt)
+                        if not (r.requires_merge and r.repo_slug in capped)
+                        and (allowed_tier_only is None or r.model_tier == allowed_tier_only)
+                    ]
+                    if not candidates:
+                        return None
+                    candidates.sort(
+                        key=lambda r: (
+                            -self._score_row(r, active_tier, epoch_fresh, now),
+                            _as_utc(r.created_at),
+                            r.job_id,
+                        )
+                    )
+                    claimed = self._claim_candidate_cas(session, candidates[0], worker_id, now)
+                    if claimed is not None:
+                        return claimed
+            return None
+
+        with self._lock:
+            return self._with_write_retry(_op)
 
     def release_preempted(self, job_id: str, checkpoint_ns: str | None = None) -> LeasedJob | None:
         """Return an interrupted job to ``preempted`` without burning failure retry attempts."""
-        now = self._now()
-        with self.db.get_session() as session:
-            row = session.get(ComputeQueueJobModel, job_id)
-            if row is None:
-                return None
-            row.state = "preempted"
-            if checkpoint_ns is not None:
-                row.checkpoint_ns = checkpoint_ns
-            row.leased_by = None
-            row.leased_until = None
-            row.updated_at = now
-            self._preempted_delta += 1
-            session.flush()
-            return _to_leased_job(row)
+
+        def _op() -> LeasedJob | None:
+            now = self._now()
+            with self.db.get_session() as session:
+                row = session.get(ComputeQueueJobModel, job_id)
+                if row is None:
+                    return None
+                row.state = "preempted"
+                if checkpoint_ns is not None:
+                    row.checkpoint_ns = checkpoint_ns
+                row.leased_by = None
+                row.leased_until = None
+                row.updated_at = now
+                with self._lock:
+                    self._preempted_delta += 1
+                session.flush()
+                return _to_leased_job(row)
+
+        return self._with_write_retry(_op)
 
     def complete_job(self, job_id: str, result_json: dict[str, Any] | None = None) -> LeasedJob:
         """Mark a leased job ``review_pending`` (if merge work) or ``succeeded``."""
-        now = self._now()
-        with self.db.get_session() as session:
-            row = session.get(ComputeQueueJobModel, job_id)
-            if row is None:
-                raise KeyError(f"unknown job_id {job_id!r}")
-            row.state = "review_pending" if row.requires_merge else "succeeded"
-            row.result_json = result_json or {}
-            row.leased_by = None
-            row.leased_until = None
-            row.updated_at = now
-            self._done_delta += 1
-            session.flush()
-            return _to_leased_job(row)
+
+        def _op() -> LeasedJob:
+            now = self._now()
+            with self.db.get_session() as session:
+                row = session.get(ComputeQueueJobModel, job_id)
+                if row is None:
+                    raise KeyError(f"unknown job_id {job_id!r}")
+                row.state = "review_pending" if row.requires_merge else "succeeded"
+                row.result_json = result_json or {}
+                row.leased_by = None
+                row.leased_until = None
+                row.updated_at = now
+                with self._lock:
+                    self._done_delta += 1
+                session.flush()
+                return _to_leased_job(row)
+
+        return self._with_write_retry(_op)
 
     def fail_job(self, job_id: str, error_msg: str) -> LeasedJob:
         """Re-queue failed job if under ``max_attempts``, else mark ``escalated``."""
-        now = self._now()
-        with self.db.get_session() as session:
-            row = session.get(ComputeQueueJobModel, job_id)
-            if row is None:
-                raise KeyError(f"unknown job_id {job_id!r}")
-            row.last_error = error_msg
-            row.leased_by = None
-            row.leased_until = None
-            row.state = "queued" if row.attempts < row.max_attempts else "escalated"
-            row.updated_at = now
-            session.flush()
-            return _to_leased_job(row)
+
+        def _op() -> LeasedJob:
+            now = self._now()
+            with self.db.get_session() as session:
+                row = session.get(ComputeQueueJobModel, job_id)
+                if row is None:
+                    raise KeyError(f"unknown job_id {job_id!r}")
+                row.last_error = error_msg
+                row.leased_by = None
+                row.leased_until = None
+                row.state = "queued" if row.attempts < row.max_attempts else "escalated"
+                row.updated_at = now
+                session.flush()
+                return _to_leased_job(row)
+
+        return self._with_write_retry(_op)
 
     def record_ledger_entry(
         self, transition: GovernorTransition, active_tier: str | None
     ) -> dict[str, Any]:
         """Persist a capacity & thermal telemetry row and reset delta counters."""
-        now = self._now()
-        with self.db.get_session() as session:
-            waiting_rows = list(
-                session.scalars(
-                    select(ComputeQueueJobModel).where(
-                        ComputeQueueJobModel.state.in_(RUNNABLE_STATES)
+
+        def _op() -> dict[str, Any]:
+            now = self._now()
+            with self.db.get_session() as session:
+                waiting_rows = list(
+                    session.scalars(
+                        select(ComputeQueueJobModel).where(
+                            ComputeQueueJobModel.state.in_(RUNNABLE_STATES)
+                        )
                     )
                 )
-            )
-            oldest_wait = max(
-                ((now - _as_utc(r.created_at)).total_seconds() for r in waiting_rows),
-                default=0.0,
-            )
-            entry = ComputeCapacityLedgerModel(
-                recorded_at=now,
-                governor_state=transition.state.value,
-                active_tier=active_tier,
-                gpu_temp_c=transition.snapshot.gpu_temp_c,
-                vram_temp_c=transition.snapshot.vram_temp_c,
-                gpu_util_pct=transition.snapshot.gpu_util_pct,
-                used_vram_mb=transition.snapshot.used_vram_mb,
-                managed_vram_mb=transition.snapshot.managed_vram_mb,
-                jobs_waiting=len(waiting_rows),
-                jobs_done_delta=self._done_delta,
-                jobs_preempted_delta=self._preempted_delta,
-                jobs_overflow_delta=self._overflow_delta,
-                oldest_wait_seconds=round(max(0.0, oldest_wait), 1),
-            )
-            session.add(entry)
-            self._done_delta = self._preempted_delta = self._overflow_delta = 0
-            session.flush()
-            return {
-                "governor_state": entry.governor_state,
-                "active_tier": entry.active_tier,
-                "jobs_waiting": entry.jobs_waiting,
-                "oldest_wait_seconds": entry.oldest_wait_seconds,
-                "gpu_temp_c": entry.gpu_temp_c,
-                "managed_vram_mb": entry.managed_vram_mb,
-            }
+                oldest_wait = max(
+                    ((now - _as_utc(r.created_at)).total_seconds() for r in waiting_rows),
+                    default=0.0,
+                )
+                with self._lock:
+                    done_d = self._done_delta
+                    preempt_d = self._preempted_delta
+                    overflow_d = self._overflow_delta
+                    self._done_delta = self._preempted_delta = self._overflow_delta = 0
+                entry = ComputeCapacityLedgerModel(
+                    recorded_at=now,
+                    governor_state=transition.state.value,
+                    active_tier=active_tier,
+                    gpu_temp_c=transition.snapshot.gpu_temp_c,
+                    vram_temp_c=transition.snapshot.vram_temp_c,
+                    gpu_util_pct=transition.snapshot.gpu_util_pct,
+                    used_vram_mb=transition.snapshot.used_vram_mb,
+                    managed_vram_mb=transition.snapshot.managed_vram_mb,
+                    jobs_waiting=len(waiting_rows),
+                    jobs_done_delta=done_d,
+                    jobs_preempted_delta=preempt_d,
+                    jobs_overflow_delta=overflow_d,
+                    oldest_wait_seconds=round(max(0.0, oldest_wait), 1),
+                )
+                session.add(entry)
+                session.flush()
+                return {
+                    "governor_state": entry.governor_state,
+                    "active_tier": entry.active_tier,
+                    "jobs_waiting": entry.jobs_waiting,
+                    "oldest_wait_seconds": entry.oldest_wait_seconds,
+                    "gpu_temp_c": entry.gpu_temp_c,
+                    "managed_vram_mb": entry.managed_vram_mb,
+                }
+
+        return self._with_write_retry(_op)
 
 
 JobExecutor = Callable[[LeasedJob, Ollama, threading.Event], dict[str, Any]]
@@ -565,7 +668,7 @@ class _InMemoryMockSpinner(ModelSpinner):
     """Deterministic in-memory spinner used when ``ALOS_SWARM_MODE=mock`` or ``--mock`` is set."""
 
     def __init__(self) -> None:
-        super().__init__(port=11497)
+        super().__init__(port=allocate_free_port())
         self._mock_tier: str | None = None
 
     @property

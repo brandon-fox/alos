@@ -1,7 +1,8 @@
 """Preemptible Host Governor, Schmitt-trigger thermal FSM, and Managed Model Epoch Spinner.
 
 Spec: specs/032-preemptible-compute-governor/spec.md (FR-002, FR-003, FR-004, FR-005)
-ADR: docs/adr/0015-adopt-preemptible-host-governor-and-sticky-model-epoch-queue.md
+Spec: specs/035-parallel-testing-and-qa-matrix/spec.md (FR-001, FR-007, FR-014)
+ADRs: docs/adr/0015-adopt-preemptible-host-governor-and-sticky-model-epoch-queue.md, ADR-0019
 """
 
 from __future__ import annotations
@@ -235,8 +236,31 @@ def has_throttle_recovered(snap: TelemetrySnapshot, cfg: HysteresisConfig) -> bo
     return gpu_ok and cpu_ok and idle_ok
 
 
+def _kill_posix_tree(pid: int) -> bool:
+    killpg_fn = getattr(os, "killpg", None)
+    getpgid_fn = getattr(os, "getpgid", None)
+    signaled = False
+    if killpg_fn is not None and getpgid_fn is not None:
+        with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+            pgid = getpgid_fn(pid)
+            if pgid > 1 and pgid == pid:
+                killpg_fn(pgid, 15)
+                signaled = True
+    if not signaled:
+        with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+            os.kill(pid, 15)
+            signaled = True
+    if not signaled:
+        return False
+    time.sleep(0.05)
+    with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+        os.kill(pid, 0)
+        os.kill(pid, 9)
+    return True
+
+
 def kill_process_tree(pid: int) -> bool:
-    """Terminate ``pid`` and all child runners (critical on Windows to release CUDA VRAM)."""
+    """Terminate ``pid`` and all child runners (releases CUDA VRAM across Windows & POSIX)."""
     if pid <= 0:
         return False
     if os.name == "nt":
@@ -244,10 +268,7 @@ def kill_process_tree(pid: int) -> bool:
         # Fixed argument list without shell expansion; targets our own spawned Ollama PID.
         res = subprocess.run(cmd, capture_output=True, timeout=15, check=False)  # noqa: S603  # nosec B603
         return res.returncode == 0
-    with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
-        os.kill(pid, 15)
-        return True
-    return False
+    return _kill_posix_tree(pid)
 
 
 class ContainerPauser:
@@ -260,6 +281,7 @@ class ContainerPauser:
         self._containers: set[str] = set()
         self._paused: set[str] = set()
         self._runner = runner or self._default_runner
+        self._lock = threading.Lock()
 
     @staticmethod
     def _default_runner(cmd: list[str]) -> int:
@@ -271,31 +293,36 @@ class ContainerPauser:
 
     def register(self, container_name: str) -> None:
         """Track an active worker container for preemption pause/unpause."""
-        self._containers.add(container_name)
+        with self._lock:
+            self._containers.add(container_name)
 
     def unregister(self, container_name: str) -> None:
         """Stop tracking a worker container."""
-        self._containers.discard(container_name)
-        self._paused.discard(container_name)
+        with self._lock:
+            self._containers.discard(container_name)
+            self._paused.discard(container_name)
 
     @property
     def paused_containers(self) -> frozenset[str]:
         """Currently paused container identifiers."""
-        return frozenset(self._paused)
+        with self._lock:
+            return frozenset(self._paused)
 
     def pause_all(self) -> list[str]:
         """Run ``docker pause`` on registered containers not yet paused."""
-        targets = sorted(self._containers - self._paused)
-        if targets and self._runner(["docker", "pause", *targets]) == 0:
-            self._paused.update(targets)
-        return targets
+        with self._lock:
+            targets = sorted(self._containers - self._paused)
+            if targets and self._runner(["docker", "pause", *targets]) == 0:
+                self._paused.update(targets)
+            return targets
 
     def unpause_all(self) -> list[str]:
         """Run ``docker unpause`` on previously paused worker containers."""
-        targets = sorted(self._paused)
-        if targets and self._runner(["docker", "unpause", *targets]) == 0:
-            self._paused.clear()
-        return targets
+        with self._lock:
+            targets = sorted(self._paused)
+            if targets and self._runner(["docker", "unpause", *targets]) == 0:
+                self._paused.clear()
+            return targets
 
 
 class ModelSpinner:
