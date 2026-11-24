@@ -26,6 +26,7 @@ from typing import Any
 
 from sqlalchemy import select, text
 
+from alos.config.settings import ALOSSettings
 from alos.db.models import ComputeCapacityLedgerModel, ComputeQueueJobModel
 from alos.db.session import DatabaseManager
 from alos.swarm.dispatcher import DEFAULT_HOST, Ollama
@@ -66,7 +67,8 @@ class RuntimePaths:
         """Resolve ``ALOS_HOME`` from explicit path, env vars, or ``~/.alos``."""
         if home is not None:
             return cls(root=Path(home).expanduser().resolve())
-        env_home = os.environ.get("ALOS_HOME") or os.environ.get("ALOS_SWARM_HOME")
+        settings = ALOSSettings()
+        env_home = settings.alos_home or settings.swarm_home
         target = Path(env_home) if env_home else (Path.home() / ".alos")
         return cls(root=target.expanduser().resolve())
 
@@ -106,7 +108,7 @@ class RuntimePaths:
         """Return explicit DB URL, ``ALOS_QUEUE_DB_URL`` env override, or portable SQLite URL."""
         if explicit_url:
             return explicit_url
-        env_url = os.environ.get("ALOS_QUEUE_DB_URL")
+        env_url = ALOSSettings().queue_db_url
         if env_url:
             return env_url
         self.queue_dir.mkdir(parents=True, exist_ok=True)
@@ -377,7 +379,7 @@ def run_doctor(
     """Run production preflight checks across filesystem, DB, vault, GPU, Ollama, and Docker."""
     paths = RuntimePaths.resolve(home)
     resolved_db = paths.resolve_db_url(db_url)
-    host = ollama_host or os.environ.get("ALOS_SWARM_OLLAMA", DEFAULT_HOST)
+    host = ollama_host or ALOSSettings().swarm_ollama_host or DEFAULT_HOST
 
     home_check = _probe_home_writable(paths)
     db_check = _probe_database(resolved_db)
