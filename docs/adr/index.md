@@ -18,6 +18,8 @@
 * [0012 - Use PyO3 and Maturin for Rust native performance extensions](0012-use-pyo3-and-maturin-for-rust-native-performance-extensions.md)
 * [0013 - Adopt Rust Native Core Engine and Pre-Refactor Test Fortification Architecture](0013-adopt-rust-native-core-engine-and-pre-refactor-test-fortification-architecture.md)
 * [0014 - Adopt Local First Runtime Observability Metrics Tracing And Monitoring](0014-adopt-local-first-runtime-observability-metrics-tracing-and-monitoring.md)
+* [0015 - Adopt Preemptible Host Governor and Sticky Model-Epoch Queue](0015-adopt-preemptible-host-governor-and-sticky-model-epoch-queue.md)
+* [0016 - Evaluate Local Model Gateway Routing Shim vs LiteLLM Proxy](0016-evaluate-local-model-gateway-routing-shim-vs-litellm-proxy.md)
 
 ## Rejected Records
 
