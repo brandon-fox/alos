@@ -29,6 +29,8 @@
 * [0023 - Enforce SOLID Principles via Composable Policy Registries and Segregated CQRS Ports](0023-enforce-solid-principles-via-composable-policy-registries-and-segregated-cqrs-ports.md)
 * [0024 - Adopt Hexagonal Ports and Adapters Architecture via Strangler-Fig Incremental PRs](0024-adopt-hexagonal-ports-and-adapters-architecture-via-strangler-fig-incremental-prs.md)
 * [0025 - Adopt Multi-Repo Backlog Harvester Active-Use Hold Latch and Artifact Burn Executor](0025-adopt-multi-repo-backlog-harvester-active-use-hold-latch-and-artifact-burn-executor.md)
+* [0026 - Consolidate CI Workflows into Cached Groups Behind Unified Merge Gate and Declarative Rulesets](0026-consolidate-ci-workflows-into-cached-groups-behind-unified-merge-gate-and-declarative-rulesets.md)
+* [0027 - Adopt Release Please Maturin Sccache and GitHub OIDC SLSA Provenance Over Custom Release Scripts](0027-adopt-release-please-maturin-sccache-and-github-oidc-slsa-provenance-over-custom-release-scripts.md)
 
 ## Rejected Records
 
