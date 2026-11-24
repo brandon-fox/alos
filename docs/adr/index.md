@@ -24,6 +24,10 @@
 * [0018 - Adopt Dual-Mode Portable Wheel and Hardened Container Production Runtime](0018-adopt-dual-mode-portable-wheel-and-hardened-container-production-runtime.md)
 * [0019 - Adopt Ephemeral Port Isolation Parallel Test Orchestration and SQLite Contention Hardening](0019-adopt-ephemeral-port-isolation-parallel-test-orchestration-and-sqlite-contention-hardening.md)
 * [0020 - Adopt Property Fuzzing Differential Native Verification Mutation Testing and Dual OS Coverage Matrix](0020-adopt-property-fuzzing-differential-native-verification-mutation-testing-and-dual-os-coverage-matrix.md)
+* [0021 - Adopt Twelve-Factor Application Alignment and Constitutional Provenance Harmonization](0021-adopt-twelve-factor-application-alignment-and-constitutional-provenance-harmonization.md)
+* [0022 - Standardize Configuration on Pydantic Settings and Domain Data on Frozen Pydantic v2 Models](0022-standardize-configuration-on-pydantic-settings-and-domain-data-on-frozen-pydantic-v2-models.md)
+* [0023 - Enforce SOLID Principles via Composable Policy Registries and Segregated CQRS Ports](0023-enforce-solid-principles-via-composable-policy-registries-and-segregated-cqrs-ports.md)
+* [0024 - Adopt Hexagonal Ports and Adapters Architecture via Strangler-Fig Incremental PRs](0024-adopt-hexagonal-ports-and-adapters-architecture-via-strangler-fig-incremental-prs.md)
 
 ## Rejected Records
 
