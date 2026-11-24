@@ -76,17 +76,27 @@ impl Default for FastGraphEngine {
 #[cfg(test)]
 mod tests {
     use super::FastGraphEngine;
+    use proptest::prelude::*;
 
     #[test]
-    fn neighborhood_stops_at_depth_without_panicking() {
-        let mut engine = FastGraphEngine::new();
+    fn neighborhood_stops_at_depth_zero_one_and_cycles() {
+        let mut engine = FastGraphEngine::default();
+        engine.add_node("isolated".to_string());
+        engine.add_node("isolated".to_string());
         engine.add_edge("a".to_string(), "b".to_string());
         engine.add_edge("b".to_string(), "c".to_string());
+        engine.add_edge("c".to_string(), "a".to_string());
         engine.add_edge("c".to_string(), "d".to_string());
 
-        let mut near = engine.get_neighborhood("a".to_string(), 1).unwrap();
-        near.sort();
-        assert_eq!(near, vec!["a".to_string(), "b".to_string()]);
+        let d0 = engine.get_neighborhood("a".to_string(), 0).unwrap();
+        assert_eq!(d0, vec!["a".to_string()]);
+
+        let mut d1 = engine.get_neighborhood("a".to_string(), 1).unwrap();
+        d1.sort();
+        assert_eq!(d1, vec!["a".to_string(), "b".to_string(), "c".to_string()]);
+
+        let iso = engine.get_neighborhood("isolated".to_string(), 3).unwrap();
+        assert_eq!(iso, vec!["isolated".to_string()]);
     }
 
     #[test]
@@ -94,5 +104,25 @@ mod tests {
         let engine = FastGraphEngine::new();
         let near = engine.get_neighborhood("missing".to_string(), 2).unwrap();
         assert_eq!(near, vec!["missing".to_string()]);
+    }
+
+    proptest! {
+        #[test]
+        fn graph_neighborhood_monotonic_with_depth(
+            edges in prop::collection::vec(("[a-f]", "[a-f]"), 0..20),
+            center in "[a-g]",
+            depth in 0usize..5,
+        ) {
+            let mut engine = FastGraphEngine::new();
+            for (u, v) in edges {
+                engine.add_edge(u, v);
+            }
+            let n_small = engine.get_neighborhood(center.clone(), depth).unwrap();
+            let n_large = engine.get_neighborhood(center.clone(), depth + 1).unwrap();
+            prop_assert!(n_small.contains(&center));
+            for node in &n_small {
+                prop_assert!(n_large.contains(node));
+            }
+        }
     }
 }
