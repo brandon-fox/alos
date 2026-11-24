@@ -1,8 +1,9 @@
-"""Behave test environment for mocked and live local compute governor & queue suites."""
+"""Behave test environment for mocked and live local compute governor & runtime suites."""
 
 from __future__ import annotations
 
 import shutil
+import subprocess  # nosec B404
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -23,12 +24,39 @@ def _live_ollama_ready() -> tuple[bool, str]:
     return True, ""
 
 
+def _live_docker_ready() -> tuple[bool, str]:
+    """Check whether the Docker daemon is reachable for @docker_live container scenarios."""
+    docker_bin = shutil.which("docker")
+    if docker_bin is None:
+        return False, "docker CLI not installed"
+    try:
+        # Fixed command checking local Docker Engine daemon readiness without shell.
+        res = subprocess.run(  # noqa: S603  # nosec B603
+            [docker_bin, "info", "--format", "{{.ServerVersion}}"],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            check=False,
+        )
+        if res.returncode != 0:
+            return False, f"docker daemon unavailable: {res.stderr.strip()}"
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, f"docker probe failed: {exc}"
+    return True, ""
+
+
 def before_scenario(context: Any, scenario: Any) -> None:
     """Provision an isolated temporary directory per scenario and gate @live when offline."""
     context.tmp_dir = Path(tempfile.mkdtemp(prefix="alos_behave_"))
     context.live_spinners = []
     context.child_procs = []
-    if "live" in scenario.effective_tags:
+    tags = set(scenario.effective_tags)
+    if "docker_live" in tags:
+        ok, why = _live_docker_ready()
+        if not ok:
+            scenario.skip(f"Skipping @docker_live scenario: {why}")
+            return
+    if "live" in tags and "docker_only" not in tags:
         ready, why = _live_ollama_ready()
         if not ready:
             scenario.skip(f"Skipping @live scenario: {why}")

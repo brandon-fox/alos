@@ -1,0 +1,28 @@
+{
+  "name": "ALOS Portable Devcontainer",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "runArgs": [
+    "--cpus=6",
+    "--memory=8g",
+    "--pids-limit=512",
+    "--security-opt=no-new-privileges:true",
+    "--add-host=host.docker.internal:host-gateway"
+  ],
+  "containerEnv": {
+    "ALOS_HOME": "/home/vscode/.alos",
+    "ALOS_SWARM_OLLAMA": "http://host.docker.internal:11434"
+  },
+  "postCreateCommand": "pip install --user uv && ~/.local/bin/uv sync --extra dev && ~/.local/bin/uv run alos bootstrap",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python"
+      },
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff"
+      ]
+    }
+  },
+  "remoteUser": "vscode"
+}
