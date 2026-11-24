@@ -24,8 +24,19 @@ from sqlalchemy.orm import Session
 from alos.db.models import ComputeCapacityLedgerModel, ComputeQueueJobModel
 from alos.db.session import DatabaseManager
 from alos.swarm.dispatcher import Ollama
-from alos.swarm.governor import GovernorState, GovernorTransition, HostGovernor, ModelSpinner
-from alos.swarm.sensors import WindowsNativeSensor
+from alos.swarm.governor import (
+    EvictionReport,
+    GovernorState,
+    GovernorTransition,
+    HostGovernor,
+    ModelSpinner,
+)
+from alos.swarm.sensors import (
+    ScriptedSensor,
+    SensorProvider,
+    TelemetrySnapshot,
+    WindowsNativeSensor,
+)
 
 RUNNABLE_STATES = ("queued", "preempted")
 
@@ -483,24 +494,86 @@ def default_prompt_executor(
     return {"response": str(resp.get("response", "")).strip(), "eval_count": resp.get("eval_count")}
 
 
+class _InMemoryMockSpinner(ModelSpinner):
+    """Deterministic in-memory spinner used when ``ALOS_SWARM_MODE=mock`` or ``--mock`` is set."""
+
+    def __init__(self) -> None:
+        super().__init__(port=11497)
+        self._mock_tier: str | None = None
+
+    @property
+    def active_tier(self) -> str | None:
+        return self._mock_tier
+
+    def ensure_tier(self, tier_name: str, warm_load: bool = True) -> Ollama:
+        if tier_name not in self.tiers:
+            raise KeyError(f"unknown model tier {tier_name!r}")
+        self._mock_tier = tier_name
+        return Ollama(self.host)
+
+    def refresh_keep_alive(self) -> bool:
+        return self._mock_tier is not None
+
+    def evict_all(self, sensor: SensorProvider | None = None) -> EvictionReport:
+        self._mock_tier = None
+        return EvictionReport(
+            elapsed_s=0.01, graceful_unloaded=True, tree_killed=False, remaining_managed_vram_mb=0
+        )
+
+
+def mock_prompt_executor(
+    job: LeasedJob, _client: Ollama, cancel_event: threading.Event
+) -> dict[str, Any]:
+    """Deterministic mock prompt executor for offline CLI and BDD contract verification."""
+    if cancel_event.is_set():
+        raise PreemptedExecutionError("mock cancelled", job.checkpoint_ns)
+    prompt_text = str(job.payload.get("prompt", ""))
+    return {"response": f"MOCK_OK:{job.model_tier}:{prompt_text[:32]}", "eval_count": 8}
+
+
 def _default_db_url() -> str:
     swarm_home = Path(os.environ.get("ALOS_SWARM_HOME", str(Path.home() / "swarm")))
     swarm_home.mkdir(parents=True, exist_ok=True)
     return f"sqlite:///{swarm_home / 'compute_queue.db'}"
 
 
-def _build_default_stack(db_url: str) -> ComputeRuntimeLoop:
+def _build_sensor_from_env(mock_mode: bool, spinner: ModelSpinner) -> SensorProvider:
+    if not mock_mode:
+        return WindowsNativeSensor(managed_pids_fn=spinner.managed_pids)
+    raw = os.environ.get("ALOS_MOCK_SENSOR_JSON", "").strip()
+    overrides: dict[str, Any] = json.loads(raw) if raw else {}
+    snap = TelemetrySnapshot(
+        gpu_temp_c=float(overrides.get("gpu_temp_c", 42.0)),
+        vram_temp_c=overrides.get("vram_temp_c"),
+        cpu_temp_c=overrides.get("cpu_temp_c"),
+        gpu_util_pct=int(overrides.get("gpu_util_pct", 5)),
+        total_vram_mb=int(overrides.get("total_vram_mb", 16303)),
+        used_vram_mb=int(overrides.get("used_vram_mb", 2400)),
+        managed_vram_mb=int(overrides.get("managed_vram_mb", 0)),
+        d3d_fullscreen=bool(overrides.get("d3d_fullscreen", False)),
+        user_idle_seconds=float(overrides.get("user_idle_seconds", 600.0)),
+        blocked_process=overrides.get("blocked_process"),
+    )
+    return ScriptedSensor(snap)
+
+
+def _build_default_stack(db_url: str, mock_mode: bool = False) -> ComputeRuntimeLoop:
     db = DatabaseManager(db_url=db_url)
     db.create_all_tables()
-    spinner = ModelSpinner()
-    sensor = WindowsNativeSensor(managed_pids_fn=spinner.managed_pids)
+    spinner: ModelSpinner = _InMemoryMockSpinner() if mock_mode else ModelSpinner()
+    sensor = _build_sensor_from_env(mock_mode, spinner)
     governor = HostGovernor(sensor=sensor, spinner=spinner)
     queue = StickyEpochQueue(db=db)
     return ComputeRuntimeLoop(governor=governor, queue=queue)
 
 
+def _emit_daemon_event(payload: dict[str, Any]) -> None:
+    print(json.dumps(payload), flush=True)
+
+
 def _run_daemon(
     loop: ComputeRuntimeLoop,
+    executor: JobExecutor,
     poll_s: float,
     ledger_interval_s: float,
     max_ticks: int | None,
@@ -508,10 +581,25 @@ def _run_daemon(
     """Run the standing governor + queue pull loop until interrupted or ``max_ticks``."""
     ticks = 0
     last_ledger = time.monotonic()
+    initial = loop.governor.evaluate(has_queued_work=loop.queue.has_runnable_work())
+    last_state: GovernorState | None = initial.state
+    _emit_daemon_event({"event": "daemon_started", "state": initial.state.value, "poll_s": poll_s})
     try:
         while max_ticks is None or ticks < max_ticks:
-            tick = loop.run_once(default_prompt_executor)
+            tick = loop.run_once(executor)
             ticks += 1
+            if tick.job_id is not None or tick.transition.state != last_state:
+                _emit_daemon_event(
+                    {
+                        "event": "daemon_tick",
+                        "tick": ticks,
+                        "outcome": tick.outcome,
+                        "state": tick.transition.state.value,
+                        "job_id": tick.job_id,
+                        "active_tier": tick.active_tier,
+                    }
+                )
+                last_state = tick.transition.state
             now = time.monotonic()
             if (now - last_ledger) >= ledger_interval_s or tick.outcome in (
                 "completed",
@@ -526,6 +614,7 @@ def _run_daemon(
         pass
     finally:
         loop.governor.spinner.evict_all(loop.governor.sensor)
+        _emit_daemon_event({"event": "daemon_stopped", "ticks": ticks})
     return 0
 
 
@@ -536,6 +625,12 @@ def main(argv: list[str] | None = None) -> int:
         "--db-url",
         default=os.environ.get("ALOS_QUEUE_DB_URL") or _default_db_url(),
         help="SQLAlchemy database URL (PostgreSQL or SQLite)",
+    )
+    parser.add_argument(
+        "--mock",
+        action="store_true",
+        default=os.environ.get("ALOS_SWARM_MODE", "").lower() == "mock",
+        help="Use deterministic mocked sensor and model spinner instead of live GPU/Ollama",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status", help="Sample host sensors and print governor readiness JSON")
@@ -556,7 +651,9 @@ def main(argv: list[str] | None = None) -> int:
     d_p.add_argument("--max-ticks", type=int, default=None)
     args = parser.parse_args(argv)
 
-    loop = _build_default_stack(str(args.db_url))
+    mock_mode = bool(args.mock)
+    executor = mock_prompt_executor if mock_mode else default_prompt_executor
+    loop = _build_default_stack(str(args.db_url), mock_mode=mock_mode)
     if args.cmd == "status":
         tr = loop.governor.evaluate(has_queued_work=loop.queue.has_runnable_work())
         print(
@@ -578,12 +675,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "daemon":
         return _run_daemon(
             loop,
+            executor=executor,
             poll_s=float(args.poll_s),
             ledger_interval_s=float(args.ledger_interval_s),
             max_ticks=args.max_ticks,
         )
     try:
-        tick = loop.run_once(default_prompt_executor)
+        tick = loop.run_once(executor)
         print(
             json.dumps(
                 {

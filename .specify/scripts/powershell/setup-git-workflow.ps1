@@ -53,4 +53,7 @@ if ($cacheFiles) {
     Write-Host "Git index is clean of pycache artifacts." -ForegroundColor Green
 }
 
+Write-Host "[4/4] Installing pre-commit and pre-push Git hooks..." -ForegroundColor Cyan
+uv run pre-commit install --hook-type pre-commit --hook-type pre-push
+
 Write-Host "`nGit workflow setup complete!" -ForegroundColor Green
