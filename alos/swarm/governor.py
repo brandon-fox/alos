@@ -538,7 +538,8 @@ class ModelSpinner:
             degraded = self._next_degraded_spec(candidate, fallback_queue, missing_model=is_missing)
             self._stop_process_tree()
             if degraded is None:
-                raise RuntimeError(f"Ollama tier warm-load failed ({spec.tier}): {fail_detail}")
+                prefix = "Ollama model missing" if is_missing else "Ollama CUDA OOM even at 1 slot"
+                raise RuntimeError(f"{prefix}: {fail_detail}")
             candidate = degraded
 
     def ensure_tier(self, tier_name: str, warm_load: bool = True) -> Ollama:
