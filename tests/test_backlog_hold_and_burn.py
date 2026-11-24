@@ -123,6 +123,9 @@ def test_hold_latch_manual_and_idle_gate_and_force_override(tmp_path: Path) -> N
     gov.state = GovernorState.ARMED_IDLE
     assert loop.run_once(lambda _j, _c, _e: {"ok": True}).outcome == "completed"
     assert latch.read() is None
+    latch.engage_manual("verify clear return")
+    assert latch.clear() is True
+    assert latch.clear() is False
 
 
 def test_missing_primary_model_steps_down_and_env_hysteresis(
@@ -134,6 +137,11 @@ def test_missing_primary_model_steps_down_and_env_hysteresis(
     cfg = HysteresisConfig.from_env()
     assert cfg.foreign_vram_limit_mb == 8192
     assert cfg.preempt_recover_idle_s == 120.0
+
+    cold = ModelSpinner(port=allocate_free_port())
+    assert cold.refresh_keep_alive() is False
+    assert cold._request_unload(Ollama(f"http://127.0.0.1:{allocate_free_port()}"), "m") is False
+    assert cold._stop_process_tree() is False
 
     spinner_tags = _MissingPrimarySpinner(stock_empty=False)
     spinner_tags.ensure_tier("reasoner")
