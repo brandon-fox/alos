@@ -893,6 +893,8 @@ def _run_daemon(
 
 
 def _register_spec037_parsers(sub: Any) -> None:
+    from alos.swarm.backlog import register_backlog_parser
+
     pause_p = sub.add_parser("pause", help="Hold queue execution manually or until idle window")
     pause_p.add_argument("--arm-after-idle", type=float, default=0.0, help="Auto-arm idle seconds")
     pause_p.add_argument("--reason", default="staged while using machine", help="Hold reason")
@@ -907,6 +909,7 @@ def _register_spec037_parsers(sub: Any) -> None:
     burn_p = sub.add_parser("burn", help="Drain up to N runnable jobs across warm model epochs")
     burn_p.add_argument("--max-jobs", type=int, default=10, help="Maximum jobs to execute")
     burn_p.add_argument("--force", action="store_true", help="Bypass hold and non-thermal gates")
+    register_backlog_parser(sub)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -953,6 +956,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _dispatch_control_cmd(args: argparse.Namespace, paths: RuntimePaths, db_url: str) -> int | None:
+    if args.cmd == "backlog":
+        from alos.swarm.backlog import run_backlog_cli
+
+        return run_backlog_cli(args, paths=paths, db_url=db_url)
     if args.cmd == "pause":
         latch = QueueHoldLatch(paths.hold_file)
         idle_s = float(args.arm_after_idle)

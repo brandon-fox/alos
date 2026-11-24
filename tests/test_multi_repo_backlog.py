@@ -101,11 +101,33 @@ def test_live_gh_harvester_filters_bot_noise_and_local_specs(
     assert harvested[0]["job_id"] == "gh-first-ade-issue-161"
 
 
-def test_cli_backlog_summary_build_and_stage(tmp_path: Path) -> None:
-    """FR-3708, FR-3709: CLI backlog summary, build, and stage --hold commands."""
+def test_cli_backlog_summary_build_and_stage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """FR-3708, FR-3709: CLI backlog summary, build, --live-gh, and stage --worktree-repo."""
+    from alos.swarm.backlog import _run_gh_json
+
+    monkeypatch.setattr("shutil.which", lambda _cmd: None)
+    assert _run_gh_json(["issue", "list"]) == []
+    assert len(select_backlog_window(load_bundled_backlog(), target_minutes=0.0)) >= 35
+
+    monkeypatch.setattr(
+        "alos.swarm.backlog.harvest_live_github_backlog",
+        lambda **_kw: [
+            {
+                "job_id": "gh-live-extra-1",
+                "repo_slug": "brandon-fox/alos",
+                "workflow_type": "spec_audit",
+                "model_tier": "reasoner",
+                "priority": 99,
+                "estimated_minutes": 4.0,
+                "payload": {"title": "Extra live audit"},
+            }
+        ],
+    )
     home = tmp_path / "cli_home"
     out_json = tmp_path / "built.json"
-    assert queue_main(["--home", str(home), "--mock", "backlog", "summary"]) == 0
+    assert queue_main(["--home", str(home), "--mock", "backlog", "summary", "--live-gh"]) == 0
     assert (
         queue_main(
             [
@@ -132,9 +154,12 @@ def test_cli_backlog_summary_build_and_stage(tmp_path: Path) -> None:
                 "--mock",
                 "backlog",
                 "stage",
+                "--live-gh",
                 "--target-minutes",
                 "130",
                 "--hold",
+                "--worktree-repo",
+                f"brandon-fox/alos={tmp_path}",
             ]
         )
         == 0
