@@ -40,16 +40,16 @@ Feature: CLI Workflow and Live RTX 5080 + Ollama Integration
 
   @live
   Scenario: Live RTX 5080 warm epoch reuse followed by sub-2-second Direct3D game preemption
-    Given a live HostGovernor and ComputeRuntimeLoop on port 11436
+    Given a live HostGovernor and ComputeRuntimeLoop on an ephemeral port
     When two "fast_coder" prompt jobs are enqueued and executed back to back
-    Then both live jobs complete using the same warm Ollama server PID with >= 400 MiB managed VRAM
+    Then both live jobs complete using the same warm Ollama server PID with >= 1500 MiB managed VRAM
     When Direct3D fullscreen gaming is injected onto the live hardware sensor
     Then evaluating the live governor transitions to "USER_PREEMPTED" and evicts VRAM in under 2.0 seconds
     And live managed VRAM drops to 0 MiB with no running server PID
 
   @live
   Scenario: Live Ollama runner thermal cutoff and Schmitt-trigger hold against live hardware
-    Given a live HostGovernor and ComputeRuntimeLoop on port 11436
+    Given a live HostGovernor and ComputeRuntimeLoop on an ephemeral port
     And one "fast_coder" prompt job is enqueued and executed to warm VRAM
     When an 84C GPU core temperature spike is injected onto the live hardware sensor
     Then evaluating the live governor transitions to "COOLING_CUTOFF" and evicts VRAM in under 2.0 seconds

@@ -18,6 +18,7 @@ from alos.runtime import (
     HealthHeartbeat,
     RuntimePaths,
     SingleInstanceLock,
+    allocate_free_port,
     bootstrap_home,
     is_pid_alive,
     query_ledger,
@@ -87,7 +88,10 @@ def test_bootstrap_idempotency_doctor_and_heartbeat(tmp_path: Path) -> None:
     assert doc_ok["healthy"] is True
 
     doc_offline = run_doctor(
-        home=home, ollama_host="http://127.0.0.1:11491", require_ollama=True, mock=False
+        home=home,
+        ollama_host=f"http://127.0.0.1:{allocate_free_port()}",
+        require_ollama=True,
+        mock=False,
     )
     assert doc_offline["healthy"] is False
 
@@ -177,7 +181,7 @@ def test_commit_aware_candidate_selection_steps_down_under_tight_commit(
     from alos.swarm import governor as gov_mod
     from alos.swarm.governor import DEFAULT_MODEL_TIERS, ModelSpinner
 
-    spinner = ModelSpinner(port=11493)
+    spinner = ModelSpinner(port=allocate_free_port())
     spec = DEFAULT_MODEL_TIERS["fast_coder"]
     sizes_mb = {
         "qwen2.5-coder:7b-instruct": 4480,
@@ -273,3 +277,41 @@ def test_backlog_bug_regressions_ensure_tier_fail_batch_cli_and_jobs(
     tick = loop.run_once(mock_prompt_executor)
     assert tick.outcome == "failed"
     assert tick.job_id == "bad-tier-1"
+
+
+def test_default_logger_path_resolution_and_cli_subcommands(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Verify ALOS_HOME and cwd fallback paths on loggers plus CLI speckit/crew subcommands."""
+    from alos.logs.decision_log import DecisionLogger
+    from alos.logs.system_audit import SystemAuditLogger
+
+    # 1. ALOS_HOME fallback when explicit env log paths are unset
+    monkeypatch.delenv("ALOS_AUDIT_LOG_PATH", raising=False)
+    monkeypatch.delenv("ALOS_DECISION_LOG_PATH", raising=False)
+    home_dir = tmp_path / "home_fallback"
+    monkeypatch.setenv("ALOS_HOME", str(home_dir))
+    audit_h = SystemAuditLogger()
+    dec_h = DecisionLogger()
+    assert Path(audit_h.log_file_path).parent == home_dir / "logs"
+    assert Path(dec_h.log_file_path).parent == home_dir / "logs"
+
+    # 2. CWD fallback when ALOS_HOME is also unset
+    cwd_dir = tmp_path / "cwd_fallback"
+    cwd_dir.mkdir()
+    monkeypatch.delenv("ALOS_HOME", raising=False)
+    monkeypatch.chdir(cwd_dir)
+    assert Path(SystemAuditLogger().log_file_path) == cwd_dir / "logs" / "system_audit.jsonl"
+    assert Path(DecisionLogger().log_file_path) == cwd_dir / "logs" / "decision_log.jsonl"
+
+    # 3. Unified CLI speckit list & crew subcommands
+    for cli_args in (
+        ["speckit", "lifecycle", "--action", "list"],
+        ["speckit", "archive", "--list"],
+        ["crew", "run", "--name", "code_quality", "--goal", "alos/cli.py"],
+        ["crew", "run", "--name", "obsidian_graph"],
+    ):
+        with pytest.raises(SystemExit) as exc:
+            alos_cli_main(cli_args)
+        assert exc.value.code == 0
+    _ = capsys.readouterr()

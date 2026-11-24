@@ -8,19 +8,11 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from alos.core.config import ALOSConfig
-from alos.core.graph import ALOSStateGraph
-from alos.crews.crews.code_quality_crew import CodeQualityCrew
-from alos.crews.crews.obsidian_graph_crew import ObsidianGraphSynthesizerCrew
-from alos.crews.crews.speckit_architect_crew import SpecKitArchitectCrew
-from alos.integrations.speckit.archiver import SpecKitArchiver
-from alos.integrations.speckit.lifecycle import SpecKitLifecycleManager
-from alos.logs.monitor import ObservabilityServer, RuntimeMonitor
-from alos.logs.telemetry import global_tracer
-from alos.runtime import RuntimePaths
-from alos.swarm.queue import main as governor_main
+if TYPE_CHECKING:
+    from alos.core.config import ALOSConfig
+
 
 GOVERNOR_COMMANDS = frozenset(
     {"bootstrap", "doctor", "status", "enqueue", "jobs", "tick", "daemon", "ledger"}
@@ -28,6 +20,8 @@ GOVERNOR_COMMANDS = frozenset(
 
 
 def _handle_speckit_lifecycle(args: argparse.Namespace) -> None:
+    from alos.integrations.speckit.lifecycle import SpecKitLifecycleManager
+
     manager = SpecKitLifecycleManager()
     res: dict[str, Any] | list[dict[str, Any]]
     if args.action == "list":
@@ -46,6 +40,8 @@ def _handle_speckit_lifecycle(args: argparse.Namespace) -> None:
 
 
 def _handle_speckit_archive(args: argparse.Namespace) -> None:
+    from alos.integrations.speckit.archiver import SpecKitArchiver
+
     archiver = SpecKitArchiver()
     res: dict[str, Any] | list[dict[str, Any]]
     if args.list:
@@ -65,6 +61,8 @@ def _handle_speckit_archive(args: argparse.Namespace) -> None:
 
 
 def _resolve_vault_dir(configured: str) -> str:
+    from alos.runtime import RuntimePaths
+
     local = Path(configured)
     if local.exists():
         return str(local.resolve())
@@ -109,6 +107,9 @@ def _register_observability_parser(subparsers: Any, config: ALOSConfig) -> None:
 
 
 def _handle_observability(args: argparse.Namespace, config: ALOSConfig) -> None:
+    from alos.logs.monitor import ObservabilityServer, RuntimeMonitor
+    from alos.logs.telemetry import global_tracer
+
     monitor = RuntimeMonitor(config=config, tracer=global_tracer)
     if args.obs_action == "health":
         report = monitor.check_health()
@@ -212,10 +213,16 @@ def _print_banner() -> None:
 
 def _run_crew_command(args: argparse.Namespace) -> None:
     if args.name == "speckit_architect":
+        from alos.crews.crews.speckit_architect_crew import SpecKitArchitectCrew
+
         res = SpecKitArchitectCrew().run(goal=args.goal)
     elif args.name == "code_quality":
+        from alos.crews.crews.code_quality_crew import CodeQualityCrew
+
         res = CodeQualityCrew().run(target_module=args.goal)
     else:
+        from alos.crews.crews.obsidian_graph_crew import ObsidianGraphSynthesizerCrew
+
         res = ObsidianGraphSynthesizerCrew().run(vault_dir="vault")
     print(json.dumps(res, indent=2))
     sys.exit(0)
@@ -230,12 +237,16 @@ def main(argv: list[str] | None = None) -> None:
 
     delegated = _extract_governor_delegation(raw)
     if delegated is not None:
+        from alos.swarm.queue import main as governor_main
+
         sys.exit(governor_main(delegated))
 
     # Backward-compatible shorthand: `alos "Plan my morning"` maps to `alos ask "Plan my morning"`
     known_roots = {"crew", "speckit", "ask", "observability", "-h", "--help"}
     if raw[0] not in known_roots and not raw[0].startswith("-"):
         raw = ["ask", *raw]
+
+    from alos.core.config import ALOSConfig
 
     config = ALOSConfig()
     args = _build_main_parser(config).parse_args(raw)
@@ -251,6 +262,8 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.subcommand == "crew" and args.crew_action == "run":
         _run_crew_command(args)
+
+    from alos.core.graph import ALOSStateGraph
 
     vault_path = _resolve_vault_dir(str(args.vault))
     graph = ALOSStateGraph(vault_dir=vault_path, config=config)

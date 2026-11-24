@@ -1,4 +1,5 @@
 # spec: 032-preemptible-compute-governor
+# spec: 032-preemptible-compute-governor
 @mocked
 Feature: Host Governor Preemption, Orphan Eviction, and Thermal Hysteresis
   As a developer running ALOS on a single-GPU gaming workstation
@@ -34,7 +35,7 @@ Feature: Host Governor Preemption, Orphan Eviction, and Thermal Hysteresis
     And the cancellation event is cleared
 
   Scenario: T2 - Hung Ollama server process tree is forcibly killed under 2 seconds
-    Given a live dummy child process attached to a ModelSpinner on port 11499
+    Given a live dummy child process attached to a ModelSpinner on an ephemeral port
     When the ModelSpinner executes evict_all
     Then the eviction completes in under 2.0 seconds with tree_killed true
     And the dummy child process is terminated
