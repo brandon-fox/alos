@@ -64,6 +64,8 @@ docs/adr/0028-*.md
 | PR-1 | Spec, plan, tasks, checklist; spec 029 pointers | all (definition) | V3, V4, V8 |
 | PR-2 | ADR-0028 and constitution IV/V amendment (PROTECTED: maintainer merges) | FR-3915 | |
 | PR-3 | Governor managed-load grace window | FR-3916 | |
+| PR-3a | Model-call trace, thinking off by default, empty answers fail | FR-3917, FR-3918 | V9, V10 |
+| PR-3b | Evidence check on review answers | FR-3919 | |
 | PR-4 | Risk classifier, risk config, leak scanner | FR-3908, FR-3904.7 | |
 | PR-5 | Worktrees and baseline runner in the sandbox | FR-3902, FR-3904, FR-3905, FR-3906 | V1, V6 |
 | PR-6 | `build` workflow, context assembly, attempt loop, `spec_refine`, escalation list, attempt records | FR-3901, FR-3903, FR-3907, FR-3911, FR-3914 | V2, V5 |
