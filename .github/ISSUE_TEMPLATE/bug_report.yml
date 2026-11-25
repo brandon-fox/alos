@@ -1,0 +1,25 @@
+name: Bug Report
+description: Report a reproducible defect or regression in ALOS
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Defect Summary
+      placeholder: Clear description of the bug and observed failure.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to Reproduce
+      placeholder: "1. Run `alos ...`\n2. Observe ..."
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment (OS, Python, ALOS version/commit)
+      placeholder: "Windows 11 / Ubuntu 24.04, Python 3.12, main"
+    validations:
+      required: true

@@ -1,34 +1,50 @@
 core:
   - changed-files:
-      - any-glob-to-any-file: ['alos/core/**']
+      - any-glob-to-any-file: ['alos/core/**', 'alos/domain/**', 'alos/application/**']
 
 database:
   - changed-files:
-      - any-glob-to-any-file: ['alos/db/**', 'alembic/**']
+      - any-glob-to-any-file: ['alos/db/**', 'alos/adapters/outbound/db/**', 'alembic/**']
 
 engine:
   - changed-files:
-      - any-glob-to-any-file: ['alos/engine/**']
+      - any-glob-to-any-file: ['alos/engine/**', 'alos/swarm/**']
 
 memory:
   - changed-files:
-      - any-glob-to-any-file: ['alos/memory/**']
+      - any-glob-to-any-file: ['alos/memory/**', 'alos/adapters/outbound/vault/**', 'alos/adapters/outbound/rag/**']
 
 integrations:
   - changed-files:
-      - any-glob-to-any-file: ['alos/integrations/**']
+      - any-glob-to-any-file: ['alos/integrations/**', 'alos/adapters/outbound/integrations/**']
+
+rust:
+  - changed-files:
+      - any-glob-to-any-file: ['crates/**', 'deny.toml']
 
 testing:
   - changed-files:
-      - any-glob-to-any-file: ['tests/**']
+      - any-glob-to-any-file: ['tests/**', 'features/**']
 
 documentation:
   - changed-files:
-      - any-glob-to-any-file: ['docs/**', '*.md']
+      - any-glob-to-any-file: ['docs/**', 'mkdocs.yml', '*.md']
 
 'ci/cd':
   - changed-files:
       - any-glob-to-any-file: ['.github/**']
+
+governance:
+  - changed-files:
+      - any-glob-to-any-file: ['.github/rulesets/**', 'docs/adr/**', '.specify/**']
+
+security:
+  - changed-files:
+      - any-glob-to-any-file: ['SECURITY.md', 'deny.toml', '.github/workflows/security-compliance.yml']
+
+release:
+  - changed-files:
+      - any-glob-to-any-file: ['release-please-config.json', '.release-please-manifest.json', 'CHANGELOG.md']
 
 infrastructure:
   - changed-files:
@@ -40,4 +56,4 @@ specs:
 
 schemas:
   - changed-files:
-      - any-glob-to-any-file: ['alos/schemas/**']
+      - any-glob-to-any-file: ['alos/schemas/**', 'alos/domain/models/**']
