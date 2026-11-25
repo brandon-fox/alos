@@ -217,6 +217,7 @@ def _evaluate_mutant(cand: MutantCandidate, timeout_s: float) -> MutantOutcome:
                 capture_output=True,
                 text=True,
                 timeout=timeout_s,
+                start_new_session=(sys.platform != "win32"),
                 check=False,
             )
             status = "killed" if proc.returncode != 0 else "survived"
