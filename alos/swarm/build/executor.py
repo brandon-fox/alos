@@ -98,6 +98,7 @@ def build_prompt(
     feedback: str,
     plan: str = "",
     test_first: bool = False,
+    layout: str = "",
 ) -> str:
     """The prompt for one attempt: task, files, test output, and what the last attempt got wrong."""
     lines = [f"Task: {item.get('title', item['id'])}"]
@@ -106,6 +107,8 @@ def build_prompt(
     lines.append(f"\nFiles:\n{context}" if context else "\nNo files were named.")
     if red:
         lines.append(f"\nTest output before any change:\n{red}")
+    if layout:
+        lines.append(f"\nThese files already exist; edit them, never create them again:\n{layout}")
     if plan:
         lines.append(f"\nPlan to follow:\n{plan}")
     if test_first:
@@ -253,8 +256,11 @@ def run_build(
                 ctx.baseline_red = result.baseline_red = not before.passed
                 red = "" if before.passed else before.output
             started = time.monotonic()
-            context = read_context(folder, item.get("files", []))
-            prompt = build_prompt(item, context, red, feedback, plan, budget.test_first)
+            names = item.get("files", [])
+            layout = baseline.tracked_near(folder, names)
+            prompt = build_prompt(
+                item, read_context(folder, names), red, feedback, plan, budget.test_first, layout
+            )
             drawn = _draw(prompt, model, folder, ctx, budget.candidates)
             feedback = drawn.feedback
             seconds = round(time.monotonic() - started, 1)

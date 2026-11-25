@@ -50,3 +50,9 @@ def test_off_label_or_failed_model_falls_back_to_the_default() -> None:
     failed, rec2 = triage(open_item, down)
     assert failed == BUDGETS["default"] and "ConnectionError" in rec2["note"]
     assert triage(open_item)[0] == BUDGETS["default"]
+
+
+def test_build_modules_alone_are_not_risky() -> None:
+    budget, _ = triage(item(["alos/swarm/build/cap.py"]))
+    assert budget.label == "mechanical"
+    assert triage(item(["alos/templates/build/risk.json"]))[0].label == "risky"

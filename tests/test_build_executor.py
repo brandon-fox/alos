@@ -279,3 +279,13 @@ def test_a_candidate_starts_from_a_clean_worktree(repo: Path, tmp_path: Path) ->
 def test_explicit_attempts_override_the_triage_budget(repo: Path, tmp_path: Path) -> None:
     res = run_build(ITEM, repo, tmp_path / "work", Scripted(NO_MATCH, FIX), attempts=1)
     assert (res.status, len(res.attempts)) == ("escalated", 1)
+
+
+def test_prompt_lists_tracked_files_so_the_model_does_not_recreate_them(
+    repo: Path, tmp_path: Path
+) -> None:
+    model = Scripted(FIX)
+    run_build(ITEM, repo, tmp_path / "work", model)
+    assert "already exist" in model.prompts[0]
+    assert "test_calc.py" in model.prompts[0]
+    assert baseline.tracked_near(repo, []) == ""

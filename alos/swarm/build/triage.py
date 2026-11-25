@@ -14,7 +14,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 TEST_FILE = re.compile(r"(^|/)(tests?/|test_[^/]*\.py$|[^/]*_test\.py$)")
-RISKY_PATH = re.compile(r"(^|/)(\.github/|alos/swarm/build/|[^/]*risk[^/]*\.json$)")
+RISKY_PATH = re.compile(r"(^|/)(\.github/|[^/]*risk[^/]*\.json$)")
 LABELS = ("mechanical", "multi_file", "underspecified", "risky")
 MULTI_FILE_MIN = 3
 
