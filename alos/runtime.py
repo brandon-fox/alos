@@ -200,7 +200,7 @@ class SingleInstanceLock:
         flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
         try:
             fd = os.open(str(self.lock_path), flags, 0o600)
-        except FileExistsError:
+        except (FileExistsError, PermissionError):
             return False
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(payload)
@@ -211,16 +211,20 @@ class SingleInstanceLock:
         reclaim_gate = self.lock_path.with_name(f".{self.lock_path.name}.reclaim")
         try:
             os.mkdir(str(reclaim_gate))
-        except FileExistsError:
-            time.sleep(0.015)
+        except (FileExistsError, PermissionError):
+            time.sleep(0.025)
             return self._try_atomic_create()
         try:
-            holder_pid, _ = self._read_holder()
-            if is_pid_alive(holder_pid):
-                return False
-            with contextlib.suppress(OSError):
-                self.lock_path.unlink()
-            return self._try_atomic_create()
+            for _ in range(5):
+                holder_pid, _ = self._read_holder()
+                if is_pid_alive(holder_pid):
+                    return False
+                with contextlib.suppress(OSError):
+                    self.lock_path.unlink()
+                if self._try_atomic_create():
+                    return True
+                time.sleep(0.005)
+            return False
         finally:
             with contextlib.suppress(OSError):
                 os.rmdir(str(reclaim_gate))
