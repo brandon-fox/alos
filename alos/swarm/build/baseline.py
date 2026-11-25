@@ -112,7 +112,10 @@ def tracked_near(folder: Path, files: Sequence[str], limit: int = 60) -> str:
     if not dirs:
         return ""
     code, out = git(folder, "ls-files", "--", *dirs)
-    return "\n".join(out.splitlines()[:limit]) if code == 0 else ""
+    if code != 0:
+        log.warning("git ls-files failed, prompt has no file list: %s", trim_output(out))
+        return ""
+    return "\n".join(out.splitlines()[:limit])
 
 
 def reset_worktree(folder: Path) -> None:

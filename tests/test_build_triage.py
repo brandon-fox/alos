@@ -56,3 +56,8 @@ def test_build_modules_alone_are_not_risky() -> None:
     budget, _ = triage(item(["alos/swarm/build/cap.py"]))
     assert budget.label == "mechanical"
     assert triage(item(["alos/templates/build/risk.json"]))[0].label == "risky"
+
+
+def test_model_cannot_call_an_item_risky_without_a_risky_path() -> None:
+    budget, rec = triage(item([]), lambda _p: "risky")
+    assert budget.label == "default" and "without risky path" in rec["note"]
