@@ -229,6 +229,7 @@ def run_build(
     model_name: str = "",
     record_dir: Path | None = None,
     classify: triage.Classify | None = None,
+    candidates: int | None = None,
 ) -> BuildResult:
     """Triage the item, then try up to its attempt budget; the first passing diff wins."""
     budget, record = triage.triage(item, classify)
@@ -239,6 +240,7 @@ def run_build(
         result.reason = "no testable acceptance or test file; rewrite the item's spec first"
         return result
     limit = budget.attempts if attempts is None else attempts
+    per_attempt = budget.candidates if candidates is None else candidates
     slug = SAFE.sub("_", str(item["id"])).strip("_") or "item"
     ctx = _Run(runner, test_command, timeout_s, leak_terms)
     plan = (
@@ -261,7 +263,7 @@ def run_build(
             prompt = build_prompt(
                 item, read_context(folder, names), red, feedback, plan, budget.test_first, layout
             )
-            drawn = _draw(prompt, model, folder, ctx, budget.candidates)
+            drawn = _draw(prompt, model, folder, ctx, per_attempt)
             feedback = drawn.feedback
             seconds = round(time.monotonic() - started, 1)
             attempt = Attempt(n, drawn.status, feedback, drawn.diff, seconds, drawn.count)

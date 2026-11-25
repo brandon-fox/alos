@@ -289,3 +289,10 @@ def test_prompt_lists_tracked_files_so_the_model_does_not_recreate_them(
     assert "already exist" in model.prompts[0]
     assert "test_calc.py" in model.prompts[0]
     assert baseline.tracked_near(repo, []) == ""
+
+
+def test_explicit_candidates_override_the_triage_budget(repo: Path, tmp_path: Path) -> None:
+    item = {**ITEM, "files": ["calc.py", "a.py", "b.py"]}
+    model = Scripted("plan", NO_MATCH)
+    res = run_build(item, repo, tmp_path / "work", model, attempts=1, candidates=1)
+    assert res.attempts[0].candidates == 1

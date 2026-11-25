@@ -256,6 +256,7 @@ def _run_build_job(
         model_name=str(job.payload.get("model") or job.model_tier),
         record_dir=paths.results_dir / _safe_slug(job.repo_slug) / _safe_slug(job.job_id),
         classify=model,
+        candidates=int(job.payload["candidates"]) if "candidates" in job.payload else None,
     )
     return {**outcome.to_json(), "model": used[-1] if used else job.model_tier}
 
