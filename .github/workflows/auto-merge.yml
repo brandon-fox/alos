@@ -29,7 +29,7 @@ jobs:
     if: github.event_name == 'pull_request' || github.event_name == 'check_run'
     steps:
       - name: Mark draft ready and enable squash auto-merge
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.0.1
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v7.0.1
         env:
           GH_TOKEN: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
         with:
@@ -82,7 +82,7 @@ jobs:
             --head-branch "${{ github.event.pull_request.head.ref }}" \
             --signing-configured "${{ steps.signing.outputs.configured }}"
       - if: steps.rebase.outputs.status == 'conflict'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.0.1
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v7.0.1
         with:
           script: |
             const tag = '<!-- auto-rebase-conflict-comment -->';
@@ -100,7 +100,7 @@ jobs:
     steps:
       - name: Sweep open PRs for draft-ready and auto-merge
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.0.1
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v7.0.1
         env:
           GH_TOKEN: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
         with:
