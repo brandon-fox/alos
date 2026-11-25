@@ -35,7 +35,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Evaluate vetting gate, non-human approval, and squash auto-merge
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.0.1
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v7.0.1
         env:
           GH_TOKEN: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
         with:
@@ -143,7 +143,7 @@ jobs:
             gh workflow run quality-gate.yml --ref "$REBASED_BRANCH"
           fi
       - if: steps.rebase.outputs.status == 'conflict'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.0.1
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v7.0.1
         env:
           BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
         with:
@@ -170,7 +170,7 @@ jobs:
     steps:
       - name: Sweep open PRs for vetted draft promotion and auto-merge
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.0.1
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v7.0.1
         env:
           GH_TOKEN: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
         with:
