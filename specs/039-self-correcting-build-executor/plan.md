@@ -68,6 +68,7 @@ docs/adr/0028-*.md
 | PR-3b | Evidence check on review answers | FR-3919 | |
 | PR-4 | Risk classifier, risk config, leak scanner | FR-3908, FR-3904.7 | |
 | PR-4a | Vertical slice: leak scanner, worktree per attempt, host test step, attempt loop, `build` workflow (opt-in) | FR-3901, FR-3903, FR-3906, FR-3914, FR-3904.7 | |
+| PR-4b | Triage, 5 attempts, 3 candidates per attempt | FR-3920, FR-3921 | |
 | PR-5 | Worktrees and baseline runner in the sandbox | FR-3902, FR-3904, FR-3905, FR-3906 | V1, V6 |
 | PR-6 | `build` workflow, context assembly, attempt loop, `spec_refine`, escalation list, attempt records | FR-3901, FR-3903, FR-3907, FR-3911, FR-3914 | V2, V5 |
 | PR-7 | Publisher: API commit, PR, merge cap, post-merge watch, auto-hold and revert | FR-3909, FR-3910, FR-3912, FR-3913 | V7 |

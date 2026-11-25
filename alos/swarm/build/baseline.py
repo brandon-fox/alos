@@ -106,6 +106,14 @@ def remove_worktree(repo: Path, folder: Path, branch: str) -> None:
         log.warning("branch %s was not deleted: %s", branch, trim_output(out))
 
 
+def reset_worktree(folder: Path) -> None:
+    """Drop every uncommitted change so the next candidate starts from the same base."""
+    for args in (("checkout", "--", "."), ("clean", "-fdq")):
+        code, out = git(folder, *args)
+        if code != 0:
+            raise BuildError(f"git {args[0]} failed in worktree: {trim_output(out)}")
+
+
 def apply_diff(folder: Path, diff: str) -> StepResult:
     """Apply a unified diff all-or-nothing; hunk line counts are recomputed for model diffs."""
     text = diff if diff.endswith("\n") else diff + "\n"

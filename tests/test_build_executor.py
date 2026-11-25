@@ -30,7 +30,12 @@ def fenced(head: str, new: str) -> str:
 FIX = fenced("add", "a + b")
 STILL_WRONG = fenced("add", "a * b")
 NO_MATCH = fenced("plus", "a + b")
-ITEM = {"id": "fix add", "title": "add() subtracts", "files": ["calc.py"]}
+ITEM = {
+    "id": "fix add",
+    "title": "add() subtracts",
+    "acceptance": "add(2, 3) == 5",
+    "files": ["calc.py"],
+}
 
 
 def run(repo: Path, *args: str) -> None:
@@ -153,7 +158,12 @@ def build_job(repo: Path) -> queue_mod.LeasedJob:
         priority=50,
         requires_merge=False,
         allow_cloud_overflow=False,
-        payload={"title": "add() subtracts", "files": ["calc.py"], "local_repo_path": str(repo)},
+        payload={
+            "title": "add() subtracts",
+            "acceptance": "add(2, 3) == 5",
+            "files": ["calc.py"],
+            "local_repo_path": str(repo),
+        },
         checkpoint_ns=None,
         state="leased",
         attempts=1,
@@ -234,3 +244,38 @@ def test_a_build_job_cancelled_before_it_starts_creates_nothing(
     with pytest.raises(queue_mod.PreemptedExecutionError):
         build_burn_executor(paths)(build_job(repo), Ollama("http://127.0.0.1:1"), stop)
     assert not (paths.root / "worktrees").exists()
+
+
+def test_underspecified_item_runs_no_attempt_and_asks_for_a_spec(
+    repo: Path, tmp_path: Path
+) -> None:
+    model = Scripted()
+    bare = {"id": "vague", "title": "make it better", "files": []}
+    res = run_build(bare, repo, tmp_path / "work", model)
+    assert (res.status, res.attempts, model.prompts) == ("refine_spec", [], [])
+    assert res.triage["label"] == "underspecified"
+
+
+def test_candidates_share_one_attempt_and_the_passing_one_is_kept(
+    repo: Path, tmp_path: Path
+) -> None:
+    item = {**ITEM, "files": ["calc.py", "a.py", "b.py"]}
+    model = Scripted("plan: fix add", NO_MATCH, STILL_WRONG, FIX)
+    rec = tmp_path / "rec"
+    res = run_build(item, repo, tmp_path / "work", model, record_dir=rec)
+    assert (res.status, len(res.attempts), res.attempts[0].candidates) == ("passed", 1, 3)
+    assert "Plan to follow:\nplan: fix add" in model.prompts[1]
+    assert "Candidate 3 of 3" in model.prompts[3]
+    assert json.loads((rec / "triage.json").read_text())["label"] == "multi_file"
+
+
+def test_a_candidate_starts_from_a_clean_worktree(repo: Path, tmp_path: Path) -> None:
+    item = {**ITEM, "files": ["calc.py", "a.py", "b.py"]}
+    res = run_build(item, repo, tmp_path / "work", Scripted("plan", STILL_WRONG, FIX))
+    assert res.status == "passed"
+    assert res.diff == extract_diff(FIX)
+
+
+def test_explicit_attempts_override_the_triage_budget(repo: Path, tmp_path: Path) -> None:
+    res = run_build(ITEM, repo, tmp_path / "work", Scripted(NO_MATCH, FIX), attempts=1)
+    assert (res.status, len(res.attempts)) == ("escalated", 1)
