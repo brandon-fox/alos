@@ -20,10 +20,12 @@ Every implementation task starts with a failing test (`pytest` and, where a scen
 - [ ] T005b [US2] Check review answers against their evidence before they count as done (FR-3919) in `alos/swarm/`, with failing tests first
 - [ ] T006 [P] [US3] Failing tests for the LOW / HIGH / PROTECTED classifier over fixture diffs, including that `risk.json` and the build modules classify as PROTECTED, in `tests/test_build_risk.py`
 - [ ] T007 [US3] Implement `alos/swarm/build/risk.py` and `alos/templates/build/risk.json`
-- [ ] T008 [P] [US1] Failing tests for the leak scanner (local paths, usernames, machine names, non-noreply emails) in `tests/test_build_leak.py`
-- [ ] T009 [US1] Implement `alos/swarm/build/leak.py`
+- [x] T008 [P] [US1] Failing tests for the leak scanner (local paths, usernames, machine names, non-noreply emails) in `tests/test_build_leak.py`
+- [x] T009 [US1] Implement `alos/swarm/build/leak.py` (generic patterns in code; personal terms read from `ALOS_HOME/config/leak_terms.txt` so they never reach git)
 
 ## Phase 3: Baseline in the sandbox (`PR-5`)
+
+- [x] T013a [US1] [US2] Vertical slice (`PR-4a`): worktree per attempt, diff apply, host test step, attempt loop with feedback and escalation, attempt records, `build` queue workflow behind `ALOS_BUILD_UNSANDBOXED=1`, in `alos/swarm/build/{baseline,executor}.py` and `alos/swarm/burn.py`, with `tests/test_build_executor.py`. Replace the host test step with the sandbox in T013.
 
 - [ ] T010 [US1] Resolve V1: run the full suite inside the sandbox `full` image with `--network none`, a read-only mount and a writable tmpfs for cache, coverage and basetemp; record the command in `docs/swarm.md`
 - [ ] T011 [US1] Resolve V6: run `ade-compliance check-all` on a fixture with a known violation and record whether the exit code is non-zero
