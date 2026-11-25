@@ -3,9 +3,19 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any
 
+import yaml
+
+from alos.application.use_cases.crews import CrewConfigLoader
 from alos.config.settings import ALOSSettings
+
+
+def build_crew_config_loader(config_dir: str | Path | None = None) -> CrewConfigLoader:
+    """Build a CrewConfigLoader wired to PyYAML safe_load for default crew configs."""
+    resolved = Path(config_dir) if config_dir else Path(__file__).resolve().parent / "config"
+    return CrewConfigLoader(config_dir=resolved, parser=yaml.safe_load)
 
 
 def disable_crewai_telemetry() -> None:
