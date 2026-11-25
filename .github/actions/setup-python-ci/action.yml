@@ -1,0 +1,38 @@
+name: Setup Python CI (uv + Incremental Analysis Cache)
+description: Reuse setup-uv-cached and restore .mypy_cache, .ruff_cache, and .hypothesis caches.
+
+inputs:
+  python-version:
+    description: Optional Python version for uv.
+    required: false
+    default: ''
+  extras:
+    description: Space-separated extras for uv sync.
+    required: false
+    default: 'dev'
+  sync:
+    description: Whether to run uv sync.
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up uv and sync dependencies
+      uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
+      with:
+        python-version: ${{ inputs.python-version }}
+        extras: ${{ inputs.extras }}
+        sync: ${{ inputs.sync }}
+
+    - name: Cache incremental MyPy, Ruff, and Hypothesis state
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          .mypy_cache
+          .ruff_cache
+          .hypothesis
+        key: ${{ runner.os }}-py-analysis-${{ hashFiles('pyproject.toml', 'uv.lock') }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-py-analysis-${{ hashFiles('pyproject.toml', 'uv.lock') }}-
+          ${{ runner.os }}-py-analysis-

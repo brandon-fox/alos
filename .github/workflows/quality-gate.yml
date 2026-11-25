@@ -1,28 +1,147 @@
-# This workflow runs a comprehensive parallel quality gate for the ALOS project.
-# It includes path filtering to isolate Python checks from Rust-only changes,
-# dual-OS (ubuntu-latest + windows-latest) execution with combined coverage,
-# and heavy compute fan-out (deep Hypothesis fuzzing + AST mutation testing).
+# Unified Quality Gate & Terminal Merge Gate (Spec 038 FR-001..FR-006)
+# Supports pull_request, merge_group, and push(main) with multi-layer caching and fork-PR safety.
 
 name: Quality Gate
 
 on:
   pull_request:
     branches: [main]
+  merge_group:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
-  group: quality-${{ github.head_ref || github.sha }}
-  cancel-in-progress: true
+  group: quality-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   pr-size:
     if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: read
     uses: brandon-fox/.github/.github/workflows/pr-size-guard.yml@093fbcf217975354790f21e30f7ce4e4061d35c2 # main
+
+  pr-governance:
+    name: pr-governance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Auto-label same-repo PRs
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7.0.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate Conventional PR title
+        if: github.event_name == 'pull_request'
+        uses: amannn/action-semantic-pull-request@2252a14e810aa9b85c2d560bd7070c802206ecf6 # v6.1.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enforce branch naming strategy
+        if: github.event_name == 'pull_request'
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -euo pipefail
+          if [ "$PR_AUTHOR" = "dependabot[bot]" ] || [ "$PR_AUTHOR" = "github-actions[bot]" ]; then
+            exit 0
+          fi
+          if ! echo "$HEAD_REF" | grep -Eq '^(feat|fix|chore|docs|ci|refactor|test|build|perf|release|hotfix|stack|dependabot|autofix|brand)/[A-Za-z0-9._/-]+$|^[0-9]{3}-[a-z0-9-]+$'; then
+            echo "::error::Branch '$HEAD_REF' must use an allowed trunk-based prefix (feat/, fix/, chore/, docs/, ci/, refactor/, test/, build/, perf/, release/, hotfix/, stack/, NNN-*)."
+            exit 1
+          fi
+
+      - name: Generate SpecKit Quality Digest on Spec PRs
+        id: spec_digest
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(specs/|\.specify/)'; then
+            python3 .github/scripts/spec_review.py
+            echo "post=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "post=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post or Update SpecKit Digest Comment
+        if: steps.spec_digest.outputs.post == 'true'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            const botTag = '<!-- spec-analyzer-bot-comment -->';
+            const fullBody = `${botTag}\n${fs.readFileSync('spec_review_report.md', 'utf8')}`;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(botTag));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: fullBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: fullBody,
+              });
+            }
+
+      - name: Lint GitHub Actions workflows (actionlint)
+        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
+        with:
+          files: .github/workflows/quality-gate.yml
+
+      - name: Audit workflow security (zizmor)
+        uses: zizmorcore/zizmor-action@1b4550e929643b8b26a62303c6bd64814271a4f1 # v0.9.2
+        with:
+          inputs: .github/workflows/quality-gate.yml
+          min-severity: high
+          advanced-security: 'false'
+          annotations: 'true'
+
+      - name: Verify every pinned action SHA exists upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          grep -rhoE 'us[e]s: +[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+@[0-9a-f]{40}' .github/workflows \
+            | sed -E 's/^[a-z]+: +//' | sort -u > pins.txt
+          missing=0
+          while IFS='@' read -r action sha; do
+            repo=$(echo "$action" | cut -d/ -f1-2)
+            if ! gh api "repos/${repo}/git/commits/${sha}" --silent 2>/dev/null; then
+              echo "::error::${action}@${sha} does not exist in ${repo}"
+              missing=1
+            fi
+          done < pins.txt
+          echo "Verified $(wc -l < pins.txt) pinned action SHAs."
+          exit "$missing"
 
   changes:
     name: Detect Changed Components
@@ -32,9 +151,12 @@ jobs:
       python: ${{ steps.filter.outputs.python }}
       rust: ${{ steps.filter.outputs.rust }}
       docker: ${{ steps.filter.outputs.docker }}
+      docs: ${{ steps.filter.outputs.docs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v3.0.2
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           filters: |
@@ -47,22 +169,34 @@ jobs:
               - 'uv.lock'
               - 'alembic/**'
               - 'alembic.ini'
-              - '.github/workflows/quality-gate.yml'
+              - '.github/**'
+              - 'specs/**'
+              - '.specify/**'
+              - 'docs/adr/**'
+              - 'mkdocs.yml'
+              - 'deny.toml'
             rust:
               - 'crates/**'
-              - 'Cargo.lock'
+              - 'deny.toml'
             docker:
               - 'Dockerfile*'
               - 'docker-compose*'
+              - '.dockerignore'
+            docs:
+              - 'docs/**'
+              - 'mkdocs.yml'
+              - '*.md'
 
   uv-lock-check:
     name: uv-lock-check
     needs: [changes]
-    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
+    if: needs.changes.outputs.python == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
         with:
           sync: 'false'
@@ -72,55 +206,62 @@ jobs:
   ruff-lint:
     name: ruff-lint
     needs: [changes]
-    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
+    if: needs.changes.outputs.python == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
-      - name: Ruff Lint
-        run: uv run ruff check alos tests features scripts
-      - name: Ruff Format Check
-        run: uv run ruff format --check alos tests features scripts
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-python-ci
+      - name: Ruff Lint & Format Check
+        run: |
+          uv run ruff check alos tests features scripts
+          uv run ruff format --check alos tests features scripts
 
   mypy-types:
     name: mypy-types
     needs: [changes]
-    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
+    if: needs.changes.outputs.python == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
-      - name: MyPy Static Analysis
-        run: uv run mypy alos tests features scripts
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-python-ci
+      - name: MyPy Static Analysis & Docs Strict Check
+        run: |
+          uv run mypy alos tests features scripts
+          uv run mkdocs build --strict -d .pytest_tmp/mkdocs_site
 
   bandit-security:
     name: bandit-security
     needs: [changes]
-    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
+    if: needs.changes.outputs.python == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-python-ci
       - name: Bandit Security Scan
-        run: uv run bandit -r alos -s B101 -f json -o bandit-report.json || true
-      - name: Bandit Human Report
         run: uv run bandit -r alos -s B101
 
   pytest-suite:
     name: pytest-suite
     needs: [changes]
-    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
+    if: needs.changes.outputs.python == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-python-ci
       - uses: brandon-fox/.github/.github/actions/cache-ml-weights@595a8111464a72b0d27e3e7391dcc713f002a73a # main
       - name: Run Parallel Tests with Branch Coverage (Linux)
-        # Floor raised to 90% from 85% (Spec 035). Never lower to make a PR pass.
         run: uv run python scripts/run_pytest_clean.py --keep-coverage --cov=alos --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=90
       - name: Run Parallel Mocked Behave BDD Suite (Linux)
         run: uv run python scripts/run_behave_parallel.py --tags="@mocked" --junit-xml=reports/behave-linux.xml
@@ -129,6 +270,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
         with:
           name: coverage-shard-ubuntu
+          include-hidden-files: true
           path: |
             .coverage
             coverage.xml
@@ -137,12 +279,14 @@ jobs:
   pytest-windows:
     name: pytest-windows
     needs: [changes]
-    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
+    if: needs.changes.outputs.python == 'true' || github.event_name != 'pull_request'
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-python-ci
       - name: Run Parallel Tests with Branch Coverage (Windows)
         run: uv run python scripts/run_pytest_clean.py --keep-coverage --cov=alos --cov-report=term-missing --cov-fail-under=90
       - name: Run Parallel Mocked Behave BDD Suite (Windows)
@@ -152,6 +296,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
         with:
           name: coverage-shard-windows
+          include-hidden-files: true
           path: .coverage
           retention-days: 7
 
@@ -163,7 +308,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-python-ci
       - name: Download Linux Coverage Shard
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -190,17 +337,19 @@ jobs:
   qa-deep-fanout:
     name: qa-deep-fanout
     needs: [changes]
-    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
+    if: needs.changes.outputs.python == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       HYPOTHESIS_PROFILE: deep
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
-      - name: Run Deep Hypothesis Fuzz Suites (Offloaded to CI)
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-python-ci
+      - name: Run Deep Hypothesis Fuzz Suites
         run: uv run python scripts/run_pytest_clean.py -m fuzz -q
-      - name: Run Python AST Mutation Sweep (Offloaded to CI)
+      - name: Run Python AST Mutation Sweep
         run: uv run python scripts/run_python_mutants.py --workers 4 --max-per-file 12 --min-kill-rate 85 --json-report reports/python-mutants.json
       - name: Upload Mutation Report
         if: always()
@@ -213,12 +362,14 @@ jobs:
   adr-governance:
     name: adr-governance
     needs: [changes]
-    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
+    if: needs.changes.outputs.python == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-python-ci
       - name: Verify ADR Repository
         run: uv run pyadr check-adr-repo
 
@@ -228,50 +379,33 @@ jobs:
     if: github.event_name == 'pull_request' && (needs.changes.outputs.python == 'true' || needs.changes.outputs.rust == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Dependency Review
-        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
-        continue-on-error: true
         with:
-          comment-summary-in-pr: always
+          persist-credentials: false
+      - name: Dependency Review (Strict License & CVE Gate)
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
           allow-licenses: 'MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, PSF-2.0, Python-2.0, Unlicense, 0BSD, MPL-2.0, CC0-1.0, LGPL-2.1-or-later, LGPL-3.0-or-later, BSD-3-Clause-Clear'
-
-  action-pins-exist:
-    name: action-pins-exist
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Every pinned action commit must exist upstream
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          grep -rhoE 'us[e]s: +[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+@[0-9a-f]{40}' .github/workflows \
-            | sed -E 's/^[a-z]+: +//' | sort -u > pins.txt
-          missing=0
-          while IFS='@' read -r action sha; do
-            repo=$(echo "$action" | cut -d/ -f1-2)
-            if ! gh api "repos/${repo}/git/commits/${sha}" --silent 2>/dev/null; then
-              echo "::error::${action}@${sha} does not exist in ${repo}"
-              missing=1
-            fi
-          done < pins.txt
-          echo "checked $(wc -l < pins.txt) pinned actions"
-          exit "$missing"
 
   docker-validate:
     name: docker-validate
     needs: [changes]
-    if: needs.changes.outputs.docker == 'true' || contains(github.event.head_commit.message, 'docker') || contains(github.event.head_commit.message, 'compose')
+    if: needs.changes.outputs.docker == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Validate Docker Compose
         run: docker compose config --quiet
-      - name: Trivy IaC Scan
+      - name: Trivy Vulnerability & Config Scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'fs'
@@ -280,15 +414,58 @@ jobs:
           ignore-unfixed: true
           exit-code: '1'
 
-  crewai-validation:
-    name: crewai-validation
-    needs: [changes]
-    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
+  ci-merge-gate:
+    name: ci-merge-gate
+    if: always()
+    needs:
+      - pr-size
+      - pr-governance
+      - changes
+      - uv-lock-check
+      - ruff-lint
+      - mypy-types
+      - bandit-security
+      - pytest-suite
+      - pytest-windows
+      - combined-coverage
+      - qa-deep-fanout
+      - adr-governance
+      - dependency-review
+      - docker-validate
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
-      - uses: brandon-fox/.github/.github/actions/cache-ml-weights@595a8111464a72b0d27e3e7391dcc713f002a73a # main
-      - name: Validate CrewAI Local Setup
-        run: uv run pytest tests/test_crewai_local.py
+      - name: Evaluate all upstream CI lanes (zero upstream-failure skip bypass)
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python3 - << 'PY'
+          import json, os, sys
+
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          event = os.environ["EVENT_NAME"]
+          outputs = needs.get("changes", {}).get("outputs", {})
+          py_active = outputs.get("python") == "true" or event != "pull_request"
+
+          errors = []
+          for req in ("pr-governance", "changes"):
+              if needs.get(req, {}).get("result") != "success":
+                  errors.append(f"{req}={needs.get(req, {}).get('result')}")
+
+          if event == "pull_request" and needs.get("pr-size", {}).get("result") != "success":
+              errors.append(f"pr-size={needs.get('pr-size', {}).get('result')}")
+
+          for name, info in sorted(needs.items()):
+              res = info.get("result")
+              if res in ("failure", "cancelled", "timed_out"):
+                  errors.append(f"{name}={res}")
+
+          if py_active and needs.get("combined-coverage", {}).get("result") != "success":
+              errors.append(f"combined-coverage={needs.get('combined-coverage', {}).get('result')}")
+
+          if errors:
+              print("::error::ci-merge-gate failed due to upstream lane(s): " + ", ".join(errors))
+              sys.exit(1)
+          print("ci-merge-gate: all active verification lanes passed.")
+          PY
