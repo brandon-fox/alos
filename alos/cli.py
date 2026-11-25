@@ -210,7 +210,10 @@ def _build_main_parser(config: ALOSConfig) -> argparse.ArgumentParser:
     archive_parser.add_argument("--restore", action="store_true", help="Restore archived spec")
     archive_parser.add_argument("--list", action="store_true", help="List archived specifications")
 
+    from alos.adapters.inbound.cli import register_inbound_subcommands
+
     _register_observability_parser(subparsers, config)
+    register_inbound_subcommands(subparsers)
 
     ask_parser = subparsers.add_parser("ask", help="Run dual-loop reasoning query against vault")
     ask_parser.add_argument("query", help="Task or life logistics prompt for ALOS")
@@ -256,14 +259,21 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(governor_main(delegated))
 
     # Backward-compatible shorthand: `alos "Plan my morning"` maps to `alos ask "Plan my morning"`
-    known_roots = {"crew", "speckit", "ask", "observability", "-h", "--help"}
+    known_roots = {"crew", "speckit", "ask", "observability", "db", "health", "-h", "--help"}
     if raw[0] not in known_roots and not raw[0].startswith("-"):
         raw = ["ask", *raw]
 
+    from alos.adapters.inbound.cli import dispatch_inbound_command
     from alos.core.config import ALOSConfig
 
     config = ALOSConfig()
     args = _build_main_parser(config).parse_args(raw)
+
+    if (handled := dispatch_inbound_command(args, config)) is not None:
+        code, output = handled
+        stream = sys.stderr if code != 0 else sys.stdout
+        print(output, file=stream)
+        sys.exit(code)
 
     if args.subcommand == "speckit":
         if args.speckit_action == "lifecycle":
