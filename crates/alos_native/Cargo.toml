@@ -14,7 +14,7 @@ rayon = "1.8.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 regex = "1.10"
-petgraph = "0.6"
+petgraph = "0.8"
 walkdir = "2"
 
 [dev-dependencies]
