@@ -215,7 +215,10 @@ def _run_build_job(
 
     from alos.swarm.build import baseline, leak
     from alos.swarm.build.executor import run_build
+    from alos.swarm.queue import PreemptedExecutionError
 
+    if cancel_event.is_set():
+        raise PreemptedExecutionError("cancelled before the build started", job.checkpoint_ns)
     if os.environ.get("ALOS_BUILD_UNSANDBOXED") != "1":
         raise RuntimeError(
             "build jobs run tests on the host until the sandbox runner lands "

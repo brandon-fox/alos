@@ -39,11 +39,18 @@ def load_terms(path: Path) -> list[str]:
 
 
 def added_lines(diff: str) -> list[tuple[int, str]]:
-    """Return ``(line number in the diff, text)`` for every added line."""
+    """Return ``(line number in the diff, text)`` for every added line.
+
+    A ``+++`` line is a file header only when a ``---`` line precedes it; otherwise it is an
+    added line whose text starts with ``++``.
+    """
     rows = []
+    previous = ""
     for number, raw in enumerate(diff.splitlines(), start=1):
-        if raw.startswith("+") and not raw.startswith("+++"):
+        header = raw.startswith("+++ ") and previous.startswith("--- ")
+        if raw.startswith("+") and not header:
             rows.append((number, raw[1:]))
+        previous = raw
     return rows
 
 

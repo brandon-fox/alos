@@ -26,7 +26,7 @@ MAX_ATTEMPTS = 3
 TEST_PATH = re.compile(r"(^|/)(tests?/|test_[^/]*\.py$|[^/]*_test\.py$)")
 FENCE = re.compile(r"```[A-Za-z]*[ \t]*\n(.*?)```", re.S)
 DIFF_START = re.compile(r"^--- .*\n\+\+\+ ", re.M)
-NEW_PATH = re.compile(r"^\+\+\+ (?:b/)?(\S+)", re.M)
+ADDED_TEST = re.compile(r"\+\s*(?:async\s+)?def test_\w*\(")
 SAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
@@ -62,9 +62,16 @@ def extract_diff(answer: str) -> str:
     return ""
 
 
-def touched_paths(diff: str) -> list[str]:
-    """Repo-relative paths a diff writes to."""
-    return [p for p in NEW_PATH.findall(diff) if p != "/dev/null"]
+def adds_test(diff: str) -> bool:
+    """True if the diff adds a ``def test_...`` line to a test file; touching one is not enough."""
+    current, previous = "", ""
+    for raw in diff.splitlines():
+        if raw.startswith("+++ ") and previous.startswith("--- "):
+            current = raw[4:].split("\t")[0].removeprefix("b/")
+        elif TEST_PATH.search(current) and ADDED_TEST.match(raw):
+            return True
+        previous = raw
+    return False
 
 
 def read_context(folder: Path, files: Sequence[str]) -> str:
@@ -139,7 +146,7 @@ def _judge(diff: str, folder: Path, ctx: _Run) -> tuple[str, str]:
     status, feedback = _check(
         diff, folder, ctx.leak_terms, lambda: ctx.runner(folder, ctx.test_command, ctx.timeout_s)
     )
-    has_test = any(TEST_PATH.search(p) for p in touched_paths(diff))
+    has_test = adds_test(diff)
     if status == "passed" and not (ctx.baseline_red or has_test):
         return "no_test_evidence", NO_EVIDENCE
     return status, feedback

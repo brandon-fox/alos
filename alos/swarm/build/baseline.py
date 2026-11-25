@@ -9,6 +9,7 @@ Spec: specs/039-self-correcting-build-executor/spec.md (FR-3902, FR-3904, FR-390
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import subprocess  # nosec B404
@@ -17,6 +18,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+log = logging.getLogger(__name__)
 TAIL_LINES = 40
 TAIL_CHARS = 2400
 DEFAULT_TEST_COMMAND: tuple[str, ...] = (
@@ -88,11 +90,20 @@ def add_worktree(repo: Path, folder: Path, branch: str, base: str = "HEAD") -> N
 
 
 def remove_worktree(repo: Path, folder: Path, branch: str) -> None:
-    """Remove a worktree and its branch; missing pieces are fine."""
-    git(repo, "worktree", "remove", "--force", str(folder))
-    shutil.rmtree(folder, ignore_errors=True)
+    """Remove a worktree and its branch; a missing piece is fine, any other failure is logged."""
+    code, out = git(repo, "worktree", "remove", "--force", str(folder))
+    if code != 0 and folder.exists():
+        log.warning("worktree %s was not removed by git: %s", folder.name, trim_output(out))
+    try:
+        shutil.rmtree(folder)
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        log.warning("worktree folder %s was not deleted: %s", folder.name, exc)
     git(repo, "worktree", "prune")
-    git(repo, "branch", "-D", branch)
+    code, out = git(repo, "branch", "-D", branch)
+    if code != 0 and "not found" not in out:
+        log.warning("branch %s was not deleted: %s", branch, trim_output(out))
 
 
 def apply_diff(folder: Path, diff: str) -> StepResult:

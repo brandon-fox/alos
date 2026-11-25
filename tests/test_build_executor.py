@@ -15,7 +15,7 @@ import pytest
 from alos.runtime import RuntimePaths
 from alos.swarm import queue as queue_mod
 from alos.swarm.build import baseline
-from alos.swarm.build.executor import extract_diff, run_build, touched_paths
+from alos.swarm.build.executor import adds_test, extract_diff, run_build
 from alos.swarm.burn import build_burn_executor
 from alos.swarm.dispatcher import Ollama
 
@@ -68,7 +68,6 @@ def test_extract_diff_fenced_bare_and_missing() -> None:
     assert extract_diff("Here:\n" + FIX + "\nDone").startswith("--- a/calc.py\n+++ b/calc.py")
     assert extract_diff("--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b").endswith("+b\n")
     assert extract_diff("I could not find a fix.") == ""
-    assert touched_paths("--- a/x\n+++ b/dir/x.py\n--- a/y\n+++ /dev/null\n") == ["dir/x.py"]
 
 
 def test_first_attempt_passes_and_leaves_the_repo_alone(repo: Path, tmp_path: Path) -> None:
@@ -190,3 +189,48 @@ def test_queue_build_job_runs_the_loop_and_traces_each_model_call(
     lines = (paths.logs_dir / "generation_trace.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2
     assert (paths.results_dir / "fixture" / "build-1" / "attempt-2.json").is_file()
+
+
+TEST_FILE = (
+    "diff --git a/test_calc.py b/test_calc.py\n--- a/test_calc.py\n+++ b/test_calc.py\n"
+    "@@ -3,3 +3,{n} @@\n \n def test_add():\n     assert add(2, 3) == 5\n"
+)
+
+
+def with_test_file(extra: str, new_count: int) -> str:
+    """The calc fix plus an edit to the test file, as one model answer."""
+    fix = FIX.removesuffix("```")
+    return fix + TEST_FILE.replace("{n}", str(new_count)) + extra + "```"
+
+
+def test_adds_test_needs_a_new_test_function_in_a_test_file() -> None:
+    comment = TEST_FILE.replace("{n}", "4") + "+# note\n"
+    real = TEST_FILE.replace("{n}", "6") + "+\n+def test_add_zero():\n+    assert add(0, 0) == 0\n"
+    in_code = "--- a/calc.py\n+++ b/calc.py\n@@ -1 +1 @@\n-x\n+def test_x():\n"
+    assert not adds_test(comment)
+    assert adds_test(real)
+    assert not adds_test(in_code)
+
+
+def test_a_comment_in_the_test_file_is_not_test_evidence(repo: Path, tmp_path: Path) -> None:
+    answer = with_test_file("+# note\n", 4)
+    res = run_build(ITEM, repo, tmp_path / "work", Scripted(answer), attempts=1, runner=passing)
+    assert res.attempts[0].status == "no_test_evidence"
+
+
+def test_an_added_test_function_is_test_evidence(repo: Path, tmp_path: Path) -> None:
+    answer = with_test_file("+\n+def test_add_zero():\n+    assert add(0, 0) == 0\n", 6)
+    res = run_build(ITEM, repo, tmp_path / "work", Scripted(answer), attempts=1, runner=passing)
+    assert res.status == "passed"
+
+
+def test_a_build_job_cancelled_before_it_starts_creates_nothing(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ALOS_BUILD_UNSANDBOXED", "1")
+    paths = RuntimePaths.resolve(str(tmp_path / "home"))
+    stop = threading.Event()
+    stop.set()
+    with pytest.raises(queue_mod.PreemptedExecutionError):
+        build_burn_executor(paths)(build_job(repo), Ollama("http://127.0.0.1:1"), stop)
+    assert not (paths.root / "worktrees").exists()

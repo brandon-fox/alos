@@ -53,3 +53,8 @@ def test_terms_file_skips_blanks_and_comments(tmp_path: Path) -> None:
     f.write_text("# private\n\nzebra42\n  box-one \n", encoding="utf-8")
     assert load_terms(f) == ["zebra42", "box-one"]
     assert load_terms(tmp_path / "missing.txt") == []
+
+
+def test_an_added_line_that_starts_with_plus_signs_is_still_scanned() -> None:
+    diff = "--- a/x.c\n+++ b/x.c\n@@ -1 +1,2 @@\n x\n+++counter; // " + MAIL + "\n"
+    assert [f.kind for f in scan_diff(diff)] == ["personal email"]
