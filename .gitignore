@@ -21,6 +21,7 @@
 *.pyd
 .Python
 build/
+!alos/swarm/build/
 develop-eggs/
 dist/
 downloads/
