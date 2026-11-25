@@ -10,8 +10,10 @@ ADR: ADR-0020
 from __future__ import annotations
 
 import ctypes
+import importlib.util
 import os
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -106,9 +108,8 @@ def test_is_pid_alive_posix_and_windows_contracts(monkeypatch: pytest.MonkeyPatc
 
 def test_kill_process_tree_posix_and_nt_contracts(monkeypatch: pytest.MonkeyPatch) -> None:
     """FR-014: Verify POSIX killpg + SIGKILL escalation and Windows taskkill /T /F."""
-    assert governor.kill_process_tree(0) is False
-
-    # Simulate POSIX session leader killpg + SIGKILL escalation
+    # Simulate POSIX session leader killpg + SIGKILL escalation; mock before probing pid=0
+    # so mutated pid<=0 bounds never signal process group 0 on POSIX runners.
     signals_sent: list[tuple[str, int, int]] = []
     monkeypatch.setattr(governor.os, "name", "posix")
     monkeypatch.setattr(governor.os, "getpgid", lambda pid: pid, raising=False)
@@ -124,9 +125,45 @@ def test_kill_process_tree_posix_and_nt_contracts(monkeypatch: pytest.MonkeyPatc
         lambda pid, sig: signals_sent.append(("kill", pid, sig)),
     )
     monkeypatch.setattr(governor.time, "sleep", lambda _s: None)
+    assert governor.kill_process_tree(0) is False
+    assert signals_sent == []
     assert governor.kill_process_tree(555) is True
     assert ("killpg", 555, 15) in signals_sent
     assert ("kill", 555, 9) in signals_sent
+
+    # Simulate POSIX ProcessLookupError on every signal attempt -> False
+    def _raise_lookup(*_args: int) -> int:
+        raise ProcessLookupError("no such process")
+
+    monkeypatch.setattr(governor.os, "getpgid", _raise_lookup, raising=False)
+    monkeypatch.setattr(governor.os, "killpg", _raise_lookup, raising=False)
+    monkeypatch.setattr(governor.os, "kill", _raise_lookup)
+    assert governor.kill_process_tree(555) is False
+
+    # Verify throttle recovery idle-dwell boundary (kills active_desk_idle_s mutant)
+    cfg = governor.HysteresisConfig()
+    assert (
+        governor.has_throttle_recovered(
+            sensors.TelemetrySnapshot(
+                gpu_temp_c=40.0,
+                cpu_temp_c=40.0,
+                user_idle_seconds=cfg.active_desk_idle_s - 1.0,
+            ),
+            cfg,
+        )
+        is False
+    )
+    assert (
+        governor.has_throttle_recovered(
+            sensors.TelemetrySnapshot(
+                gpu_temp_c=40.0,
+                cpu_temp_c=40.0,
+                user_idle_seconds=cfg.active_desk_idle_s,
+            ),
+            cfg,
+        )
+        is True
+    )
 
     # Simulate Windows taskkill /T /F
     monkeypatch.setattr(governor.os, "name", "nt")
@@ -226,3 +263,41 @@ def test_dispatcher_running_processes_and_stop_server_parity(
 
     dispatcher.stop_server(_DummyProc())  # type: ignore[arg-type]
     assert terminated["called"] is True and terminated["killed"] is True
+
+
+def _load_run_python_mutants() -> Any:
+    """Dynamically load scripts/run_python_mutants.py to keep MyPy module paths disjoint."""
+    script = Path(__file__).resolve().parent.parent / "scripts" / "run_python_mutants.py"
+    spec = importlib.util.spec_from_file_location("run_python_mutants", script)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["run_python_mutants"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_mutant_runner_isolates_posix_sessions(monkeypatch: pytest.MonkeyPatch) -> None:
+    """FR-013: Isolate POSIX mutant subprocesses into a new session to avoid runner SIGTERM."""
+    run_python_mutants = _load_run_python_mutants()
+
+    seen: list[tuple[str, bool]] = []
+    cand = run_python_mutants.MutantCandidate(
+        rel_file="alos/domain/services/lifecycle_fsm.py",
+        lineno=1,
+        description="noop",
+        mutated_source=(
+            run_python_mutants.REPO_ROOT / "alos/domain/services/lifecycle_fsm.py"
+        ).read_text(encoding="utf-8"),
+        test_files=("tests/test_domain_policies.py",),
+    )
+
+    def _fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        seen.append((run_python_mutants.sys.platform, bool(kwargs.get("start_new_session"))))
+        return subprocess.CompletedProcess(cmd, 1, "", "")
+
+    monkeypatch.setattr(run_python_mutants.subprocess, "run", _fake_run)
+    for platform_name in ("linux", "win32"):
+        monkeypatch.setattr(run_python_mutants.sys, "platform", platform_name)
+        outcome = run_python_mutants._evaluate_mutant(cand, timeout_s=5.0)
+        assert outcome.status == "killed"
+    assert seen == [("linux", True), ("win32", False)]
