@@ -88,6 +88,17 @@ def _combine_coverage_if_present(cov_base: Path, keep_at_repo: bool) -> None:
         shutil.copy2(cov_base, Path.cwd() / ".coverage")
 
 
+_GIT_HOOK_ENV_VARS = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_PREFIX",
+)
+
+
 def main(argv: list[str] | None = None) -> int:
     raw_args = list(sys.argv[1:] if argv is None else argv)
     keep_cov = "--keep-coverage" in raw_args or os.environ.get("ALOS_KEEP_COVERAGE") == "1"
@@ -96,6 +107,7 @@ def main(argv: list[str] | None = None) -> int:
     root = Path(tempfile.mkdtemp(prefix="alos_pytest_"))
     cov_file = root / ".coverage"
     prev_cov = os.environ.get("COVERAGE_FILE")
+    saved_git_env = {k: os.environ.pop(k) for k in _GIT_HOOK_ENV_VARS if k in os.environ}
     os.environ["COVERAGE_FILE"] = str(cov_file)
 
     pytest_args = [f"--basetemp={root / 'run'}"]
@@ -109,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
         _combine_coverage_if_present(cov_file, keep_at_repo=keep_cov)
         return code
     finally:
+        os.environ.update(saved_git_env)
         if prev_cov is None:
             os.environ.pop("COVERAGE_FILE", None)
         else:

@@ -605,6 +605,10 @@ class ModelSpinner:
         if proc is None:
             return False
         killed = kill_process_tree(proc.pid)
+        if not killed and proc.poll() is None:
+            with contextlib.suppress(OSError):
+                proc.kill()
+                killed = True
         with contextlib.suppress(subprocess.TimeoutExpired, OSError):
             proc.wait(timeout=3.0)
         return killed

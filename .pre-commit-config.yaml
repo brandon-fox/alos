@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
         stages: [pre-commit]
@@ -46,16 +46,6 @@ repos:
         always_run: true
         stages: [pre-commit]
 
-  - repo: local
-    hooks:
-      - id: sonar-quality-check
-        name: Sonar & Code Quality Scan (pre-commit)
-        entry: python -c "import os; print('Sonar quality pre-commit scan completed.')"
-        language: system
-        types: [python]
-        pass_filenames: false
-        stages: [pre-commit]
-
       - id: pytest-light-unit
         name: Light Unit & Meta Tests (pre-commit)
         entry: uv run python scripts/run_pytest_clean.py -m "not docker" --ignore=tests/benchmarks -q
@@ -74,15 +64,15 @@ repos:
 
       - id: mypy-check
         name: Strict Type Check (mypy)
-        entry: uv run mypy alos tests features
+        entry: uv run mypy alos tests features scripts
         language: system
         types: [python]
         pass_filenames: false
         stages: [pre-push]
 
       - id: pytest-check
-        name: Unit Tests & Coverage Gate (pytest)
-        entry: uv run python scripts/run_pytest_clean.py --cov=alos --cov-report=term-missing
+        name: Unit Tests & Coverage Gate >=90% (pytest)
+        entry: uv run python scripts/run_pytest_clean.py --cov=alos --cov-report=term-missing --cov-fail-under=90
         language: system
         types: [python]
         pass_filenames: false
@@ -96,11 +86,10 @@ repos:
         always_run: true
         stages: [pre-push]
 
-      - id: sonar-scanner-push
-        name: Sonar Project Quality Gate (pre-push)
-        entry: python -c "import os, sys; print('Sonar pre-push strict quality gate verified.'); sys.exit(0 if os.path.exists('sonar-project.properties') else 1)"
+      - id: mkdocs-strict-check
+        name: Documentation Link & Build Integrity (mkdocs --strict)
+        entry: uv run mkdocs build --strict -d .pytest_tmp/mkdocs_site
         language: system
-        types: [python]
         pass_filenames: false
         stages: [pre-push]
 

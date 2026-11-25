@@ -54,10 +54,10 @@ jobs:
           publish_results: true
         continue-on-error: true
       - name: Upload SARIF report
-        uses: github/codeql-action/upload-sarif@a2983b8bed1923f44751c5c43237f479442827b3 # v3.28.10
+        if: github.event_name != 'pull_request'
+        uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         with:
           sarif_file: scorecard-results.sarif
-        continue-on-error: true
 
   codeql-analysis:
     name: codeql-analysis
@@ -70,12 +70,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ['python']
+        language: ['python', 'rust', 'actions']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@a2983b8bed1923f44751c5c43237f479442827b3 # v3.28.10
+        uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         with:
           languages: ${{ matrix.language }}
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@a2983b8bed1923f44751c5c43237f479442827b3 # v3.28.10
+        uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5

@@ -13,7 +13,7 @@ static INLINE_TAG_RE: LazyLock<Regex> =
 static WIKILINK_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\[\[(.*?)\]\]").expect("valid wikilink regex"));
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PyObsidianNote {
     #[pyo3(get)]

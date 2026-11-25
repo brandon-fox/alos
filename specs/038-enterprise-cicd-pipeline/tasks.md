@@ -17,9 +17,9 @@
 
 **Goal (`[US1]` & `[US4]`)**: Lock down local pre-commit/pre-push hooks, AST suppression justifications, `mkdocs build --strict`, reproducible Rust `Cargo.lock` + `deny.toml`, `.dockerignore`, and non-root `Dockerfile` before rewiring GitHub workflows.
 
-- [ ] T003 [P] [US1] Add failing RED meta-tests in `tests/meta/test_code_quality_ast.py` (enforcing inline/preceding justification comments on `# noqa`, `# type: ignore`, `# pragma: no cover`, `NOSONAR`) and `tests/test_packaging_and_docs_manifests.py` (verifying `Cargo.lock`, `deny.toml`, `mkdocs.yml`, `.dockerignore`, non-root `Dockerfile`, and `cargo` Dependabot config) (`PR-02`)
-- [ ] T004 [US1] Remediate any unjustified inline suppressions, update `.pre-commit-config.yaml` (remove sham `print()` Sonar hooks, enforce `--cov-fail-under=90` on `pre-push`), and add `mkdocs.yml` + `mkdocs` dev dependency (`PR-02`)
-- [ ] T005 [P] [US4] Generate `crates/alos_native/Cargo.lock`, author `deny.toml`, update `.github/dependabot.yml` (`cargo` + grouped `github-actions` & `uv` dev groups), and add `.dockerignore` + hardened multi-stage non-root `Dockerfile` (`PR-02`)
+- [x] T003 [P] [US1] Add failing RED meta-tests in `tests/meta/test_code_quality_ast.py` (enforcing inline/preceding justification comments on `# noqa`, `# type: ignore`, `# pragma: no cover`, `NOSONAR`) and `tests/test_packaging_and_docs_manifests.py` (verifying `Cargo.lock`, `deny.toml`, `mkdocs.yml`, `.dockerignore`, non-root `Dockerfile`, and `cargo` Dependabot config) (`PR-02`)
+- [x] T004 [US1] Remediate any unjustified inline suppressions, update `.pre-commit-config.yaml` (remove sham `print()` Sonar hooks, enforce `--cov-fail-under=90` on `pre-push`), and add `mkdocs.yml` + `mkdocs` dev dependency (`PR-02`)
+- [x] T005 [P] [US4] Generate `crates/alos_native/Cargo.lock`, author `deny.toml`, update `.github/dependabot.yml` (`cargo` + grouped `github-actions` & `uv` dev groups), and add `.dockerignore` + hardened multi-stage non-root `Dockerfile` (`PR-02`)
 
 ---
 

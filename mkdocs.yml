@@ -1,0 +1,24 @@
+site_name: ALOS — Local Autonomous Life Operating System
+site_url: https://github.com/brandon-fox/alos
+repo_url: https://github.com/brandon-fox/alos
+docs_dir: docs
+strict: true
+
+# Exclude generated cross-tree traceability matrix and raw MADR placeholder template
+exclude_docs: |
+  traceability.md
+  adr/template.md
+
+validation:
+  nav:
+    omitted_files: info
+
+nav:
+  - Core Idea: idea.md
+  - Getting Started: getting_started.md
+  - Architecture: architecture.md
+  - Spec-Driven Development: specs_setup.md
+  - Local Swarm Dispatcher: swarm.md
+  - Agents & Customizations: agents_vs_gemini_guide.md
+  - CodeRabbit Guide: CODERABBIT_GUIDE.md
+  - Architecture Decisions: adr/index.md
