@@ -203,6 +203,59 @@ def _append_generation_trace(paths: RuntimePaths, job: LeasedJob, result: dict[s
         handle.write(json.dumps(record) + "\n")
 
 
+def _run_build_job(
+    paths: RuntimePaths,
+    job: LeasedJob,
+    traced: Callable[[LeasedJob, Ollama, threading.Event], dict[str, Any]],
+    client: Ollama,
+    cancel_event: threading.Event,
+) -> dict[str, Any]:
+    """Run a ``build`` item through the attempt loop (spec 039 FR-3901)."""
+    from dataclasses import replace
+
+    from alos.swarm.build import baseline, leak
+    from alos.swarm.build.executor import run_build
+
+    if os.environ.get("ALOS_BUILD_UNSANDBOXED") != "1":
+        raise RuntimeError(
+            "build jobs run tests on the host until the sandbox runner lands "
+            "(spec 039 PR-5); set ALOS_BUILD_UNSANDBOXED=1 to allow that"
+        )
+    repo = Path(str(job.payload.get("local_repo_path") or "")).expanduser()
+    if not (repo / ".git").exists():
+        raise RuntimeError("build job needs local_repo_path pointing at a git repository")
+    used: list[str] = []
+
+    def model(prompt: str) -> str:
+        shot = replace(
+            job,
+            payload={**job.payload, "prompt": prompt, "max_tokens": 2200, "timeout_s": 300.0},
+        )
+        res = traced(shot, client, cancel_event)
+        used.append(str(res.get("model", "")))
+        return str(res["response"])
+
+    item = {
+        "id": job.job_id,
+        "title": job.payload.get("title") or job.job_id,
+        "acceptance": job.payload.get("acceptance", ""),
+        "files": job.payload.get("files", []),
+    }
+    command = job.payload.get("test_command") or baseline.DEFAULT_TEST_COMMAND
+    outcome = run_build(
+        item,
+        repo,
+        paths.root / "worktrees" / "build",
+        model,
+        test_command=list(command),
+        attempts=int(job.payload.get("attempts", 3)),
+        leak_terms=leak.load_terms(paths.root / "config" / "leak_terms.txt"),
+        model_name=str(job.payload.get("model") or job.model_tier),
+        record_dir=paths.results_dir / _safe_slug(job.repo_slug) / _safe_slug(job.job_id),
+    )
+    return {**outcome.to_json(), "model": used[-1] if used else job.model_tier}
+
+
 def build_burn_executor(
     paths: RuntimePaths, mock_mode: bool = False
 ) -> Callable[[LeasedJob, Ollama, threading.Event], dict[str, Any]]:
@@ -227,53 +280,9 @@ def build_burn_executor(
         _append_generation_trace(paths, job, result)
         return result
 
-    def _run_build(job: LeasedJob, client: Ollama, cancel_event: threading.Event) -> dict[str, Any]:
-        """Run a ``build`` item through the attempt loop (spec 039 FR-3901)."""
-        from alos.swarm.build import baseline, leak
-        from alos.swarm.build.executor import run_build
-
-        if os.environ.get("ALOS_BUILD_UNSANDBOXED") != "1":
-            raise RuntimeError(
-                "build jobs run tests on the host until the sandbox runner lands "
-                "(spec 039 PR-5); set ALOS_BUILD_UNSANDBOXED=1 to allow that"
-            )
-        repo = Path(str(job.payload.get("local_repo_path") or "")).expanduser()
-        if not (repo / ".git").exists():
-            raise RuntimeError("build job needs local_repo_path pointing at a git repository")
-        used: list[str] = []
-
-        def model(prompt: str) -> str:
-            shot = replace(
-                job,
-                payload={**job.payload, "prompt": prompt, "max_tokens": 2200, "timeout_s": 300.0},
-            )
-            res = _traced(shot, client, cancel_event)
-            used.append(str(res.get("model", "")))
-            return str(res["response"])
-
-        item = {
-            "id": job.job_id,
-            "title": job.payload.get("title") or job.job_id,
-            "acceptance": job.payload.get("acceptance", ""),
-            "files": job.payload.get("files", []),
-        }
-        command = job.payload.get("test_command") or baseline.DEFAULT_TEST_COMMAND
-        outcome = run_build(
-            item,
-            repo,
-            paths.root / "worktrees" / "build",
-            model,
-            test_command=list(command),
-            attempts=int(job.payload.get("attempts", 3)),
-            leak_terms=leak.load_terms(paths.root / "config" / "leak_terms.txt"),
-            model_name=str(job.payload.get("model") or job.model_tier),
-            record_dir=paths.results_dir / _safe_slug(job.repo_slug) / _safe_slug(job.job_id),
-        )
-        return {**outcome.to_json(), "model": used[-1] if used else job.model_tier}
-
     def _executor(job: LeasedJob, client: Ollama, cancel_event: threading.Event) -> dict[str, Any]:
         if job.workflow_type == "build" and not mock_mode:
-            return _run_build(job, client, cancel_event)
+            return _run_build_job(paths, job, _traced, client, cancel_event)
         is_burn = job.workflow_type in BURN_WORKFLOWS or bool(job.payload.get("write_artifact"))
         if not is_burn:
             if mock_mode:
