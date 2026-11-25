@@ -27,6 +27,8 @@ Every implementation task starts with a failing test (`pytest` and, where a scen
 
 - [x] T013a [US1] [US2] Vertical slice (`PR-4a`): worktree per attempt, diff apply, host test step, attempt loop with feedback and escalation, attempt records, `build` queue workflow behind `ALOS_BUILD_UNSANDBOXED=1`, in `alos/swarm/build/{baseline,executor}.py` and `alos/swarm/burn.py`, with `tests/test_build_executor.py`. Replace the host test step with the sandbox in T013.
 
+- [x] T013b [P] [US2] Failing tests for triage (rules-only label, model label, off-label fallback, `underspecified` routes to `spec_refine`), candidates per attempt and the raised attempt cap, in `tests/test_build_triage.py` and `tests/test_build_executor.py`
+- [x] T013c [US2] Implement `alos/swarm/build/triage.py` and wire triage budget, candidates, `plan_first` and `test_first` into `executor.py` and the `build` hook in `burn.py` (`PR-4b`)
 - [ ] T010 [US1] Resolve V1: run the full suite inside the sandbox `full` image with `--network none`, a read-only mount and a writable tmpfs for cache, coverage and basetemp; record the command in `docs/swarm.md`
 - [ ] T011 [US1] Resolve V6: run `ade-compliance check-all` on a fixture with a known violation and record whether the exit code is non-zero
 - [ ] T012 [P] [US1] [US2] Failing tests for worktree creation per attempt and each baseline step's pass, fail and flaky results against `tests/fixtures/build_repo/`, in `tests/test_build_baseline.py`

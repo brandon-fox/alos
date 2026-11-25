@@ -251,10 +251,11 @@ def _run_build_job(
         paths.root / "worktrees" / "build",
         model,
         test_command=list(command),
-        attempts=int(job.payload.get("attempts", 3)),
+        attempts=int(job.payload["attempts"]) if "attempts" in job.payload else None,
         leak_terms=leak.load_terms(paths.root / "config" / "leak_terms.txt"),
         model_name=str(job.payload.get("model") or job.model_tier),
         record_dir=paths.results_dir / _safe_slug(job.repo_slug) / _safe_slug(job.job_id),
+        classify=model,
     )
     return {**outcome.to_json(), "model": used[-1] if used else job.model_tier}
 

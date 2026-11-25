@@ -3,7 +3,8 @@
 One queue item goes in; either a diff that passes the item's own tests comes out, or an
 escalation that says why every attempt failed. Publishing is a later change (spec 039 PR-7).
 
-Spec: specs/039-self-correcting-build-executor/spec.md (FR-3901, FR-3903, FR-3906, FR-3914)
+Spec: specs/039-self-correcting-build-executor/spec.md
+(FR-3901, FR-3903, FR-3906, FR-3914, FR-3920, FR-3921)
 """
 
 from __future__ import annotations
@@ -16,13 +17,12 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from alos.swarm.build import baseline, leak
+from alos.swarm.build import baseline, leak, triage
 
 ModelCall = Callable[[str], str]
 TestRunner = Callable[[Path, Sequence[str], float], baseline.StepResult]
 
 CONTEXT_CHARS = 12000
-MAX_ATTEMPTS = 3
 TEST_PATH = re.compile(r"(^|/)(tests?/|test_[^/]*\.py$|[^/]*_test\.py$)")
 FENCE = re.compile(r"```[A-Za-z]*[ \t]*\n(.*?)```", re.S)
 DIFF_START = re.compile(r"^--- .*\n\+\+\+ ", re.M)
@@ -37,6 +37,7 @@ class Attempt:
     feedback: str
     diff: str
     seconds: float
+    candidates: int = 1
 
 
 @dataclass
@@ -47,6 +48,7 @@ class BuildResult:
     diff: str = ""
     worktree: str = ""
     baseline_red: bool = False
+    triage: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
         return {**asdict(self), "attempt_count": len(self.attempts)}
@@ -89,7 +91,14 @@ def read_context(folder: Path, files: Sequence[str]) -> str:
     return "\n\n".join(parts)
 
 
-def build_prompt(item: dict[str, Any], context: str, red: str, feedback: str) -> str:
+def build_prompt(
+    item: dict[str, Any],
+    context: str,
+    red: str,
+    feedback: str,
+    plan: str = "",
+    test_first: bool = False,
+) -> str:
     """The prompt for one attempt: task, files, test output, and what the last attempt got wrong."""
     lines = [f"Task: {item.get('title', item['id'])}"]
     if item.get("acceptance"):
@@ -97,6 +106,10 @@ def build_prompt(item: dict[str, Any], context: str, red: str, feedback: str) ->
     lines.append(f"\nFiles:\n{context}" if context else "\nNo files were named.")
     if red:
         lines.append(f"\nTest output before any change:\n{red}")
+    if plan:
+        lines.append(f"\nPlan to follow:\n{plan}")
+    if test_first:
+        lines.append("\nWrite the failing test first, then the change that makes it pass.")
     if feedback:
         lines.append(f"\nYour last attempt failed. Fix that and answer again:\n{feedback}")
     lines.append(
@@ -153,12 +166,50 @@ def _judge(diff: str, folder: Path, ctx: _Run) -> tuple[str, str]:
 
 
 @dataclass
+class _Draw:
+    status: str
+    feedback: str
+    diff: str
+    count: int
+
+
+@dataclass
 class _Run:
     runner: TestRunner
     test_command: Sequence[str]
     timeout_s: float
     leak_terms: Sequence[str]
     baseline_red: bool = False
+
+
+def _plan(item: dict[str, Any], context: str, model: ModelCall) -> str:
+    """A short numbered plan, asked for once per item before any diff (FR-3920 plan_first)."""
+    task = f"Task: {item.get('title', item['id'])}\nAcceptance: {item.get('acceptance', '')}"
+    ask = f"{task}\n\nFiles:\n{context}\n\nWrite a numbered plan of at most 6 short steps. No code."
+    return model(ask).strip()[:1500]
+
+
+def _draw(prompt: str, model: ModelCall, folder: Path, ctx: _Run, count: int) -> _Draw:
+    """Up to ``count`` candidate diffs from one prompt; the first that passes the baseline wins."""
+    drawn = _Draw("no_diff", "", "", 0)
+    for number in range(1, count + 1):
+        if number > 1:
+            baseline.reset_worktree(folder)
+        nudge = (
+            f"\n\nCandidate {number} of {count}: take a different approach." if number > 1 else ""
+        )
+        diff = extract_diff(model(prompt + nudge))
+        status, feedback = _judge(diff, folder, ctx)
+        drawn = _Draw(status, feedback, diff, number)
+        if status == "passed":
+            break
+    return drawn
+
+
+def _write_triage(record_dir: Path | None, record: dict[str, Any]) -> None:
+    if record_dir is not None:
+        record_dir.mkdir(parents=True, exist_ok=True)
+        (record_dir / "triage.json").write_text(json.dumps(record, indent=1), encoding="utf-8")
 
 
 def run_build(
@@ -168,19 +219,30 @@ def run_build(
     model: ModelCall,
     *,
     test_command: Sequence[str] = baseline.DEFAULT_TEST_COMMAND,
-    attempts: int = MAX_ATTEMPTS,
+    attempts: int | None = None,
     runner: TestRunner = baseline.host_tests,
     timeout_s: float = 300.0,
     leak_terms: Sequence[str] = (),
     model_name: str = "",
     record_dir: Path | None = None,
+    classify: triage.Classify | None = None,
 ) -> BuildResult:
-    """Try up to ``attempts`` times; the first diff that applies and passes the tests wins."""
+    """Triage the item, then try up to its attempt budget; the first passing diff wins."""
+    budget, record = triage.triage(item, classify)
+    _write_triage(record_dir, record)
+    result = BuildResult("escalated", "no attempt ran", triage=record)
+    if budget.route == "refine_spec":
+        result.status = "refine_spec"
+        result.reason = "no testable acceptance or test file; rewrite the item's spec first"
+        return result
+    limit = budget.attempts if attempts is None else attempts
     slug = SAFE.sub("_", str(item["id"])).strip("_") or "item"
     ctx = _Run(runner, test_command, timeout_s, leak_terms)
-    result = BuildResult("escalated", "no attempt ran")
+    plan = (
+        _plan(item, read_context(repo, item.get("files", [])), model) if budget.plan_first else ""
+    )
     feedback, red = "", ""
-    for n in range(1, attempts + 1):
+    for n in range(1, limit + 1):
         folder = work / slug / f"attempt-{n}"
         branch = f"alos-build/{slug}-{n}"
         baseline.add_worktree(repo, folder, branch)
@@ -191,21 +253,23 @@ def run_build(
                 ctx.baseline_red = result.baseline_red = not before.passed
                 red = "" if before.passed else before.output
             started = time.monotonic()
-            prompt = build_prompt(item, read_context(folder, item.get("files", [])), red, feedback)
-            diff = extract_diff(model(prompt))
-            status, feedback = _judge(diff, folder, ctx)
-            attempt = Attempt(n, status, feedback, diff, round(time.monotonic() - started, 1))
+            context = read_context(folder, item.get("files", []))
+            prompt = build_prompt(item, context, red, feedback, plan, budget.test_first)
+            drawn = _draw(prompt, model, folder, ctx, budget.candidates)
+            feedback = drawn.feedback
+            seconds = round(time.monotonic() - started, 1)
+            attempt = Attempt(n, drawn.status, feedback, drawn.diff, seconds, drawn.count)
             result.attempts.append(attempt)
             _record(record_dir, attempt, model_name)
-            if status == "passed":
+            if drawn.status == "passed":
                 keep = True
                 result.status, result.reason = "passed", f"passed on attempt {n}"
-                result.diff, result.worktree = diff, str(folder)
+                result.diff, result.worktree = drawn.diff, str(folder)
                 return result
         finally:
             if not keep:
                 baseline.remove_worktree(repo, folder, branch)
     if result.attempts:
         last = result.attempts[-1]
-        result.reason = f"{attempts} attempts failed; last: {last.status}: {last.feedback[:300]}"
+        result.reason = f"{limit} attempts failed; last: {last.status}: {last.feedback[:300]}"
     return result

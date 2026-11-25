@@ -50,6 +50,11 @@ As the maintainer, I want a failing attempt to be retried with its own failure o
 4. **Given** the refined attempt also fails, **When** the executor gives up, **Then** the job moves to `escalated`, no PR opens, the last worktree is kept, and one entry is written to the escalation list (FR-3911).
 5. **Given** CI's `ci-merge-gate` fails on an opened PR, **When** the failure is read back, **Then** it counts as a failed attempt and feeds the next one, up to the same limits.
 
+6. **Given** an item names one file and a test path, **When** triage runs, **Then** it is labelled `mechanical` from rules alone, with no model call, and gets 1 candidate per attempt (FR-3920).
+7. **Given** an item has no testable acceptance, **When** triage runs, **Then** it is labelled `underspecified`, no build attempt runs, and the result is `refine_spec` so the item goes to `spec_refine` first.
+8. **Given** an attempt's candidate 1 fails to apply and candidate 2 passes the baseline, **When** the attempt is recorded, **Then** it counts as one attempt with two candidates, and the passing diff is the one kept (FR-3921).
+9. **Given** the triage model is unreachable or answers off-label, **When** triage runs, **Then** the item gets the default budget and the failure is recorded.
+
 ---
 
 ### User Story 3 - Risk sets the evidence bar, not a human gate (Priority: P2)
@@ -122,6 +127,9 @@ As the maintainer, I want a loop merge that breaks `main` to stop the loop, reve
 - **FR-3918**: Model calls MUST turn thinking off unless the job payload sets `think`, and a call that returns no answer text MUST fail the attempt, so it retries and then escalates, instead of succeeding.
 - **FR-3919**: A review answer MUST be checked against the evidence it was given before it counts as done: every file it cites must exist, and the share of supplied claims it addresses and of citations that match supplied evidence lines MUST be recorded; an answer below the configured floor fails validation and is retried once.
 
+- **FR-3920**: Before the first attempt a triage step MUST label the item and set its attempt budget. Rules read facts first (files named, test path present, acceptance criteria count, spec length, a failing test already named); a small model labels only what rules leave open. Labels: `mechanical` (one file, clear test), `multi_file`, `underspecified` (no testable acceptance), `risky` (touches a path the risk classifier would not call LOW). The label sets `attempts`, `candidates`, `plan_first` and `test_first`; `underspecified` MUST return `refine_spec` and run no build attempt. The label, the facts behind it and the budget MUST be recorded with the attempt records. A triage failure MUST fall back to the default budget, never block the item.
+- **FR-3921**: An item MUST be allowed up to 5 local attempts, and each attempt MAY draw up to 3 candidate diffs, kept in order until one passes the baseline. Extra attempts and candidates are spent only against a verifier: a candidate that fails to apply or fails a step costs a candidate, not an attempt. Thinking MAY be turned on only for a retry whose feedback carries a failing test (FR-3918 otherwise holds).
+
 ### Key Entities
 
 - **BuildItem**: a queue job of workflow type `build` with `source_ref`, target paths, base commit, attempt count, tier and risk.
@@ -142,7 +150,7 @@ As the maintainer, I want a loop merge that breaks `main` to stop the loop, reve
 
 ### Kill criteria
 
-Judged by the maintainer, not monitored by the system: after 20 `build` items, if fewer than 5 merged without human hands, or a loop merge broke `main` more than once, stop the executor and return to manual SpecKit runs.
+Judged by the maintainer, not monitored by the system: after 20 `build` items, if fewer than 5 merged without human hands, or a loop merge broke `main` more than once, stop the executor and return to manual SpecKit runs. Triage (FR-3920, FR-3921): on 5 real spec tasks, if the extra attempts and candidates do not turn at least 1 more item green than the 3-attempt default, or triage labels disagree with the maintainer's own label on more than 2 of 5, remove it.
 
 ## Target state
 
