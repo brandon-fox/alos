@@ -1,6 +1,6 @@
 # Multi-stage locked production container image for ALOS runtime and compute governor.
 # Spec: specs/034-portable-production-runtime/spec.md & specs/038-enterprise-cicd-pipeline/spec.md (FR-009)
-FROM ghcr.io/astral-sh/uv:0.10 AS uv-bin
+FROM ghcr.io/astral-sh/uv:0.13 AS uv-bin
 
 FROM python:3.12-slim AS builder
 
