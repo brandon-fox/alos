@@ -69,6 +69,18 @@ class PreemptedExecutionError(Exception):
         self.checkpoint_ns = checkpoint_ns
 
 
+class EmptyResponseError(RuntimeError):
+    """Raised when a model call returns no answer text, so the attempt fails instead of succeeding.
+
+    Spec: specs/039-self-correcting-build-executor/spec.md (FR-3918)
+    """
+
+    def __init__(self, message: str, trace: dict[str, Any] | None = None, model: str = "") -> None:
+        super().__init__(message)
+        self.trace: dict[str, Any] = dict(trace or {})
+        self.model = model
+
+
 @dataclass(frozen=True)
 class QueueConfig:
     """Policy knobs for sticky model-epoch batching, lease TTL, PR caps, and cloud overflow."""
@@ -673,10 +685,40 @@ def _execute_embed_prompt(
     }
 
 
+def _generation_trace(resp: dict[str, Any], opts: dict[str, Any]) -> dict[str, Any]:
+    """Summarise what one generate call read, wrote and cost (Spec 039 FR-3917)."""
+
+    def millis(key: str) -> float:
+        return round(float(resp.get(key) or 0) / 1_000_000.0, 1)
+
+    prompt_tokens = int(resp.get("prompt_eval_count") or 0)
+    answer_tokens = int(resp.get("eval_count") or 0)
+    answer_ms = millis("eval_duration")
+    num_ctx = opts.get("num_ctx")
+    num_predict = int(opts["num_predict"])
+    return {
+        "prompt_tokens": prompt_tokens,
+        "answer_tokens": answer_tokens,
+        "thinking_chars": len(str(resp.get("thinking") or "")),
+        "num_ctx": num_ctx,
+        "num_predict": num_predict,
+        "fits_context": None if not num_ctx else prompt_tokens + num_predict <= int(num_ctx),
+        "load_ms": millis("load_duration"),
+        "prompt_ms": millis("prompt_eval_duration"),
+        "answer_ms": answer_ms,
+        "total_ms": millis("total_duration"),
+        "tokens_per_s": round(answer_tokens / (answer_ms / 1000.0), 1) if answer_ms > 0 else 0.0,
+    }
+
+
 def default_prompt_executor(
     job: LeasedJob, client: Ollama, cancel_event: threading.Event
 ) -> dict[str, Any]:
-    """Minimal built-in executor running a structured prompt or embedding on the warm tier."""
+    """Run a structured prompt or embedding on the warm tier and trace the call.
+
+    Thinking is off unless the payload sets ``think``; an empty answer fails the attempt.
+    Spec: specs/039-self-correcting-build-executor/spec.md (FR-3917, FR-3918)
+    """
     if cancel_event.is_set():
         raise PreemptedExecutionError("cancelled before generation", job.checkpoint_ns)
     shown = client.call("/api/ps", timeout=5.0).get("models", [])
@@ -697,6 +739,7 @@ def default_prompt_executor(
             "model": model,
             "prompt": str(job.payload.get("prompt", "Summarize status.")),
             "stream": False,
+            "think": bool(job.payload.get("think", False)),
             "keep_alive": "10m",
             "options": opts,
         },
@@ -704,11 +747,22 @@ def default_prompt_executor(
     )
     if cancel_event.is_set():
         raise PreemptedExecutionError("cancelled during generation", job.checkpoint_ns)
+    trace = _generation_trace(resp, opts)
+    answer = str(resp.get("response", "")).strip()
+    if not answer:
+        raise EmptyResponseError(
+            f"model {model} returned no answer text: {trace['answer_tokens']} tokens generated, "
+            f"{trace['thinking_chars']} characters of thinking, "
+            f"done_reason={resp.get('done_reason')}",
+            trace,
+            model,
+        )
     return {
-        "response": str(resp.get("response", "")).strip(),
+        "response": answer,
         "model": model,
         "eval_count": resp.get("eval_count"),
         "done_reason": resp.get("done_reason"),
+        "trace": trace,
     }
 
 

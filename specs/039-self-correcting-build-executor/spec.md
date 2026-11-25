@@ -118,6 +118,9 @@ As the maintainer, I want a loop merge that breaks `main` to stop the loop, reve
 - **FR-3914**: Every attempt MUST be recorded (`ALOS_HOME/results/<repo>/<job_id>/attempt-<n>.md`: model, context sizes, diff, each step's result and duration) and summarised in the burn digest.
 - **FR-3915**: The constitution's principles IV and V MUST be amended through an ADR so that the baseline (FR-3904) and, for HIGH tier, the HIGH checks stand in for "Tests written, user approved" and for human approval; human approval remains required only for PROTECTED paths.
 - **FR-3916**: The governor MUST attribute GPU memory that grows while the queue is loading its own model to the managed instance, so the loop does not preempt itself during a load. Until then, `ALOS_FOREIGN_VRAM_LIMIT_MB` is raised on the workstation (spec 037 FR-3704).
+- **FR-3917**: Every model call MUST leave a trace: prompt tokens read, answer tokens written, characters of thinking, context size, whether the prompt plus the answer budget fits the context, and load, read and write times. The trace MUST be stored with the job result and appended to `ALOS_HOME/logs/generation_trace.jsonl`, including for a call that fails.
+- **FR-3918**: Model calls MUST turn thinking off unless the job payload sets `think`, and a call that returns no answer text MUST fail the attempt, so it retries and then escalates, instead of succeeding.
+- **FR-3919**: A review answer MUST be checked against the evidence it was given before it counts as done: every file it cites must exist, and the share of supplied claims it addresses and of citations that match supplied evidence lines MUST be recorded; an answer below the configured floor fails validation and is retried once.
 
 ### Key Entities
 
@@ -158,8 +161,10 @@ Phase 1 runs on what is installed today: the queue daemon, the burn executor's p
 - **V4**: Resolved 2026-11-24: the `pr-governance` branch rule accepts `fix/` and `feat/` prefixes; `alos-loop/` would be rejected.
 - **V5**: The headless cloud lane from spec 029 Task 17 returns an applicable unified diff.
 - **V6**: Whether `ade-compliance check-all` exits non-zero when violations exist (a clean run exits 0 and prints `Violations: 0`); until shown, the executor parses the count rather than trusting the exit code.
-- **V7**: Auto Merge squashes a non-draft PR created through the API once `ci-merge-gate` succeeds.
+- **V7**: Resolved 2026-11-24: PR #253, created through the API, was squash-merged by Auto Merge about a minute after `ci-merge-gate` passed.
 - **V8**: Resolved 2026-11-24: the governor preempted its own first job at load time (`foreign GPU memory 10371 MiB > 4608 MiB` while managed memory read 2107 MiB, because Ollama reports a model only after it has loaded); with the limit raised, jobs complete (FR-3916).
+- **V9**: Resolved 2026-11-24: on the first review wave, 21 of 109 calls to a thinking-capable model returned no answer after spending the whole 2,000-token budget on thinking, and were recorded as succeeded. With `think` set to false the same model answers directly, and a model without a thinking mode accepts the flag (FR-3918).
+- **V10**: Resolved 2026-11-24: a traced review call read 4,393 prompt tokens from a 13,991-character prompt and wrote 1,165 tokens in 35 seconds inside an 8,192-token context, so prompts at the 14,000-character budget are not truncated (FR-3917).
 
 ## Assumptions
 

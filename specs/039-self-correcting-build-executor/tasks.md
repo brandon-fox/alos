@@ -16,6 +16,8 @@ Every implementation task starts with a failing test (`pytest` and, where a scen
 
 - [ ] T004 [P] [US1] Failing tests for a managed-load grace window: VRAM growth while the queue's own model loads is not foreign (FR-3916) in `tests/test_governor_managed_load.py`
 - [ ] T005 [US1] Implement the grace window in `alos/swarm/governor.py`; once green, drop the raised `ALOS_FOREIGN_VRAM_LIMIT_MB` from the workstation
+- [x] T005a [US2] Turn thinking off by default, fail empty answers and record a per-call trace in the job result and `logs/generation_trace.jsonl` (FR-3917, FR-3918) in `alos/swarm/queue.py` and `alos/swarm/burn.py`, with `tests/test_generation_trace.py`
+- [ ] T005b [US2] Check review answers against their evidence before they count as done (FR-3919) in `alos/swarm/`, with failing tests first
 - [ ] T006 [P] [US3] Failing tests for the LOW / HIGH / PROTECTED classifier over fixture diffs, including that `risk.json` and the build modules classify as PROTECTED, in `tests/test_build_risk.py`
 - [ ] T007 [US3] Implement `alos/swarm/build/risk.py` and `alos/templates/build/risk.json`
 - [ ] T008 [P] [US1] Failing tests for the leak scanner (local paths, usernames, machine names, non-noreply emails) in `tests/test_build_leak.py`
