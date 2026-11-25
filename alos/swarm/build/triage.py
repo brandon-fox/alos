@@ -14,7 +14,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 TEST_FILE = re.compile(r"(^|/)(tests?/|test_[^/]*\.py$|[^/]*_test\.py$)")
-RISKY_PATH = re.compile(r"(^|/)(\.github/|alos/swarm/build/|[^/]*risk[^/]*\.json$)")
+RISKY_PATH = re.compile(r"(^|/)(\.github/|[^/]*risk[^/]*\.json$)")
 LABELS = ("mechanical", "multi_file", "underspecified", "risky")
 MULTI_FILE_MIN = 3
 
@@ -69,7 +69,7 @@ def _ask(item: dict[str, Any], f: dict[str, Any], classify: Classify) -> tuple[s
     prompt = (
         f"Label this build task with one word from: {', '.join(LABELS)}.\n"
         "mechanical: one file, clear test. multi_file: several files change together. "
-        "underspecified: no testable acceptance. risky: touches CI, build or risk config.\n"
+        "underspecified: no testable acceptance. risky: touches .github/ CI or risk config files.\n"
         f"Task: {item.get('title', '')}\nAcceptance: {item.get('acceptance', '')}\n"
         f"Facts: {f}\nAnswer with the label only."
     )
@@ -78,6 +78,8 @@ def _ask(item: dict[str, Any], f: dict[str, Any], classify: Classify) -> tuple[s
     except Exception as exc:
         return "", f"triage model failed: {type(exc).__name__}"
     word = re.sub(r"[^a-z_]", "", answer.split()[0]) if answer.split() else ""
+    if word == "risky" and not f["risky_path"]:
+        return "", f"risky label without risky path: {answer[:40]!r}"
     return (word, "") if word in LABELS else ("", f"off-label answer: {answer[:40]!r}")
 
 

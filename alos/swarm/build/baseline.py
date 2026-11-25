@@ -106,6 +106,18 @@ def remove_worktree(repo: Path, folder: Path, branch: str) -> None:
         log.warning("branch %s was not deleted: %s", branch, trim_output(out))
 
 
+def tracked_near(folder: Path, files: Sequence[str], limit: int = 60) -> str:
+    """Tracked files in the directories of the named files, so a model never recreates one."""
+    dirs = sorted({Path(f).parent.as_posix() for f in files})
+    if not dirs:
+        return ""
+    code, out = git(folder, "ls-files", "--", *dirs)
+    if code != 0:
+        log.warning("git ls-files failed, prompt has no file list: %s", trim_output(out))
+        return ""
+    return "\n".join(out.splitlines()[:limit])
+
+
 def reset_worktree(folder: Path) -> None:
     """Drop every uncommitted change so the next candidate starts from the same base."""
     for args in (("checkout", "--", "."), ("clean", "-fdq")):
