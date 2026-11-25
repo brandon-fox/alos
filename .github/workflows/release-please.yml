@@ -1,0 +1,52 @@
+# Automated SemVer Release PR & Immutable Release Cut Pipeline (Spec 038 FR-007)
+# Maintains lockstep versions across pyproject.toml, Cargo.toml, CITATION.cff, and sonar-project.properties
+# via googleapis/release-please-action, chaining directly into release-packaging.yml via workflow_call.
+
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: ["Auto Merge"]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: release-please-main
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: release-please
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      release_created: ${{ steps.rp.outputs.releases_created == 'true' || steps.rp.outputs.release_created == 'true' }}
+      tag_name: ${{ steps.rp.outputs.tag_name || steps.rp.outputs['.--tag_name'] }}
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: rp
+        with:
+          token: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish-release:
+    needs: [release-please]
+    if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/release-packaging.yml
+    with:
+      tag_name: ${{ needs.release-please.outputs.tag_name }}

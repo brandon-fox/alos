@@ -6,17 +6,15 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: '13 3 * * 1' # Weekly Monday at 03:13 UTC
+    - cron: '13 3 * * 1'
   workflow_dispatch:
 
 concurrency:
   group: security-${{ github.head_ref || github.sha }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
-  security-events: write
-  id-token: write
 
 jobs:
   gitleaks-scan:
@@ -27,14 +25,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Gitleaks Secret Scan
-        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v2.3.8
+          persist-credentials: false
+      - name: Gitleaks Secret Scan (Strict Blocking)
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
 
   scorecard-analysis:
     name: scorecard-analysis
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -52,9 +51,7 @@ jobs:
           results_file: scorecard-results.sarif
           results_format: sarif
           publish_results: true
-        continue-on-error: true
       - name: Upload SARIF report
-        if: github.event_name != 'pull_request'
         uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         with:
           sarif_file: scorecard-results.sarif
@@ -73,6 +70,8 @@ jobs:
         language: ['python', 'rust', 'actions']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Initialize CodeQL
         uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         with:
