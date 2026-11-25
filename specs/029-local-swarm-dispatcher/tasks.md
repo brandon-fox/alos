@@ -17,8 +17,8 @@
 
 - [ ] **Task 11**: Queue format and the standing loop
 - [ ] **Task 12**: Hourly capacity ledger
-- [ ] **Task 13**: Merge cap for work that opens pull requests
-- [ ] **Task 14**: First-ADE compliance check as the acceptance gate for code changes
+- [ ] **Task 13**: Merge cap for work that opens pull requests (specified in [spec 039](../039-self-correcting-build-executor/spec.md) FR-3912)
+- [ ] **Task 14**: First-ADE compliance check as the acceptance gate for code changes (specified in [spec 039](../039-self-correcting-build-executor/spec.md) FR-3904)
 - [ ] **Task 15**: Cloud overflow lane, once one is shown to run headless
 
 ## Stage 3: feeders and the vault bus
