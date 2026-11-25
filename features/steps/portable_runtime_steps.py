@@ -264,7 +264,7 @@ def step_when_installed_enqueue_and_tick(context: Any, job_id: str) -> None:
         ["enqueue", "--id", job_id, "--tier", "fast_coder", "--prompt", "Reply_PORTABLE"],
     )
     assert enq.returncode == 0, enq.stderr
-    context.bin_tick = _run_installed_bin(context, ["tick"])
+    context.bin_tick = _run_installed_bin(context, ["tick", "--force"])
 
 
 @then(

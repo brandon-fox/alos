@@ -1,69 +1,117 @@
+# Vetted Draft Promotion, Non-Human Approval Gate, Signed Rebase Queue & CI Auto-Fix (Spec 038 FR-005, Spec 033)
+# Replaces check_run storms with workflow_run("Quality Gate"), promotes drafts ONLY after ci-merge-gate passes,
+# enforces >=1 approval on non-owner PRs, and dispatches Quality Gate after GITHUB_TOKEN rebases.
+
 name: Auto Merge
 
-# Enable squash auto-merge for all eligible PRs (Drafts, Dependabot, bots, humans)
-# and keep PR branches rebased onto main with SSH-signed commits on every update.
 on:
   push:
     branches: [main]
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled]
-  check_run:
+  workflow_run:
+    workflows: ["Quality Gate"]
     types: [completed]
   schedule:
     - cron: '*/30 * * * *'
   workflow_dispatch:
 
 concurrency:
-  group: auto-merge-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.check_run.head_sha || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'check_run' }}
+  group: auto-merge-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.workflow_run.head_sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_run' }}
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   automerge:
-    name: Universal Auto Merge
+    name: Vetted Draft Promotion & Squash Auto-Merge
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event_name == 'pull_request' || github.event_name == 'check_run'
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_run'
+    permissions:
+      checks: read
+      contents: write
+      pull-requests: write
     steps:
-      - name: Mark draft ready and enable squash auto-merge
+      - name: Evaluate vetting gate, non-human approval, and squash auto-merge
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.0.1
         env:
           GH_TOKEN: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
         with:
           script: |
+            const { owner, repo } = context.repo;
+            const repoSlug = `${owner}/${repo}`;
             let prNumber = context.payload.pull_request?.number;
-            if (!prNumber && context.payload.check_run) {
-              const { data: prs } = await github.rest.pulls.list({ owner: context.repo.owner, repo: context.repo.repo, state: 'open', per_page: 50 });
-              prNumber = prs.find(p => p.head.sha === context.payload.check_run.head_sha)?.number;
+            if (!prNumber && context.payload.workflow_run) {
+              const wfSha = context.payload.workflow_run.head_sha;
+              const openPrs = await github.paginate(github.rest.pulls.list, {
+                owner, repo, state: 'open', base: 'main', per_page: 50,
+              });
+              prNumber = openPrs.find(p => p.head.sha === wfSha)?.number;
             }
             if (!prNumber) return;
-            const repoSlug = `${context.repo.owner}/${context.repo.repo}`;
-            const { data: pr } = await github.rest.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber });
-            if (pr.state !== 'open') return;
+
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: prNumber });
+            if (pr.state !== 'open' || pr.base.ref !== 'main') return;
             const labels = (pr.labels || []).map(l => l.name);
-            if (labels.includes('wip') || labels.includes('do-not-merge')) return;
-            if (pr.draft) await exec.exec('gh', ['pr', 'ready', String(prNumber), '--repo', repoSlug]);
-            if (pr.user?.login === 'dependabot[bot]') {
+            if (labels.includes('wip') || labels.includes('do-not-merge') || labels.includes('stacked')) return;
+
+            const { data: checks } = await github.rest.checks.listForRef({
+              owner, repo, ref: pr.head.sha, check_name: 'ci-merge-gate', per_page: 10,
+            });
+            const gatePassed = checks.check_runs.some(
+              r => r.name === 'ci-merge-gate' && r.status === 'completed' && r.conclusion === 'success'
+            );
+
+            if (pr.draft) {
+              if (!gatePassed) {
+                core.info(`PR #${prNumber} remains Draft until ci-merge-gate succeeds.`);
+                return;
+              }
+              await exec.exec('gh', ['pr', 'ready', String(prNumber), '--repo', repoSlug]);
+            }
+
+            const author = pr.user?.login || '';
+            const isDependabotSafe = author === 'dependabot[bot]' && !labels.includes('semver-major');
+            const isReleasePlease = pr.head.ref.startsWith('release-please--') && author === 'github-actions[bot]';
+            if ((isDependabotSafe || isReleasePlease) && gatePassed) {
               await exec.exec('gh', ['pr', 'review', '--approve', String(prNumber), '--repo', repoSlug], { ignoreReturnCode: true });
             }
+
+            if (author !== 'brandon-fox') {
+              const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                owner, repo, pull_number: prNumber, per_page: 50,
+              });
+              const approved = reviews.some(r => r.state === 'APPROVED');
+              if (!approved) {
+                core.info(`Non-owner PR #${prNumber} by ${author} requires >= 1 APPROVED review before auto-merge.`);
+                return;
+              }
+            }
+
             if (!pr.auto_merge) {
               const mode = pr.mergeable_state === 'clean' ? [] : ['--auto'];
-              await exec.exec('gh', ['pr', 'merge', String(prNumber), ...mode, '--squash', '--delete-branch', '--repo', repoSlug]);
+              await exec.exec('gh', ['pr', 'merge', String(prNumber), ...mode, '--squash', '--delete-branch', '--repo', repoSlug], { ignoreReturnCode: true });
             }
 
   signed-rebase-on-update:
     name: Signed Rebase on PR Update
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      actions: write
+      contents: write
+      issues: write
+      pull-requests: write
     if: >-
       github.event_name == 'pull_request' &&
       contains(fromJSON('["opened","reopened","synchronize","ready_for_review"]'), github.event.action) &&
       github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'main' &&
       !contains(github.event.pull_request.labels.*.name, 'wip') &&
-      !contains(github.event.pull_request.labels.*.name, 'do-not-merge')
+      !contains(github.event.pull_request.labels.*.name, 'do-not-merge') &&
+      !contains(github.event.pull_request.labels.*.name, 'stacked')
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -76,18 +124,35 @@ jobs:
       - id: rebase
         env:
           GH_TOKEN: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          SIGNING_CONFIGURED: ${{ steps.signing.outputs.configured }}
         run: |
           python3 .github/scripts/signed_pr_rebase.py --mode single \
-            --base-branch "${{ github.event.pull_request.base.ref }}" \
-            --head-branch "${{ github.event.pull_request.head.ref }}" \
-            --signing-configured "${{ steps.signing.outputs.configured }}"
+            --base-branch "$BASE_BRANCH" \
+            --head-branch "$HEAD_BRANCH" \
+            --signing-configured "$SIGNING_CONFIGURED"
+      - name: Dispatch Quality Gate when rebased with fallback GITHUB_TOKEN
+        if: steps.rebase.outputs.status == 'rebased'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HAS_PAT: ${{ secrets.PR_QUEUE_TOKEN != '' }}
+          REBASED_BRANCH: ${{ steps.rebase.outputs.head_branch }}
+        run: |
+          if [ "$HAS_PAT" != "true" ] && [ -n "$REBASED_BRANCH" ]; then
+            gh workflow run quality-gate.yml --ref "$REBASED_BRANCH"
+          fi
       - if: steps.rebase.outputs.status == 'conflict'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.0.1
+        env:
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
         with:
           script: |
             const tag = '<!-- auto-rebase-conflict-comment -->';
-            const body = `${tag}\n⚠️ **Automatic Signed Rebase Paused**: Merge conflicts with \`${{ github.event.pull_request.base.ref }}\`. Resolve locally with signed commits and push.`;
-            const { data: comments } = await github.rest.issues.listComments({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number });
+            const body = `${tag}\n⚠️ **Automatic Signed Rebase Paused**: Merge conflicts with \`${process.env.BASE_BRANCH}\`. Resolve locally with signed commits and push.`;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, per_page: 100,
+            });
             const existing = comments.find(c => c.body && c.body.includes(tag));
             if (existing) await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body });
             else await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body });
@@ -96,22 +161,47 @@ jobs:
     name: Signed Rebase Queue & Sweep
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      actions: write
+      checks: read
+      contents: write
+      pull-requests: write
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
-      - name: Sweep open PRs for draft-ready and auto-merge
+      - name: Sweep open PRs for vetted draft promotion and auto-merge
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.0.1
         env:
           GH_TOKEN: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
         with:
           script: |
-            const repoSlug = `${context.repo.owner}/${context.repo.repo}`;
-            const prs = await github.paginate(github.rest.pulls.list, { owner: context.repo.owner, repo: context.repo.repo, state: 'open', base: 'main', per_page: 50 });
+            const { owner, repo } = context.repo;
+            const repoSlug = `${owner}/${repo}`;
+            const prs = await github.paginate(github.rest.pulls.list, { owner, repo, state: 'open', base: 'main', per_page: 50 });
             for (const pr of prs) {
-              if ((pr.labels || []).some(l => l.name === 'wip' || l.name === 'do-not-merge')) continue;
-              if (pr.draft) await exec.exec('gh', ['pr', 'ready', String(pr.number), '--repo', repoSlug]);
-              if (pr.user?.login === 'dependabot[bot]') await exec.exec('gh', ['pr', 'review', '--approve', String(pr.number), '--repo', repoSlug], { ignoreReturnCode: true });
-              if (!pr.auto_merge) await exec.exec('gh', ['pr', 'merge', String(pr.number), '--auto', '--squash', '--delete-branch', '--repo', repoSlug], { ignoreReturnCode: true });
+              const labels = (pr.labels || []).map(l => l.name);
+              if (labels.includes('wip') || labels.includes('do-not-merge') || labels.includes('stacked')) continue;
+              const { data: checks } = await github.rest.checks.listForRef({
+                owner, repo, ref: pr.head.sha, check_name: 'ci-merge-gate', per_page: 10,
+              });
+              const gatePassed = checks.check_runs.some(
+                r => r.name === 'ci-merge-gate' && r.status === 'completed' && r.conclusion === 'success'
+              );
+              if (pr.draft) {
+                if (!gatePassed) continue;
+                await exec.exec('gh', ['pr', 'ready', String(pr.number), '--repo', repoSlug], { ignoreReturnCode: true });
+              }
+              const author = pr.user?.login || '';
+              if (author === 'dependabot[bot]' && !labels.includes('semver-major') && gatePassed) {
+                await exec.exec('gh', ['pr', 'review', '--approve', String(pr.number), '--repo', repoSlug], { ignoreReturnCode: true });
+              }
+              if (author !== 'brandon-fox') {
+                const reviews = await github.paginate(github.rest.pulls.listReviews, { owner, repo, pull_number: pr.number, per_page: 50 });
+                if (!reviews.some(r => r.state === 'APPROVED')) continue;
+              }
+              if (!pr.auto_merge) {
+                await exec.exec('gh', ['pr', 'merge', String(pr.number), '--auto', '--squash', '--delete-branch', '--repo', repoSlug], { ignoreReturnCode: true });
+              }
             }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -121,7 +211,35 @@ jobs:
         uses: ./.github/actions/setup-git-signing
         with:
           signing-key: ${{ secrets.COMMIT_SIGNING_KEY }}
-      - env:
+      - id: queue_rebase
+        env:
           GH_TOKEN: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
+          SIGNING_CONFIGURED: ${{ steps.signing.outputs.configured }}
         run: |
-          python3 .github/scripts/signed_pr_rebase.py --mode queue --base-branch main --signing-configured "${{ steps.signing.outputs.configured }}"
+          python3 .github/scripts/signed_pr_rebase.py --mode queue --base-branch main --signing-configured "$SIGNING_CONFIGURED"
+      - name: Dispatch Quality Gate when queue-rebased with fallback GITHUB_TOKEN
+        if: steps.queue_rebase.outputs.status == 'rebased'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HAS_PAT: ${{ secrets.PR_QUEUE_TOKEN != '' }}
+          REBASED_BRANCH: ${{ steps.queue_rebase.outputs.head_branch }}
+        run: |
+          if [ "$HAS_PAT" != "true" ] && [ -n "$REBASED_BRANCH" ]; then
+            gh workflow run quality-gate.yml --ref "$REBASED_BRANCH"
+          fi
+
+  autofix:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'pull_request'
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: brandon-fox/.github/.github/workflows/ci-autofix.yml@6ef3dadd882c27eaa04459b9644a56af6dcbc297 # main
+    with:
+      mode: sub-pr
+      python-paths: 'alos tests'
+      rust-manifest: 'crates/alos_native/Cargo.toml'
+    secrets:
+      token: ${{ secrets.PR_QUEUE_TOKEN }}

@@ -1,5 +1,6 @@
 # Unified Quality Gate & Terminal Merge Gate (Spec 038 FR-001..FR-006)
-# Supports pull_request, merge_group, and push(main) with multi-layer caching and fork-PR safety.
+# Consolidates Python static analysis, dual-OS pytest/Behave, Rust PyO3/cargo-deny/mutants,
+# Docker/Sandbox isolation, SpecKit/ADR/ADE governance, and strict Dependency Review behind ci-merge-gate.
 
 name: Quality Gate
 
@@ -66,6 +67,18 @@ jobs:
             exit 1
           fi
 
+      - name: Validate First-ADE axioms & commit signatures
+        if: github.event_name != 'merge_group'
+        uses: First-ADE/.github/.github/actions/ade-axioms@de17a5a93b5b00b8bf073d25299202680a93bd78 # main
+
+      - name: Diagnose unsigned commits on axiom failure
+        if: failure() && github.event_name != 'merge_group'
+        run: |
+          RANGE=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo "origin/main...HEAD" || echo "HEAD~1..HEAD")
+          for sha in $(git log "$RANGE" --format="%H" 2>/dev/null || true); do
+            git cat-file commit "$sha" | grep -q '^gpgsig' || echo "::error::Unsigned commit missing gpgsig: $(git log -1 --format='%h %an | %cn | %s' "$sha")"
+          done
+
       - name: Generate SpecKit Quality Digest on Spec PRs
         id: spec_digest
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
@@ -115,13 +128,16 @@ jobs:
       - name: Lint GitHub Actions workflows (actionlint)
         uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
         with:
-          files: .github/workflows/quality-gate.yml
+          files: |
+            .github/workflows/quality-gate.yml
+            .github/workflows/auto-merge.yml
 
       - name: Audit workflow security (zizmor)
         uses: zizmorcore/zizmor-action@1b4550e929643b8b26a62303c6bd64814271a4f1 # v0.9.2
         with:
-          inputs: .github/workflows/quality-gate.yml
+          inputs: '.github/workflows/quality-gate.yml .github/workflows/auto-merge.yml'
           min-severity: high
+          min-confidence: high
           advanced-security: 'false'
           annotations: 'true'
 
@@ -146,7 +162,7 @@ jobs:
   changes:
     name: Detect Changed Components
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     outputs:
       python: ${{ steps.filter.outputs.python }}
       rust: ${{ steps.filter.outputs.rust }}
@@ -182,31 +198,17 @@ jobs:
               - 'Dockerfile*'
               - 'docker-compose*'
               - '.dockerignore'
+              - 'alos/swarm/sandbox.py'
+              - 'tests/test_swarm_sandbox.py'
             docs:
               - 'docs/**'
               - 'mkdocs.yml'
               - '*.md'
 
-  uv-lock-check:
-    name: uv-lock-check
+  python-static:
+    name: python-static
     needs: [changes]
-    if: needs.changes.outputs.python == 'true' || github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
-        with:
-          sync: 'false'
-      - name: Verify uv.lock Sync
-        run: uv lock --check
-
-  ruff-lint:
-    name: ruff-lint
-    needs: [changes]
-    if: needs.changes.outputs.python == 'true' || github.event_name != 'pull_request'
+    if: needs.changes.outputs.python == 'true' || needs.changes.outputs.docs == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -214,40 +216,29 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-python-ci
-      - name: Ruff Lint & Format Check
+      - name: Verify uv.lock, Ruff, MyPy, Bandit, ADRs, Docs & SpecKit Completeness
         run: |
+          set -euo pipefail
+          uv lock --check
           uv run ruff check alos tests features scripts
           uv run ruff format --check alos tests features scripts
-
-  mypy-types:
-    name: mypy-types
-    needs: [changes]
-    if: needs.changes.outputs.python == 'true' || github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-python-ci
-      - name: MyPy Static Analysis & Docs Strict Check
-        run: |
           uv run mypy alos tests features scripts
+          uv run bandit -r alos -s B101
+          uv run pyadr check-adr-repo
           uv run mkdocs build --strict -d .pytest_tmp/mkdocs_site
-
-  bandit-security:
-    name: bandit-security
-    needs: [changes]
-    if: needs.changes.outputs.python == 'true' || github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-python-ci
-      - name: Bandit Security Scan
-        run: uv run bandit -r alos -s B101
+          uv run python - << 'PY'
+          from pathlib import Path
+          specs = sorted(Path("specs").glob("[0-9][0-9][0-9]-*"))
+          missing = [
+              f"{d.name}/{req}"
+              for d in specs
+              for req in ("spec.md", "plan.md", "tasks.md")
+              if not (d / req).exists()
+          ]
+          if missing:
+              raise SystemExit(f"Missing SpecKit files: {missing}")
+          print(f"Audited {len(specs)} SpecKit feature directories cleanly.")
+          PY
 
   pytest-suite:
     name: pytest-suite
@@ -359,19 +350,85 @@ jobs:
           path: reports/python-mutants.json
           retention-days: 7
 
-  adr-governance:
-    name: adr-governance
+  rust-checks:
+    name: rust-checks
     needs: [changes]
-    if: needs.changes.outputs.python == 'true' || github.event_name != 'pull_request'
+    if: needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
+    env:
+      PYO3_PYTHON: python3
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: brandon-fox/.github/.github/actions/setup-rust-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
+        with:
+          python-version: '3.12'
+          workspaces: crates/alos_native
+      - name: Rust Format, Clippy & Native Proptest Suite
+        run: |
+          cargo fmt --manifest-path crates/alos_native/Cargo.toml -- --check
+          cargo clippy --manifest-path crates/alos_native/Cargo.toml --no-default-features -- -D warnings
+          cargo test --manifest-path crates/alos_native/Cargo.toml --no-default-features
+      - name: Rust Advisories, Licenses & Bans Audit (cargo-deny)
+        uses: EmbarkStudios/cargo-deny-action@81891abc19297b21343b15ef67dc61e4aea74fda # v2.1.4
+        with:
+          manifest-path: crates/alos_native/Cargo.toml
+
+  rust-windows:
+    name: rust-windows
+    needs: [changes]
+    if: needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      PYO3_PYTHON: python
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: brandon-fox/.github/.github/actions/setup-rust-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
+        with:
+          python-version: '3.12'
+          workspaces: crates/alos_native
+      - name: Rust Windows Format, Clippy & Proptest Suite
+        run: |
+          cargo fmt --manifest-path crates/alos_native/Cargo.toml -- --check
+          cargo clippy --manifest-path crates/alos_native/Cargo.toml --no-default-features -- -D warnings
+          cargo test --manifest-path crates/alos_native/Cargo.toml --no-default-features
+
+  rust-native-parity-and-mutants:
+    name: rust-native-parity-and-mutants
+    needs: [changes]
+    if: needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: brandon-fox/.github/.github/actions/setup-rust-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
+        with:
+          python-version: '3.12'
+          workspaces: crates/alos_native
       - uses: ./.github/actions/setup-python-ci
-      - name: Verify ADR Repository
-        run: uv run pyadr check-adr-repo
+      - name: Build Native Wheel, Isolated Import Smoke & Differential Fuzzing
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          uv run maturin build --manifest-path crates/alos_native/Cargo.toml --release --out dist-wheel
+          wheels=(dist-wheel/*.whl)
+          WHEEL_FILE="${wheels[0]}"
+          uv run --isolated --no-project --with "$WHEEL_FILE" python -c "import alos_native; assert alos_native.FastSafetyEvaluator().classify_risk('web_search') == 'LOW'"
+          uv pip install "$WHEEL_FILE"
+          uv run python scripts/run_pytest_clean.py tests/test_rust_native_bridge.py tests/test_rust_native_parity.py tests/test_fuzz_properties.py
+      - name: Install precompiled cargo-mutants and cargo-nextest
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: cargo-mutants,cargo-nextest
+      - name: Run cargo-mutants
+        run: cargo mutants --manifest-path crates/alos_native/Cargo.toml --jobs 4
 
   dependency-review:
     name: dependency-review
@@ -403,6 +460,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: ./.github/actions/setup-python-ci
       - name: Validate Docker Compose
         run: docker compose config --quiet
       - name: Trivy Vulnerability & Config Scan
@@ -413,6 +471,33 @@ jobs:
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
           exit-code: '1'
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+      - name: Build sandbox base image (scoped BuildKit cache)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.sandbox
+          target: base
+          load: true
+          tags: alos-sandbox:ci
+          cache-from: type=gha,scope=alos-sandbox-base
+          cache-to: type=gha,mode=max,scope=alos-sandbox-base
+      - name: Build sandbox full image (scoped BuildKit cache)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.sandbox
+          target: full
+          push: false
+          tags: alos-sandbox:full
+          cache-from: type=gha,scope=alos-sandbox-full
+          cache-to: type=gha,mode=max,scope=alos-sandbox-full
+      - name: Run container isolation tests against real runtime
+        env:
+          ALOS_SANDBOX_IMAGE: alos-sandbox:ci
+          ALOS_SANDBOX_REQUIRED: "1"
+        run: uv run pytest tests/test_swarm_sandbox.py -m docker
 
   ci-merge-gate:
     name: ci-merge-gate
@@ -421,15 +506,14 @@ jobs:
       - pr-size
       - pr-governance
       - changes
-      - uv-lock-check
-      - ruff-lint
-      - mypy-types
-      - bandit-security
+      - python-static
       - pytest-suite
       - pytest-windows
       - combined-coverage
       - qa-deep-fanout
-      - adr-governance
+      - rust-checks
+      - rust-windows
+      - rust-native-parity-and-mutants
       - dependency-review
       - docker-validate
     runs-on: ubuntu-latest
@@ -447,6 +531,9 @@ jobs:
           event = os.environ["EVENT_NAME"]
           outputs = needs.get("changes", {}).get("outputs", {})
           py_active = outputs.get("python") == "true" or event != "pull_request"
+          docs_active = outputs.get("docs") == "true" or py_active
+          rust_active = outputs.get("rust") == "true" or event != "pull_request"
+          docker_active = outputs.get("docker") == "true" or event != "pull_request"
 
           errors = []
           for req in ("pr-governance", "changes"):
@@ -461,11 +548,22 @@ jobs:
               if res in ("failure", "cancelled", "timed_out"):
                   errors.append(f"{name}={res}")
 
-          if py_active and needs.get("combined-coverage", {}).get("result") != "success":
-              errors.append(f"combined-coverage={needs.get('combined-coverage', {}).get('result')}")
+          active_required = []
+          if docs_active:
+              active_required.append("python-static")
+          if py_active:
+              active_required.extend(["combined-coverage", "qa-deep-fanout"])
+          if rust_active:
+              active_required.extend(["rust-checks", "rust-windows", "rust-native-parity-and-mutants"])
+          if docker_active:
+              active_required.append("docker-validate")
+
+          for lane in active_required:
+              if needs.get(lane, {}).get("result") != "success":
+                  errors.append(f"{lane}={needs.get(lane, {}).get('result')}")
 
           if errors:
-              print("::error::ci-merge-gate failed due to upstream lane(s): " + ", ".join(errors))
+              print("::error::ci-merge-gate failed due to upstream lane(s): " + ", ".join(dict.fromkeys(errors)))
               sys.exit(1)
           print("ci-merge-gate: all active verification lanes passed.")
           PY

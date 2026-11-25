@@ -279,7 +279,7 @@ def test_main_reports_a_sandbox_failure_with_exit_code_2(
 
 def test_the_ci_job_cannot_pass_by_skipping() -> None:
     """The container tests skip without an image; the CI job must turn that into a failure."""
-    workflow = Path(".github/workflows/sandbox-ci.yml").read_text(encoding="utf-8")
+    workflow = Path(".github/workflows/quality-gate.yml").read_text(encoding="utf-8")
     assert 'ALOS_SANDBOX_REQUIRED: "1"' in workflow
     assert "ALOS_SANDBOX_IMAGE: alos-sandbox:ci" in workflow
     assert "--tag alos-sandbox:ci" in workflow or "tags: alos-sandbox:ci" in workflow
