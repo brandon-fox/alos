@@ -116,8 +116,9 @@ def main() -> None:
         _print_gap_report(missing_specs, orphaned_specs, missing_features)
         sys.exit(0)
     else:
-        print("No gaps found. Subpackages, specs, and features are fully aligned.")
-        sys.exit(1)
+        msg = "No gaps found. Subpackages, specs, and features are fully aligned."
+        print(msg, file=sys.stderr)
+        sys.exit(0)
 
 
 if __name__ == "__main__":

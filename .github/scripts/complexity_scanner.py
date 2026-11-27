@@ -124,8 +124,8 @@ def main() -> None:
         _print_report(hotspots_cc, hotspots_mi)
         sys.exit(0)
     else:
-        print("No complexity hotspots found. All code is clean!")
-        sys.exit(1)
+        print("No complexity hotspots found. All code is clean!", file=sys.stderr)
+        sys.exit(0)
 
 
 if __name__ == "__main__":

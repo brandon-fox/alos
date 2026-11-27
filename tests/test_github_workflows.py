@@ -6,10 +6,12 @@ template-injection elimination, and consolidated Spec 038 / Spec 033 invariants.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
 import pytest
+import tomllib
 import yaml
 
 WORKFLOWS_DIR = Path(".github/workflows")
@@ -19,15 +21,19 @@ REQUIRED_WORKFLOWS = [
     "auto-merge.yml",
     "post-merge-pipeline.yml",
     "security-compliance.yml",
+    "release-please.yml",
     "release-packaging.yml",
 ]
 
 RETIRED_PR_SPRAWL_WORKFLOWS = [
     "ade-axioms.yml",
     "autofix.yml",
+    "code-review-bot.yml",
     "pr-title-lint.yml",
     "rust-ci.yml",
     "sandbox-ci.yml",
+    "spec-analyzer-bot.yml",
+    "speckit-governance.yml",
 ]
 
 
@@ -107,14 +113,39 @@ def test_consolidated_quality_gate_lanes_and_merge_gate() -> None:
 
 @pytest.mark.meta
 def test_security_compliance_and_release_packaging_jobs() -> None:
-    """Verify security-compliance.yml and release-packaging.yml retain required jobs."""
-    sec_jobs = yaml.safe_load((WORKFLOWS_DIR / "security-compliance.yml").read_text("utf-8"))[
-        "jobs"
-    ]
+    """Spec 038 FR-004/007/008: Strict security scans, release-please, and SLSA packaging."""
+    sec_text = (WORKFLOWS_DIR / "security-compliance.yml").read_text("utf-8")
+    sec_jobs = yaml.safe_load(sec_text)["jobs"]
     assert {"gitleaks-scan", "scorecard-analysis", "codeql-analysis"} <= set(sec_jobs)
+    assert "continue-on-error" not in sec_text
+    assert sec_jobs["scorecard-analysis"].get("if") == "github.event_name != 'pull_request'"
 
-    rel_jobs = yaml.safe_load((WORKFLOWS_DIR / "release-packaging.yml").read_text("utf-8"))["jobs"]
-    assert rel_jobs, "release-packaging.yml must define packaging jobs"
+    rp_text = (WORKFLOWS_DIR / "release-please.yml").read_text("utf-8")
+    rp_parsed = yaml.safe_load(rp_text)
+    assert "googleapis/release-please-action@" in rp_text
+    publish_uses = rp_parsed["jobs"]["publish-release"]["uses"]
+    assert publish_uses == "./.github/workflows/release-packaging.yml"
+
+    rel_text = (WORKFLOWS_DIR / "release-packaging.yml").read_text("utf-8")
+    rel_parsed = yaml.safe_load(rel_text)
+    assert rel_parsed["permissions"] == {"contents": "read"}
+    assert "continue-on-error" not in rel_text
+    assert "PyO3/maturin-action@" in rel_text and "sccache: 'true'" in rel_text
+    assert "actions/attest-build-provenance@" in rel_text
+    assert "SHA256SUMS.txt" in rel_text
+
+    manifest_ver = json.loads(Path(".release-please-manifest.json").read_text("utf-8"))["."]
+    py_ver = tomllib.loads(Path("pyproject.toml").read_text("utf-8"))["project"]["version"]
+    rs_ver = tomllib.loads(Path("crates/alos_native/Cargo.toml").read_text("utf-8"))["package"][
+        "version"
+    ]
+    cff_ver = str(yaml.safe_load(Path("CITATION.cff").read_text("utf-8"))["version"])
+    sonar_lines = dict(
+        line.split("=", 1)
+        for line in Path("sonar-project.properties").read_text("utf-8").splitlines()
+        if "=" in line and not line.strip().startswith("#")
+    )
+    assert len({manifest_ver, py_ver, rs_ver, cff_ver, sonar_lines["sonar.projectVersion"]}) == 1
 
 
 @pytest.mark.meta

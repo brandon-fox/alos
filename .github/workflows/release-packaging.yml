@@ -1,66 +1,99 @@
+# Cross-Platform Release & Supply-Chain Attestation Pipeline (Spec 038 FR-008)
+# Builds Python sdist/wheel, sccache-cached PyO3 maturin native wheels across Linux/Windows/macOS,
+# multi-arch non-root GHCR images, CycloneDX SBOM, SHA256SUMS.txt, and OIDC SLSA build provenance.
+
 name: Release & Packaging Pipeline
 
 on:
+  workflow_call:
+    inputs:
+      tag_name:
+        description: Release tag name created by release-please (e.g. v0.1.0).
+        required: false
+        default: ''
+        type: string
   push:
     tags:
       - 'v*'
-  # No path filter on pull requests: the build jobs are required checks, and a required
-  # check that never reports blocks the merge.
   pull_request:
     branches: [main]
   workflow_dispatch:
 
 concurrency:
-  group: release-${{ github.head_ref || github.sha }}
-  cancel-in-progress: true
+  group: release-${{ github.workflow }}-${{ inputs.tag_name || github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
   build-python-wheel:
     name: build-python-wheel
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag_name }}
+          persist-credentials: false
       - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
         with:
           sync: 'false'
-      - name: Build Python Package Artifacts
-        run: uv build
-      - name: Verify Package Metadata
+      - name: Build Python sdist & wheel and verify isolated CLI install
         run: |
+          set -euo pipefail
+          shopt -s nullglob
+          uv build --out-dir dist-py
           uv sync --frozen --extra dev
-          uv run twine check dist/*
-      - name: Upload Python Artifacts
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4.6.0
+          uv run twine check dist-py/*
+          wheels=(dist-py/*.whl)
+          uv run --isolated --no-project --with "${wheels[0]}" alos --help >/dev/null
+          uv run --isolated --no-project --with "${wheels[0]}" alos --mock doctor --json
+      - name: Upload Python Distribution Artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: python-dist
-          path: dist/
+          name: dist-python
+          path: dist-py/
           retention-days: 7
 
   build-rust-binary:
-    name: build-rust-binary
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      PYO3_PYTHON: python3
+    name: build-rust-binary (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            manylinux: auto
+          - os: windows-latest
+            manylinux: ''
+          - os: macos-latest
+            manylinux: ''
+        exclude:
+          - os: ${{ github.event_name == 'pull_request' && 'windows-latest' || 'none' }}
+          - os: ${{ github.event_name == 'pull_request' && 'macos-latest' || 'none' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Setup Rust & Python (cached)
-        uses: brandon-fox/.github/.github/actions/setup-rust-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
+        with:
+          ref: ${{ inputs.tag_name }}
+          persist-credentials: false
+      - uses: brandon-fox/.github/.github/actions/setup-uv-cached@595a8111464a72b0d27e3e7391dcc713f002a73a # main
         with:
           python-version: '3.12'
-          workspaces: crates/alos_native
-      - name: Build Release Binary
-        run: cargo build --manifest-path crates/alos_native/Cargo.toml --release
-      - name: Upload Rust Artifacts
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4.6.0
+          sync: 'false'
+      - name: Build PyO3 native wheels via maturin with sccache
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
-          name: rust-native-release
-          path: crates/alos_native/target/release/
+          command: build
+          args: --release --out dist-native --manifest-path crates/alos_native/Cargo.toml --find-interpreter
+          manylinux: ${{ matrix.manylinux }}
+          sccache: 'true'
+      - name: Upload Native Wheels (${{ matrix.os }})
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-native-${{ matrix.os }}
+          path: dist-native/*.whl
           retention-days: 7
 
   docker-build-publish-dryrun:
@@ -69,39 +102,113 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag_name }}
+          persist-credentials: false
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - name: Build Docker Container Image (Dry Run)
+      - name: Build Hardened Non-Root Container Image (Dry Run)
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: Dockerfile
-          push: false
-          tags: alos:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      - name: Generate CycloneDX SBOM
+          load: true
+          tags: alos:release-check
+          cache-from: type=gha,scope=alos-runtime
+          cache-to: type=gha,mode=max,scope=alos-runtime
+      - name: Verify Non-Root Container UID & CLI Readiness
+        run: |
+          set -euo pipefail
+          test "$(docker run --rm --entrypoint id alos:release-check -u)" = "10001"
+          docker run --rm alos:release-check --mock doctor --json
+      - name: Generate CycloneDX SBOM (Strict Blocking)
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           path: .
           format: cyclonedx-json
           output-file: sbom.cyclonedx.json
-        continue-on-error: true
+          upload-release-assets: false
+      - name: Upload CycloneDX SBOM Artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cyclonedx.json
+          retention-days: 7
 
-  auto-release-notes:
-    name: auto-release-notes
-    needs: [build-python-wheel, build-rust-binary]
-    if: startsWith(github.ref, 'refs/tags/v')
+  publish-and-attest:
+    name: publish-and-attest
+    needs: [build-python-wheel, build-rust-binary, docker-build-publish-dryrun]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.tag_name != ''
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
-      - name: Generate Release Notes Draft
-        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
+          ref: ${{ inputs.tag_name }}
+          persist-credentials: false
+      - name: Download All Release Artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          generate_release_notes: true
-          draft: true
+          path: raw-artifacts
+      - name: Assemble Release Bundle & Generate SHA256SUMS.txt
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          find raw-artifacts -type f \( -name '*.whl' -o -name '*.tar.gz' -o -name 'sbom.cyclonedx.json' \) -exec cp {} release-assets/ \;
+          (cd release-assets && sha256sum ./* | sed 's| \./|  |' > SHA256SUMS.txt)
+      - name: Emit GitHub OIDC SLSA Build Provenance for Artifacts
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: 'release-assets/*'
+      - name: Set up Docker Buildx for Multi-Arch GHCR Push
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Authenticate to GitHub Container Registry
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_ACTOR: ${{ github.actor }}
+        run: printf '%s\n' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_ACTOR" --password-stdin
+      - name: Compute Lowercase Image Tags
+        id: img
+        env:
+          RAW_REPO: ${{ github.repository }}
+          RAW_TAG: ${{ inputs.tag_name || github.ref_name }}
+        run: |
+          set -euo pipefail
+          repo_lc=$(printf '%s' "$RAW_REPO" | tr '[:upper:]' '[:lower:]')
+          {
+            echo "image=ghcr.io/${repo_lc}"
+            echo "tag=${RAW_TAG}"
+          } >> "$GITHUB_OUTPUT"
+      - name: Build & Push Multi-Arch GHCR Image
+        id: push_ghcr
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.img.outputs.image }}:${{ steps.img.outputs.tag }}
+            ${{ steps.img.outputs.image }}:latest
+          cache-from: type=gha,scope=alos-runtime
+          cache-to: type=gha,mode=max,scope=alos-runtime
+      - name: Attest Multi-Arch Container Image Provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ steps.img.outputs.image }}
+          subject-digest: ${{ steps.push_ghcr.outputs.digest }}
+          push-to-registry: true
+      - name: Upload Wheels, sdist, SBOM & SHA256SUMS to GitHub Release
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ inputs.tag_name || github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          files: release-assets/*

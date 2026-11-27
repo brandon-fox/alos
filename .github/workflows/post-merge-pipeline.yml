@@ -3,6 +3,10 @@ name: Post-Merge Analysis Pipeline
 on:
   push:
     branches: [ "main" ]
+  workflow_run:
+    workflows: ["Auto Merge"]
+    types: [completed]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -40,58 +44,6 @@ jobs:
         with:
           args: -Dsonar.organization=${{ vars.SONAR_ORG || 'brandon-fox' }}
 
-  generate-changelog:
-    name: Generate Post-Merge Changelog
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    if: github.actor != 'github-actions[bot]' && github.actor != 'dependabot[bot]'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
-      - name: Generate Changelog
-        run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo '')
-          if [ -z "$LAST_TAG" ]; then
-            RANGE='HEAD'
-          else
-            RANGE="${LAST_TAG}..HEAD"
-          fi
-
-          echo '# Changelog' > CHANGELOG.md
-          echo '' >> CHANGELOG.md
-          echo "## Unreleased" >> CHANGELOG.md
-          echo '' >> CHANGELOG.md
-
-          # Features
-          echo '### ✨ Features' >> CHANGELOG.md
-          git log $RANGE --oneline --grep='^feat' --format='- %s (%h)' >> CHANGELOG.md || true
-          echo '' >> CHANGELOG.md
-
-          # Fixes
-          echo '### 🐛 Fixes' >> CHANGELOG.md
-          git log $RANGE --oneline --grep='^fix' --format='- %s (%h)' >> CHANGELOG.md || true
-          echo '' >> CHANGELOG.md
-
-          # Chores
-          echo '### 🔧 Chores' >> CHANGELOG.md
-          git log $RANGE --oneline --grep='^chore' --format='- %s (%h)' >> CHANGELOG.md || true
-
-      - uses: ./.github/actions/setup-git-signing
-        with:
-          signing-key: ${{ secrets.COMMIT_SIGNING_KEY }}
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3.0.8.1.3
-        with:
-          token: ${{ secrets.PR_QUEUE_TOKEN || secrets.GITHUB_TOKEN }}
-          commit-message: "docs(changelog): auto-update changelog"
-          title: "docs(changelog): auto-update changelog"
-          branch: "chore/bot-changelog"
-          labels: "documentation,automated"
-          delete-branch: true
-
   complexity-scan:
     name: Complexity Scan
     runs-on: ubuntu-latest
@@ -111,15 +63,15 @@ jobs:
         run: |
           uv run --no-project --with radon python .github/scripts/complexity_scanner.py > complexity_report.txt || true
           COUNT=$(wc -l < complexity_report.txt || echo 0)
-          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
 
       - name: Create or Update GitHub Issue
         if: steps.scan.outputs.count > 0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COUNT: ${{ steps.scan.outputs.count }}
         run: |
           DATE=$(date +'%Y-%m-%d')
-          COUNT=${{ steps.scan.outputs.count }}
           TITLE="🧮 Complexity Report: $COUNT lines ($DATE)"
 
           EXISTING_ISSUE=$(gh issue list --label "automated" --search "Complexity Report: in:title" --state open --limit 1 --json number --jq '.[0].number')
@@ -207,17 +159,19 @@ jobs:
         if: steps.audit.outputs.count > 0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COUNT: ${{ steps.audit.outputs.count }}
         run: |
           DATE=$(date +'%Y-%m-%d')
-          COUNT=${{ steps.audit.outputs.count }}
           TITLE="📖 Docstring Audit: $COUNT missing docstrings ($DATE)"
 
-          echo '### Missing Docstrings' > issue_body.txt
-          echo '```text' >> issue_body.txt
-          cat doc_report.txt >> issue_body.txt
-          echo '```' >> issue_body.txt
+          {
+            echo '### Missing Docstrings'
+            echo '```text'
+            cat doc_report.txt
+            echo '```'
+          } > issue_body.txt
 
-          EXISTING_ISSUE=$(gh issue list --label "documentation" --state open --limit 1 --json number --jq '.[0].number')
+          EXISTING_ISSUE=$(gh issue list --label "documentation" --search "Docstring Audit: in:title" --state open --limit 1 --json number --jq '.[0].number')
 
           if [ -n "$EXISTING_ISSUE" ]; then
             gh issue comment "$EXISTING_ISSUE" --body-file issue_body.txt
@@ -239,15 +193,15 @@ jobs:
         run: |
           python .github/scripts/spec_gap_analyzer.py > spec_report.txt || true
           COUNT=$(wc -l < spec_report.txt || echo 0)
-          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
 
       - name: Create or Update GitHub Issue
         if: steps.analyze.outputs.count > 0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COUNT: ${{ steps.analyze.outputs.count }}
         run: |
           DATE=$(date +'%Y-%m-%d')
-          COUNT=${{ steps.analyze.outputs.count }}
           TITLE="📐 Spec Gap Analysis: $COUNT lines ($DATE)"
 
           EXISTING_ISSUE=$(gh issue list --label "automated" --search "Spec Gap Analysis: in:title" --state open --limit 1 --json number --jq '.[0].number')
@@ -271,21 +225,23 @@ jobs:
         run: |
           grep -rnE '(TODO|FIXME|HACK|XXX|NOSONAR):?\s' alos/ tests/ --include='*.py' > todo_report.txt || true
           COUNT=$(wc -l < todo_report.txt || echo 0)
-          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
 
       - name: Create or Update GitHub Issue
         if: steps.scan.outputs.count > 0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COUNT: ${{ steps.scan.outputs.count }}
         run: |
           DATE=$(date +'%Y-%m-%d')
-          COUNT=${{ steps.scan.outputs.count }}
           TITLE="🔍 Tech Debt Scan: $COUNT markers found ($DATE)"
 
-          echo '### Tech Debt Markers Found' > issue_body.txt
-          echo '```text' >> issue_body.txt
-          cat todo_report.txt >> issue_body.txt
-          echo '```' >> issue_body.txt
+          {
+            echo '### Tech Debt Markers Found'
+            echo '```text'
+            cat todo_report.txt
+            echo '```'
+          } > issue_body.txt
 
           EXISTING_ISSUE=$(gh issue list --label "automated" --search "Tech Debt Scan: in:title" --state open --limit 1 --json number --jq '.[0].number')
 
@@ -320,21 +276,23 @@ jobs:
             COUNT=0
             touch low_coverage.txt
           fi
-          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
 
       - name: Create or Update GitHub Issue
         if: steps.parse.outputs.count > 0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COUNT: ${{ steps.parse.outputs.count }}
         run: |
           DATE=$(date +'%Y-%m-%d')
-          COUNT=${{ steps.parse.outputs.count }}
           TITLE="🏷️ Type Coverage Report: $COUNT files below threshold ($DATE)"
 
-          echo '### Files with Type Coverage < 70%' > issue_body.txt
-          echo '```text' >> issue_body.txt
-          cat low_coverage.txt >> issue_body.txt
-          echo '```' >> issue_body.txt
+          {
+            echo '### Files with Type Coverage < 70%'
+            echo '```text'
+            cat low_coverage.txt
+            echo '```'
+          } > issue_body.txt
 
           EXISTING_ISSUE=$(gh issue list --label "automated" --search "Type Coverage Report: in:title" --state open --limit 1 --json number --jq '.[0].number')
           if [ -n "$EXISTING_ISSUE" ]; then
